@@ -1,0 +1,38 @@
+{
+    "name": "lthn/mcp",
+    "description": "Model Context Protocol — Laravel MCP server + standalone Go binary",
+    "keywords": ["mcp", "ai", "laravel", "model-context-protocol"],
+    "license": "EUPL-1.2",
+    "require": {
+        "php": "^8.2",
+        "lthn/php": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Core\\Mcp\\": "src/php/src/Mcp/",
+            "Core\\Website\\Mcp\\": "src/php/src/Website/Mcp/",
+            "Core\\Front\\Mcp\\": "src/php/src/Front/Mcp/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Core\\Mcp\\Tests\\": "src/php/tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Core\\Front\\Mcp\\Boot"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "replace": {
+        "core/php-mcp": "self.version",
+        "lthn/php-mcp": "self.version"
+    }
+}

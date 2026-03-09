@@ -1,0 +1,7 @@
+*.go              export-ignore
+go.mod            export-ignore
+go.sum            export-ignore
+cmd/              export-ignore
+pkg/              export-ignore
+.core/            export-ignore
+src/php/tests/    export-ignore

@@ -1,0 +1,38 @@
+name: Publish Composer Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create package archive
+        run: |
+          apt-get update && apt-get install -y zip
+          zip -r package.zip . \
+            -x ".forgejo/*" \
+            -x ".git/*" \
+            -x "tests/*" \
+            -x "docker/*" \
+            -x "*.yaml" \
+            -x "infection.json5" \
+            -x "phpstan.neon" \
+            -x "phpunit.xml" \
+            -x "psalm.xml" \
+            -x "rector.php" \
+            -x "TODO.md" \
+            -x "ROADMAP.md" \
+            -x "CONTRIBUTING.md" \
+            -x "package.json" \
+            -x "package-lock.json"
+
+      - name: Publish to Forgejo Composer registry
+        run: |
+          curl --fail --user "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_TOKEN }}" \
+            --upload-file package.zip \
+            "https://forge.lthn.ai/api/packages/core/composer?version=${FORGEJO_REF_NAME#v}"
