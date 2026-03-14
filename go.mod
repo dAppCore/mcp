@@ -6,7 +6,7 @@ require (
 	forge.lthn.ai/core/cli v0.1.0
 	forge.lthn.ai/core/go v0.1.0
 	forge.lthn.ai/core/go-ai v0.1.5
-	forge.lthn.ai/core/go-api v0.1.0
+	forge.lthn.ai/core/api v0.1.0
 	forge.lthn.ai/core/go-i18n v0.0.3
 	forge.lthn.ai/core/go-inference v0.1.0
 	forge.lthn.ai/core/go-io v0.0.1

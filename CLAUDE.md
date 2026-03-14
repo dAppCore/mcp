@@ -67,7 +67,7 @@ MCP_ADDR=127.0.0.1:9100 ./core-mcp mcp serve      # TCP transport
 
 **Transports**: stdio (default), TCP (`MCP_ADDR` env var), Unix socket (`ServeUnix`). TCP binds `127.0.0.1` by default; `0.0.0.0` emits a security warning.
 
-**REST bridge**: `BridgeToAPI` maps each `ToolRecord` to a `POST` endpoint via `go-api.ToolBridge`. 10 MB body limit.
+**REST bridge**: `BridgeToAPI` maps each `ToolRecord` to a `POST` endpoint via `api.ToolBridge`. 10 MB body limit.
 
 ### PHP package (`src/php/`)
 
@@ -125,7 +125,7 @@ Bulk-imports MEMORY.md, plan docs, and CLAUDE.md files into OpenBrain via the PH
 | `forge.lthn.ai/core/go-ml` | ML inference, scoring, probes |
 | `forge.lthn.ai/core/go-rag` | Qdrant vector search |
 | `forge.lthn.ai/core/go-process` | Process lifecycle management |
-| `forge.lthn.ai/core/go-api` | REST framework + `ToolBridge` |
+| `forge.lthn.ai/core/api` | REST framework + `ToolBridge` |
 | `forge.lthn.ai/core/go-ws` | WebSocket hub |
 
 PHP: `lthn/php` (Core framework), Laravel 12, Livewire 3, Flux Pro.

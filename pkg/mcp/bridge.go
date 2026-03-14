@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "forge.lthn.ai/core/go-api"
+	api "forge.lthn.ai/core/api"
 )
 
 // maxBodySize is the maximum request body size accepted by bridged tool endpoints.

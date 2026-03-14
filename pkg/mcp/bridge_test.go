@@ -13,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	api "forge.lthn.ai/core/go-api"
+	api "forge.lthn.ai/core/api"
 )
 
 func init() {

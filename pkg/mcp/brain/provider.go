@@ -5,8 +5,8 @@ package brain
 import (
 	"net/http"
 
-	"forge.lthn.ai/core/go-api"
-	"forge.lthn.ai/core/go-api/pkg/provider"
+	"forge.lthn.ai/core/api"
+	"forge.lthn.ai/core/api/pkg/provider"
 	"forge.lthn.ai/core/go-ws"
 	"forge.lthn.ai/core/mcp/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"
