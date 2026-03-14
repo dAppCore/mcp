@@ -7,14 +7,14 @@ require (
 	forge.lthn.ai/core/cli v0.3.0
 	forge.lthn.ai/core/go v0.3.0
 	forge.lthn.ai/core/go-ai v0.1.5
-	forge.lthn.ai/core/go-inference v0.1.0
+	forge.lthn.ai/core/go-inference v0.1.3
 	forge.lthn.ai/core/go-io v0.1.0
-	forge.lthn.ai/core/go-log v0.0.1
-	forge.lthn.ai/core/go-ml v0.1.0
-	forge.lthn.ai/core/go-process v0.1.2
+	forge.lthn.ai/core/go-log v0.0.2
+	forge.lthn.ai/core/go-ml v0.1.8
+	forge.lthn.ai/core/go-process v0.2.0
 	forge.lthn.ai/core/go-rag v0.1.0
 	forge.lthn.ai/core/go-webview v0.1.0
-	forge.lthn.ai/core/go-ws v0.1.0
+	forge.lthn.ai/core/go-ws v0.1.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.4.1
@@ -22,7 +22,7 @@ require (
 )
 
 require (
-	forge.lthn.ai/core/go-crypt v0.1.0 // indirect
+	forge.lthn.ai/core/go-crypt v0.1.6 // indirect
 	forge.lthn.ai/core/go-i18n v0.1.0 // indirect
 	forge.lthn.ai/core/go-mlx v0.1.0 // indirect
 	github.com/99designs/gqlgen v0.17.87 // indirect
@@ -53,6 +53,7 @@ require (
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/authz v1.0.6 // indirect
@@ -120,6 +121,7 @@ require (
 	github.com/qdrant/go-client v1.16.2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/redis/go-redis/v9 v9.18.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
@@ -144,6 +146,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
@@ -158,7 +161,6 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
