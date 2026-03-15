@@ -38,16 +38,13 @@ type DispatchOutput struct {
 func (s *PrepSubsystem) registerDispatchTool(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "agentic_dispatch",
-		Description: "Dispatch a subagent (Gemini, Codex, or Claude) to work on a task. Preps a sandboxed workspace first, then spawns the agent inside it. Templates: conventions, security, coding.",
+		Description: "Dispatch a subagent (Gemini, Codex, or Claude) to work on a task. Provide a task description, or just an issue number for issue-driven dispatch (title is fetched automatically). Preps a sandboxed workspace, then spawns the agent. Templates: conventions, security, coding.",
 	}, s.dispatch)
 }
 
 func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
 	if input.Repo == "" {
 		return nil, DispatchOutput{}, fmt.Errorf("repo is required")
-	}
-	if input.Task == "" {
-		return nil, DispatchOutput{}, fmt.Errorf("task is required")
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -57,6 +54,18 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	if input.Template == "" {
 		input.Template = "coding"
+	}
+
+	// Issue-driven dispatch: fetch issue title as task when task is empty
+	if input.Task == "" && input.Issue > 0 {
+		title, err := s.fetchIssueTitle(ctx, input.Org, input.Repo, input.Issue)
+		if err != nil {
+			return nil, DispatchOutput{}, fmt.Errorf("failed to fetch issue #%d: %w", input.Issue, err)
+		}
+		input.Task = title
+	}
+	if input.Task == "" {
+		return nil, DispatchOutput{}, fmt.Errorf("task is required (provide task or issue)")
 	}
 
 	// Step 1: Prep the sandboxed workspace
@@ -121,7 +130,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Status:    "running",
 		Agent:     input.Agent,
 		Repo:      input.Repo,
+		Org:       input.Org,
 		Task:      input.Task,
+		Branch:    prepOut.Branch,
+		Issue:     input.Issue,
 		PID:       cmd.Process.Pid,
 		StartedAt: time.Now(),
 		Runs:      1,

@@ -83,6 +83,9 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 		Name:        "agentic_scan",
 		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug).",
 	}, s.scan)
+
+	s.registerCreatePRTool(server)
+	s.registerListPRsTool(server)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
@@ -103,6 +106,7 @@ type PrepInput struct {
 type PrepOutput struct {
 	Success       bool   `json:"success"`
 	WorkspaceDir  string `json:"workspace_dir"`
+	Branch        string `json:"branch"`
 	WikiPages     int    `json:"wiki_pages"`
 	SpecFiles     int    `json:"spec_files"`
 	Memories      int    `json:"memories"`
@@ -160,6 +164,8 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
 	branchCmd.Dir = srcDir
 	branchCmd.Run()
+
+	out.Branch = branchName
 
 	// Create context dirs inside src/
 	os.MkdirAll(filepath.Join(srcDir, "kb"), 0755)
@@ -444,6 +450,37 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	}
 
 	return len(lines)
+}
+
+// fetchIssueTitle retrieves the title of a Forge issue.
+func (s *PrepSubsystem) fetchIssueTitle(ctx context.Context, org, repo string, issue int) (string, error) {
+	if s.forgeToken == "" {
+		return "", fmt.Errorf("no Forge token configured")
+	}
+
+	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req.Header.Set("Authorization", "token "+s.forgeToken)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("issue not found (HTTP %d)", resp.StatusCode)
+	}
+
+	var issueData struct {
+		Title string `json:"title"`
+	}
+	json.NewDecoder(resp.Body).Decode(&issueData)
+
+	if issueData.Title == "" {
+		return "", fmt.Errorf("issue has no title")
+	}
+	return issueData.Title, nil
 }
 
 func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issue int, wsDir string) {
