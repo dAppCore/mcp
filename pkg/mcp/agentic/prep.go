@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"gopkg.in/yaml.v3"
 )
 
 // PrepSubsystem provides agentic MCP tools.
@@ -92,11 +93,13 @@ func (s *PrepSubsystem) Shutdown(_ context.Context) error { return nil }
 
 // PrepInput is the input for agentic_prep_workspace.
 type PrepInput struct {
-	Repo     string `json:"repo"`              // e.g. "go-io"
-	Org      string `json:"org,omitempty"`      // default "core"
-	Issue    int    `json:"issue,omitempty"`    // Forge issue number
-	Task     string `json:"task,omitempty"`     // Task description (if no issue)
-	Template string `json:"template,omitempty"` // Prompt template: conventions, security, coding (default: coding)
+	Repo         string            `json:"repo"`                    // e.g. "go-io"
+	Org          string            `json:"org,omitempty"`           // default "core"
+	Issue        int               `json:"issue,omitempty"`         // Forge issue number
+	Task         string            `json:"task,omitempty"`          // Task description (if no issue)
+	Template     string            `json:"template,omitempty"`      // Prompt template: conventions, security, coding (default: coding)
+	PlanTemplate string            `json:"plan_template,omitempty"` // Plan template slug: bug-fix, code-review, new-feature, refactor, feature-port
+	Variables    map[string]string `json:"variables,omitempty"`     // Template variable substitution
 }
 
 // PrepOutput is the output for agentic_prep_workspace.
@@ -207,7 +210,12 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 8. Copy spec files into specs/
 	out.SpecFiles = s.copySpecs(wsDir)
 
-	// 9. Write prompt template
+	// 9. Write PLAN.md from template (if specified)
+	if input.PlanTemplate != "" {
+		s.writePlanFromTemplate(input.PlanTemplate, input.Variables, input.Task, wsDir)
+	}
+
+	// 10. Write prompt template
 	s.writePromptTemplate(input.Template, wsDir)
 
 	out.Success = true
@@ -249,21 +257,115 @@ Report findings with severity (critical/high/medium/low) and file:line reference
 	case "coding":
 		prompt = `Read CLAUDE.md for project conventions and context.
 Read TODO.md for your task.
+Read PLAN.md if it exists — work through each phase in order.
 Read CONTEXT.md for relevant knowledge from previous sessions.
 Read CONSUMERS.md to understand breaking change risk.
 Read RECENT.md for recent changes.
 
 Work in the src/ directory. Follow the conventions in CLAUDE.md.
-When done, commit your changes and push to forge.
+
+## Workflow
+
+If PLAN.md exists, work through it phase by phase:
+1. Complete all tasks in the current phase
+2. Commit with message: type(scope): description
+3. Move to the next phase
+4. If you are blocked or unsure, write BLOCKED.md explaining the question and stop
+
+If no PLAN.md, complete TODO.md as a single unit of work.
+
+## Commit Convention
 
 Commit message format: type(scope): description
 Co-Author: Co-Authored-By: Virgil <virgil@lethean.io>
+
+When all phases are done, push to forge.
 `
 	default:
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
 	os.WriteFile(filepath.Join(wsDir, "src", "PROMPT.md"), []byte(prompt), 0644)
+}
+
+// --- Plan template rendering ---
+
+// writePlanFromTemplate loads a YAML plan template, substitutes variables,
+// and writes PLAN.md into the workspace src/ directory.
+func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map[string]string, task string, wsDir string) {
+	// Look for template in core/agent/prompts/templates/
+	templatePath := filepath.Join(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yaml")
+	data, err := os.ReadFile(templatePath)
+	if err != nil {
+		// Try .yml extension
+		templatePath = filepath.Join(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yml")
+		data, err = os.ReadFile(templatePath)
+		if err != nil {
+			return // Template not found, skip silently
+		}
+	}
+
+	content := string(data)
+
+	// Substitute variables ({{variable_name}} → value)
+	for key, value := range variables {
+		content = strings.ReplaceAll(content, "{{"+key+"}}", value)
+		content = strings.ReplaceAll(content, "{{ "+key+" }}", value)
+	}
+
+	// Parse the YAML to render as markdown
+	var tmpl struct {
+		Name        string   `yaml:"name"`
+		Description string   `yaml:"description"`
+		Guidelines  []string `yaml:"guidelines"`
+		Phases      []struct {
+			Name        string   `yaml:"name"`
+			Description string   `yaml:"description"`
+			Tasks       []any    `yaml:"tasks"`
+		} `yaml:"phases"`
+	}
+
+	if err := yaml.Unmarshal([]byte(content), &tmpl); err != nil {
+		return
+	}
+
+	// Render as PLAN.md
+	var plan strings.Builder
+	plan.WriteString("# Plan: " + tmpl.Name + "\n\n")
+	if task != "" {
+		plan.WriteString("**Task:** " + task + "\n\n")
+	}
+	if tmpl.Description != "" {
+		plan.WriteString(tmpl.Description + "\n\n")
+	}
+
+	if len(tmpl.Guidelines) > 0 {
+		plan.WriteString("## Guidelines\n\n")
+		for _, g := range tmpl.Guidelines {
+			plan.WriteString("- " + g + "\n")
+		}
+		plan.WriteString("\n")
+	}
+
+	for i, phase := range tmpl.Phases {
+		plan.WriteString(fmt.Sprintf("## Phase %d: %s\n\n", i+1, phase.Name))
+		if phase.Description != "" {
+			plan.WriteString(phase.Description + "\n\n")
+		}
+		for _, task := range phase.Tasks {
+			switch t := task.(type) {
+			case string:
+				plan.WriteString("- [ ] " + t + "\n")
+			case map[string]any:
+				if name, ok := t["name"].(string); ok {
+					plan.WriteString("- [ ] " + name + "\n")
+				}
+			}
+		}
+		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
+	}
+
+	os.WriteFile(filepath.Join(wsDir, "src", "PLAN.md"), []byte(plan.String()), 0644)
 }
 
 // --- Helpers (unchanged) ---

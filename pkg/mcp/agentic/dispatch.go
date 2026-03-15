@@ -15,13 +15,15 @@ import (
 
 // DispatchInput is the input for agentic_dispatch.
 type DispatchInput struct {
-	Repo     string `json:"repo"`              // Target repo (e.g. "go-io")
-	Org      string `json:"org,omitempty"`      // Forge org (default "core")
-	Task     string `json:"task"`              // What the agent should do
-	Agent    string `json:"agent,omitempty"`   // "gemini" (default), "codex", "claude"
-	Template string `json:"template,omitempty"` // "conventions", "security", "coding" (default)
-	Issue    int    `json:"issue,omitempty"`   // Forge issue to work from
-	DryRun   bool   `json:"dry_run,omitempty"` // Preview without executing
+	Repo         string            `json:"repo"`                    // Target repo (e.g. "go-io")
+	Org          string            `json:"org,omitempty"`           // Forge org (default "core")
+	Task         string            `json:"task"`                    // What the agent should do
+	Agent        string            `json:"agent,omitempty"`         // "gemini" (default), "codex", "claude"
+	Template     string            `json:"template,omitempty"`      // "conventions", "security", "coding" (default)
+	PlanTemplate string            `json:"plan_template,omitempty"` // Plan template: bug-fix, code-review, new-feature, refactor, feature-port
+	Variables    map[string]string `json:"variables,omitempty"`     // Template variable substitution
+	Issue        int               `json:"issue,omitempty"`         // Forge issue to work from
+	DryRun       bool              `json:"dry_run,omitempty"`       // Preview without executing
 }
 
 // DispatchOutput is the output for agentic_dispatch.
@@ -61,11 +63,13 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 	// Step 1: Prep the sandboxed workspace
 	prepInput := PrepInput{
-		Repo:     input.Repo,
-		Org:      input.Org,
-		Issue:    input.Issue,
-		Task:     input.Task,
-		Template: input.Template,
+		Repo:         input.Repo,
+		Org:          input.Org,
+		Issue:        input.Issue,
+		Task:         input.Task,
+		Template:     input.Template,
+		PlanTemplate: input.PlanTemplate,
+		Variables:    input.Variables,
 	}
 	_, prepOut, err := s.prepWorkspace(ctx, req, prepInput)
 	if err != nil {
