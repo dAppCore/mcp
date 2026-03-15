@@ -79,6 +79,8 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 	s.registerDispatchTool(server)
 	s.registerStatusTool(server)
 	s.registerResumeTool(server)
+	s.registerCreatePRTool(server)
+	s.registerListPRsTool(server)
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "agentic_scan",

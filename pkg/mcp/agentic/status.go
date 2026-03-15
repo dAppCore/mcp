@@ -31,12 +31,16 @@ type WorkspaceStatus struct {
 	Status    string    `json:"status"`              // running, completed, blocked, failed
 	Agent     string    `json:"agent"`               // gemini, claude, codex
 	Repo      string    `json:"repo"`                // target repo
+	Org       string    `json:"org,omitempty"`       // forge org (e.g. "core")
 	Task      string    `json:"task"`                // task description
+	Branch    string    `json:"branch,omitempty"`    // git branch name
+	Issue     int       `json:"issue,omitempty"`     // forge issue number
 	PID       int       `json:"pid,omitempty"`       // process ID (if running)
 	StartedAt time.Time `json:"started_at"`          // when dispatch started
 	UpdatedAt time.Time `json:"updated_at"`          // last status change
 	Question  string    `json:"question,omitempty"`  // from BLOCKED.md
 	Runs      int       `json:"runs"`                // how many times dispatched/resumed
+	PRURL     string    `json:"pr_url,omitempty"`    // pull request URL (after PR created)
 }
 
 func writeStatus(wsDir string, status *WorkspaceStatus) error {
