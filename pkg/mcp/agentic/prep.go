@@ -127,8 +127,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	wsDir := filepath.Join(wsRoot, wsName)
 
 	// Create workspace structure
-	os.MkdirAll(filepath.Join(wsDir, "kb"), 0755)
-	os.MkdirAll(filepath.Join(wsDir, "specs"), 0755)
+	// kb/ and specs/ will be created inside src/ after clone
 
 	out := PrepOutput{WorkspaceDir: wsDir}
 
@@ -160,6 +159,10 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	branchCmd.Dir = srcDir
 	branchCmd.Run()
 
+	// Create context dirs inside src/
+	os.MkdirAll(filepath.Join(srcDir, "kb"), 0755)
+	os.MkdirAll(filepath.Join(srcDir, "specs"), 0755)
+
 	// Set push remote to forge
 	remoteCmd := exec.CommandContext(ctx, "git", "remote", "set-url", "origin",
 		fmt.Sprintf("ssh://git@forge.lthn.ai:2223/%s/%s.git", input.Org, input.Repo))
@@ -169,7 +172,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 2. Copy CLAUDE.md to workspace root
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
 	if data, err := os.ReadFile(claudeMdPath); err == nil {
-		os.WriteFile(filepath.Join(wsDir, "CLAUDE.md"), data, 0644)
+		os.WriteFile(filepath.Join(wsDir, "src", "CLAUDE.md"), data, 0644)
 		out.ClaudeMd = true
 	}
 
@@ -179,7 +182,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	} else if input.Task != "" {
 		todo := fmt.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		os.WriteFile(filepath.Join(wsDir, "TODO.md"), []byte(todo), 0644)
+		os.WriteFile(filepath.Join(wsDir, "src", "TODO.md"), []byte(todo), 0644)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -253,7 +256,7 @@ Co-Author: Co-Authored-By: Virgil <virgil@lethean.io>
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	os.WriteFile(filepath.Join(wsDir, "PROMPT.md"), []byte(prompt), 0644)
+	os.WriteFile(filepath.Join(wsDir, "src", "PROMPT.md"), []byte(prompt), 0644)
 }
 
 // --- Helpers (unchanged) ---
@@ -313,7 +316,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 			return '-'
 		}, page.Title) + ".md"
 
-		os.WriteFile(filepath.Join(wsDir, "kb", filename), content, 0644)
+		os.WriteFile(filepath.Join(wsDir, "src", "kb", filename), content, 0644)
 		count++
 	}
 
@@ -327,7 +330,7 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	for _, file := range specFiles {
 		src := filepath.Join(s.specsPath, file)
 		if data, err := os.ReadFile(src); err == nil {
-			os.WriteFile(filepath.Join(wsDir, "specs", file), data, 0644)
+			os.WriteFile(filepath.Join(wsDir, "src", "specs", file), data, 0644)
 			count++
 		}
 	}
@@ -376,7 +379,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		content.WriteString(fmt.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	os.WriteFile(filepath.Join(wsDir, "CONTEXT.md"), []byte(content.String()), 0644)
+	os.WriteFile(filepath.Join(wsDir, "src", "CONTEXT.md"), []byte(content.String()), 0644)
 	return len(result.Memories)
 }
 
@@ -413,7 +416,7 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += fmt.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		os.WriteFile(filepath.Join(wsDir, "CONSUMERS.md"), []byte(content), 0644)
+		os.WriteFile(filepath.Join(wsDir, "src", "CONSUMERS.md"), []byte(content), 0644)
 	}
 
 	return len(consumers)
@@ -430,7 +433,7 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		os.WriteFile(filepath.Join(wsDir, "RECENT.md"), []byte(content), 0644)
+		os.WriteFile(filepath.Join(wsDir, "src", "RECENT.md"), []byte(content), 0644)
 	}
 
 	return len(lines)
@@ -463,5 +466,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += fmt.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	os.WriteFile(filepath.Join(wsDir, "TODO.md"), []byte(content), 0644)
+	os.WriteFile(filepath.Join(wsDir, "src", "TODO.md"), []byte(content), 0644)
 }
