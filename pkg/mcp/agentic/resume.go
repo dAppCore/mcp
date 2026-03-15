@@ -108,6 +108,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
+	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {

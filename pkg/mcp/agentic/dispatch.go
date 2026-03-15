@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -47,14 +48,30 @@ func (s *PrepSubsystem) registerDispatchTool(server *mcp.Server) {
 }
 
 // agentCommand returns the command and args for a given agent type.
+// Supports model variants: "gemini", "gemini:flash", "gemini:pro", "claude", "claude:haiku".
 func agentCommand(agent, prompt string) (string, []string, error) {
-	switch agent {
+	parts := strings.SplitN(agent, ":", 2)
+	base := parts[0]
+	model := ""
+	if len(parts) > 1 {
+		model = parts[1]
+	}
+
+	switch base {
 	case "gemini":
-		return "gemini", []string{"-p", prompt, "--yolo"}, nil
+		args := []string{"-p", prompt, "--yolo"}
+		if model != "" {
+			args = append(args, "-m", "gemini-2.5-"+model)
+		}
+		return "gemini", args, nil
 	case "codex":
 		return "codex", []string{"--approval-mode", "full-auto", "-q", prompt}, nil
 	case "claude":
-		return "claude", []string{"-p", prompt, "--dangerously-skip-permissions"}, nil
+		args := []string{"-p", prompt, "--dangerously-skip-permissions"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		return "claude", args, nil
 	default:
 		return "", nil, fmt.Errorf("unknown agent: %s", agent)
 	}
@@ -146,12 +163,18 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		return nil, DispatchOutput{}, fmt.Errorf("failed to create log file: %w", err)
 	}
 
+	// Fully detach from terminal:
+	// - Setpgid: own process group
+	// - Stdin from /dev/null
+	// - TERM=dumb prevents terminal control sequences
+	// - NO_COLOR=1 disables colour output
 	devNull, _ := os.Open(os.DevNull)
 	cmd := exec.Command(command, args...)
 	cmd.Dir = srcDir
 	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
+	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
