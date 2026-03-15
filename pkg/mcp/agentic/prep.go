@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 // Package agentic provides MCP tools for agent orchestration.
-// Ported from CorePHP's Mod\Agentic to run standalone in core-mcp.
+// Prepares sandboxed workspaces and dispatches subagents.
 package agentic
 
 import (
@@ -20,7 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// PrepSubsystem provides the agentic:prep-workspace MCP tool.
+// PrepSubsystem provides agentic MCP tools.
 type PrepSubsystem struct {
 	forgeURL   string
 	forgeToken string
@@ -31,7 +31,7 @@ type PrepSubsystem struct {
 	client     *http.Client
 }
 
-// NewPrep creates an agentic prep subsystem.
+// NewPrep creates an agentic subsystem.
 func NewPrep() *PrepSubsystem {
 	home, _ := os.UserHomeDir()
 
@@ -72,14 +72,14 @@ func (s *PrepSubsystem) Name() string { return "agentic" }
 func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "agentic_prep_workspace",
-		Description: "Prepare an agent workspace with CLAUDE.md, wiki KB, specs, OpenBrain context, consumer list, and recent git log for a target repo. Output goes to the repo's .core/ directory.",
+		Description: "Prepare a sandboxed agent workspace with TODO.md, CLAUDE.md, CONTEXT.md, CONSUMERS.md, RECENT.md, and a git clone of the target repo in src/.",
 	}, s.prepWorkspace)
 
 	s.registerDispatchTool(server)
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "agentic_scan",
-		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug). Returns a list of issues that can be dispatched to subagents.",
+		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug).",
 	}, s.scan)
 }
 
@@ -90,22 +90,23 @@ func (s *PrepSubsystem) Shutdown(_ context.Context) error { return nil }
 
 // PrepInput is the input for agentic_prep_workspace.
 type PrepInput struct {
-	Repo    string `json:"repo"`              // e.g. "go-io"
-	Org     string `json:"org,omitempty"`      // default "core"
-	Issue   int    `json:"issue,omitempty"`    // Forge issue number
-	Output  string `json:"output,omitempty"`   // override output dir
+	Repo     string `json:"repo"`              // e.g. "go-io"
+	Org      string `json:"org,omitempty"`      // default "core"
+	Issue    int    `json:"issue,omitempty"`    // Forge issue number
+	Task     string `json:"task,omitempty"`     // Task description (if no issue)
+	Template string `json:"template,omitempty"` // Prompt template: conventions, security, coding (default: coding)
 }
 
 // PrepOutput is the output for agentic_prep_workspace.
 type PrepOutput struct {
-	Success    bool   `json:"success"`
-	OutputDir  string `json:"output_dir"`
-	WikiPages  int    `json:"wiki_pages"`
-	SpecFiles  int    `json:"spec_files"`
-	Memories   int    `json:"memories"`
-	Consumers  int    `json:"consumers"`
-	ClaudeMd   bool   `json:"claude_md"`
-	GitLog     int    `json:"git_log_entries"`
+	Success       bool   `json:"success"`
+	WorkspaceDir  string `json:"workspace_dir"`
+	WikiPages     int    `json:"wiki_pages"`
+	SpecFiles     int    `json:"spec_files"`
+	Memories      int    `json:"memories"`
+	Consumers     int    `json:"consumers"`
+	ClaudeMd      bool   `json:"claude_md"`
+	GitLog        int    `json:"git_log_entries"`
 }
 
 func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
@@ -115,52 +116,122 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	if input.Org == "" {
 		input.Org = "core"
 	}
-
-	// Determine output directory
-	repoPath := filepath.Join(s.codePath, "core", input.Repo)
-	outputDir := filepath.Join(repoPath, ".core")
-	if input.Output != "" {
-		outputDir = input.Output
+	if input.Template == "" {
+		input.Template = "coding"
 	}
 
-	// Create directories
-	os.MkdirAll(filepath.Join(outputDir, "kb"), 0755)
-	os.MkdirAll(filepath.Join(outputDir, "specs"), 0755)
+	// Workspace root: .core/workspace/{repo}-{timestamp}/
+	home, _ := os.UserHomeDir()
+	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+	wsName := fmt.Sprintf("%s-%d", input.Repo, time.Now().Unix())
+	wsDir := filepath.Join(wsRoot, wsName)
 
-	out := PrepOutput{OutputDir: outputDir}
+	// Create workspace structure
+	os.MkdirAll(filepath.Join(wsDir, "kb"), 0755)
+	os.MkdirAll(filepath.Join(wsDir, "specs"), 0755)
 
-	// 1. Copy CLAUDE.md from target repo
+	out := PrepOutput{WorkspaceDir: wsDir}
+
+	// Source repo path
+	repoPath := filepath.Join(s.codePath, "core", input.Repo)
+
+	// 1. Clone repo into src/
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", repoPath, filepath.Join(wsDir, "src"))
+	cmd.Run()
+
+	// 2. Copy CLAUDE.md to workspace root
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
 	if data, err := os.ReadFile(claudeMdPath); err == nil {
-		os.WriteFile(filepath.Join(outputDir, "CLAUDE.md"), data, 0644)
+		os.WriteFile(filepath.Join(wsDir, "CLAUDE.md"), data, 0644)
 		out.ClaudeMd = true
 	}
 
-	// 2. Pull wiki pages from Forge
-	out.WikiPages = s.pullWiki(ctx, input.Org, input.Repo, outputDir)
-
-	// 3. Copy spec files
-	out.SpecFiles = s.copySpecs(outputDir)
-
-	// 4. Generate context from OpenBrain
-	out.Memories = s.generateContext(ctx, input.Repo, outputDir)
-
-	// 5. Find consumers (who imports this module)
-	out.Consumers = s.findConsumers(input.Repo, outputDir)
-
-	// 6. Recent git log
-	out.GitLog = s.gitLog(repoPath, outputDir)
-
-	// 7. Generate TODO from issue (if provided)
+	// 3. Generate TODO.md
 	if input.Issue > 0 {
-		s.generateTodo(ctx, input.Org, input.Repo, input.Issue, outputDir)
+		s.generateTodo(ctx, input.Org, input.Repo, input.Issue, wsDir)
+	} else if input.Task != "" {
+		todo := fmt.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
+			input.Task, input.Org, input.Repo, input.Task)
+		os.WriteFile(filepath.Join(wsDir, "TODO.md"), []byte(todo), 0644)
 	}
+
+	// 4. Generate CONTEXT.md from OpenBrain
+	out.Memories = s.generateContext(ctx, input.Repo, wsDir)
+
+	// 5. Generate CONSUMERS.md
+	out.Consumers = s.findConsumers(input.Repo, wsDir)
+
+	// 6. Generate RECENT.md
+	out.GitLog = s.gitLog(repoPath, wsDir)
+
+	// 7. Pull wiki pages into kb/
+	out.WikiPages = s.pullWiki(ctx, input.Org, input.Repo, wsDir)
+
+	// 8. Copy spec files into specs/
+	out.SpecFiles = s.copySpecs(wsDir)
+
+	// 9. Write prompt template
+	s.writePromptTemplate(input.Template, wsDir)
 
 	out.Success = true
 	return nil, out, nil
 }
 
-func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, outputDir string) int {
+// --- Prompt templates ---
+
+func (s *PrepSubsystem) writePromptTemplate(template, wsDir string) {
+	var prompt string
+
+	switch template {
+	case "conventions":
+		prompt = `Read CLAUDE.md for project conventions.
+Review all Go files in src/ for:
+- Error handling: should use coreerr.E() from go-log, not fmt.Errorf or errors.New
+- Compile-time interface checks: var _ Interface = (*Impl)(nil)
+- Import aliasing: stdlib io aliased as goio
+- UK English in comments (colour not color, initialise not initialize)
+- No fmt.Print* debug statements (use go-log)
+- Test coverage gaps
+
+Report findings with file:line references. Do not fix — only report.
+`
+	case "security":
+		prompt = `Read CLAUDE.md for project context.
+Review all Go files in src/ for security issues:
+- Path traversal vulnerabilities
+- Unvalidated input
+- SQL injection (if applicable)
+- Hardcoded credentials or tokens
+- Unsafe type assertions
+- Missing error checks
+- Race conditions (shared state without mutex)
+- Unsafe use of os/exec
+
+Report findings with severity (critical/high/medium/low) and file:line references.
+`
+	case "coding":
+		prompt = `Read CLAUDE.md for project conventions and context.
+Read TODO.md for your task.
+Read CONTEXT.md for relevant knowledge from previous sessions.
+Read CONSUMERS.md to understand breaking change risk.
+Read RECENT.md for recent changes.
+
+Work in the src/ directory. Follow the conventions in CLAUDE.md.
+When done, commit your changes and push to forge.
+
+Commit message format: type(scope): description
+Co-Author: Co-Authored-By: Virgil <virgil@lethean.io>
+`
+	default:
+		prompt = "Read TODO.md and complete the task. Work in src/.\n"
+	}
+
+	os.WriteFile(filepath.Join(wsDir, "PROMPT.md"), []byte(prompt), 0644)
+}
+
+// --- Helpers (unchanged) ---
+
+func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) int {
 	if s.forgeToken == "" {
 		return 0
 	}
@@ -215,21 +286,21 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, outputDir strin
 			return '-'
 		}, page.Title) + ".md"
 
-		os.WriteFile(filepath.Join(outputDir, "kb", filename), content, 0644)
+		os.WriteFile(filepath.Join(wsDir, "kb", filename), content, 0644)
 		count++
 	}
 
 	return count
 }
 
-func (s *PrepSubsystem) copySpecs(outputDir string) int {
+func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	specFiles := []string{"AGENT_CONTEXT.md", "TASK_PROTOCOL.md"}
 	count := 0
 
 	for _, file := range specFiles {
 		src := filepath.Join(s.specsPath, file)
 		if data, err := os.ReadFile(src); err == nil {
-			os.WriteFile(filepath.Join(outputDir, "specs", file), data, 0644)
+			os.WriteFile(filepath.Join(wsDir, "specs", file), data, 0644)
 			count++
 		}
 	}
@@ -237,12 +308,11 @@ func (s *PrepSubsystem) copySpecs(outputDir string) int {
 	return count
 }
 
-func (s *PrepSubsystem) generateContext(ctx context.Context, repo, outputDir string) int {
+func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string) int {
 	if s.brainKey == "" {
 		return 0
 	}
 
-	// Query OpenBrain for repo-specific knowledge
 	body, _ := json.Marshal(map[string]any{
 		"query":    "architecture conventions key interfaces for " + repo,
 		"top_k":    10,
@@ -268,8 +338,8 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, outputDir str
 	json.Unmarshal(respData, &result)
 
 	var content strings.Builder
-	content.WriteString("# Agent Context — " + repo + "\n\n")
-	content.WriteString("> Auto-generated by agentic_prep_workspace MCP tool.\n\n")
+	content.WriteString("# Context — " + repo + "\n\n")
+	content.WriteString("> Relevant knowledge from OpenBrain.\n\n")
 
 	for i, mem := range result.Memories {
 		memType, _ := mem["type"].(string)
@@ -279,15 +349,14 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, outputDir str
 		content.WriteString(fmt.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	os.WriteFile(filepath.Join(outputDir, "context.md"), []byte(content.String()), 0644)
+	os.WriteFile(filepath.Join(wsDir, "CONTEXT.md"), []byte(content.String()), 0644)
 	return len(result.Memories)
 }
 
-func (s *PrepSubsystem) findConsumers(repo, outputDir string) int {
+func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 	goWorkPath := filepath.Join(s.codePath, "go.work")
 	modulePath := "forge.lthn.ai/core/" + repo
 
-	// Scan all go.mod files in the workspace for imports of this module
 	workData, err := os.ReadFile(goWorkPath)
 	if err != nil {
 		return 0
@@ -317,13 +386,13 @@ func (s *PrepSubsystem) findConsumers(repo, outputDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += fmt.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		os.WriteFile(filepath.Join(outputDir, "consumers.md"), []byte(content), 0644)
+		os.WriteFile(filepath.Join(wsDir, "CONSUMERS.md"), []byte(content), 0644)
 	}
 
 	return len(consumers)
 }
 
-func (s *PrepSubsystem) gitLog(repoPath, outputDir string) int {
+func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	cmd := exec.Command("git", "log", "--oneline", "-20")
 	cmd.Dir = repoPath
 	output, err := cmd.Output()
@@ -334,13 +403,13 @@ func (s *PrepSubsystem) gitLog(repoPath, outputDir string) int {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		os.WriteFile(filepath.Join(outputDir, "recent.md"), []byte(content), 0644)
+		os.WriteFile(filepath.Join(wsDir, "RECENT.md"), []byte(content), 0644)
 	}
 
 	return len(lines)
 }
 
-func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issue int, outputDir string) {
+func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issue int, wsDir string) {
 	if s.forgeToken == "" {
 		return
 	}
@@ -367,5 +436,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += fmt.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	os.WriteFile(filepath.Join(outputDir, "todo.md"), []byte(content), 0644)
+	os.WriteFile(filepath.Join(wsDir, "TODO.md"), []byte(content), 0644)
 }
