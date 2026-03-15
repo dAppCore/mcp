@@ -169,11 +169,16 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	remoteCmd.Dir = srcDir
 	remoteCmd.Run()
 
-	// 2. Copy CLAUDE.md to workspace root
+	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
 	if data, err := os.ReadFile(claudeMdPath); err == nil {
 		os.WriteFile(filepath.Join(wsDir, "src", "CLAUDE.md"), data, 0644)
 		out.ClaudeMd = true
+	}
+	// Copy GEMINI.md from core/agent (ethics framework for all agents)
+	agentGeminiMd := filepath.Join(s.codePath, "core", "agent", "GEMINI.md")
+	if data, err := os.ReadFile(agentGeminiMd); err == nil {
+		os.WriteFile(filepath.Join(wsDir, "src", "GEMINI.md"), data, 0644)
 	}
 
 	// 3. Generate TODO.md
