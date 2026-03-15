@@ -172,6 +172,12 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 				if id, ok := mm["id"].(string); ok {
 					mem.ID = id
 				}
+				if score, ok := mm["score"].(float64); ok {
+					mem.Confidence = score
+				}
+				if source, ok := mm["source"].(string); ok {
+					mem.Tags = append(mem.Tags, "source:"+source)
+				}
 				memories = append(memories, mem)
 			}
 		}
