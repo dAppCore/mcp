@@ -83,6 +83,8 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 		Name:        "agentic_scan",
 		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug).",
 	}, s.scan)
+
+	s.registerPlanTools(server)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
