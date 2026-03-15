@@ -109,7 +109,28 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		}, nil
 	}
 
-	// Step 2: Spawn agent as a detached process
+	// Step 2: Check concurrency limit
+	if !s.canDispatch() {
+		// Queue the workspace — write status as "queued" and return
+		writeStatus(wsDir, &WorkspaceStatus{
+			Status:    "queued",
+			Agent:     input.Agent,
+			Repo:      input.Repo,
+			Org:       input.Org,
+			Task:      input.Task,
+			StartedAt: time.Now(),
+			Runs:      0,
+		})
+		return nil, DispatchOutput{
+			Success:      true,
+			Agent:        input.Agent,
+			Repo:         input.Repo,
+			WorkspaceDir: wsDir,
+			OutputFile:   "queued — waiting for a slot",
+		}, nil
+	}
+
+	// Step 3: Spawn agent as a detached process
 	// Uses Setpgid so the agent survives parent (MCP server) death.
 	// Output goes directly to log file (not buffered in memory).
 	command, args, err := agentCommand(input.Agent, prompt)
