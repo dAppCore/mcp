@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -114,6 +115,17 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		outFile.Close()
 		return nil, DispatchOutput{}, fmt.Errorf("failed to spawn %s: %w", input.Agent, err)
 	}
+
+	// Write initial status
+	writeStatus(wsDir, &WorkspaceStatus{
+		Status:    "running",
+		Agent:     input.Agent,
+		Repo:      input.Repo,
+		Task:      input.Task,
+		PID:       cmd.Process.Pid,
+		StartedAt: time.Now(),
+		Runs:      1,
+	})
 
 	go func() {
 		cmd.Wait()
