@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -118,7 +119,12 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 		}
 
 		st, err := readStatus(filepath.Join(wsRoot, entry.Name()))
-		if err != nil || st.Status != "running" || st.Agent != agent {
+		if err != nil || st.Status != "running" {
+			continue
+		}
+		// Match on base agent type (gemini:flash matches gemini)
+		stBase := strings.SplitN(st.Agent, ":", 2)[0]
+		if stBase != agent {
 			continue
 		}
 
@@ -133,14 +139,20 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 	return count
 }
 
+// baseAgent strips the model variant (gemini:flash → gemini).
+func baseAgent(agent string) string {
+	return strings.SplitN(agent, ":", 2)[0]
+}
+
 // canDispatchAgent checks if we're under the concurrency limit for a specific agent type.
 func (s *PrepSubsystem) canDispatchAgent(agent string) bool {
 	cfg := s.loadAgentsConfig()
-	limit, ok := cfg.Concurrency[agent]
+	base := baseAgent(agent)
+	limit, ok := cfg.Concurrency[base]
 	if !ok || limit <= 0 {
 		return true
 	}
-	return s.countRunningByAgent(agent) < limit
+	return s.countRunningByAgent(base) < limit
 }
 
 // canDispatch is kept for backwards compat.
