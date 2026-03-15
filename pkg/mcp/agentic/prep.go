@@ -278,11 +278,14 @@ Work in the src/ directory. Follow the conventions in CLAUDE.md.
 
 ## Workflow
 
-If PLAN.md exists, work through it phase by phase:
+If PLAN.md exists, you MUST work through it phase by phase:
 1. Complete all tasks in the current phase
-2. Commit with message: type(scope): description
-3. Move to the next phase
+2. STOP and commit before moving on: type(scope): phase N - description
+3. Only then start the next phase
 4. If you are blocked or unsure, write BLOCKED.md explaining the question and stop
+5. Do NOT skip phases or combine multiple phases into one commit
+
+Each phase = one commit. This is not optional.
 
 If no PLAN.md, complete TODO.md as a single unit of work.
 
