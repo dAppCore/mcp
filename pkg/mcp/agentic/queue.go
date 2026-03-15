@@ -154,8 +154,10 @@ func (s *PrepSubsystem) drainQueue() {
 			continue
 		}
 
+		devNull, _ := os.Open(os.DevNull)
 		cmd := exec.Command(command, args...)
 		cmd.Dir = srcDir
+		cmd.Stdin = devNull
 		cmd.Stdout = outFile
 		cmd.Stderr = outFile
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

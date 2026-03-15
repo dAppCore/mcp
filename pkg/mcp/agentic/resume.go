@@ -101,9 +101,11 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, err
 	}
 
+	devNull, _ := os.Open(os.DevNull)
 	outFile, _ := os.Create(outputFile)
 	cmd := exec.Command(command, args...)
 	cmd.Dir = srcDir
+	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

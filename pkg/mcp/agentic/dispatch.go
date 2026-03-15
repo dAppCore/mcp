@@ -146,8 +146,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		return nil, DispatchOutput{}, fmt.Errorf("failed to create log file: %w", err)
 	}
 
+	devNull, _ := os.Open(os.DevNull)
 	cmd := exec.Command(command, args...)
 	cmd.Dir = srcDir
+	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
