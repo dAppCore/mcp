@@ -74,6 +74,13 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 		Name:        "agentic_prep_workspace",
 		Description: "Prepare an agent workspace with CLAUDE.md, wiki KB, specs, OpenBrain context, consumer list, and recent git log for a target repo. Output goes to the repo's .core/ directory.",
 	}, s.prepWorkspace)
+
+	s.registerDispatchTool(server)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "agentic_scan",
+		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug). Returns a list of issues that can be dispatched to subagents.",
+	}, s.scan)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
