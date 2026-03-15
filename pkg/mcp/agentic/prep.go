@@ -135,9 +135,36 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// Source repo path
 	repoPath := filepath.Join(s.codePath, "core", input.Repo)
 
-	// 1. Clone repo into src/
-	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", repoPath, filepath.Join(wsDir, "src"))
-	cmd.Run()
+	// 1. Clone repo into src/ and create feature branch
+	srcDir := filepath.Join(wsDir, "src")
+	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
+	cloneCmd.Run()
+
+	// Create feature branch
+	taskSlug := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			return r
+		}
+		if r >= 'A' && r <= 'Z' {
+			return r + 32 // lowercase
+		}
+		return '-'
+	}, input.Task)
+	if len(taskSlug) > 40 {
+		taskSlug = taskSlug[:40]
+	}
+	taskSlug = strings.Trim(taskSlug, "-")
+	branchName := fmt.Sprintf("agent/%s", taskSlug)
+
+	branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
+	branchCmd.Dir = srcDir
+	branchCmd.Run()
+
+	// Set push remote to forge
+	remoteCmd := exec.CommandContext(ctx, "git", "remote", "set-url", "origin",
+		fmt.Sprintf("ssh://git@forge.lthn.ai:2223/%s/%s.git", input.Org, input.Repo))
+	remoteCmd.Dir = srcDir
+	remoteCmd.Run()
 
 	// 2. Copy CLAUDE.md to workspace root
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
