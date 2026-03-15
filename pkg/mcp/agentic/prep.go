@@ -172,11 +172,8 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	os.MkdirAll(filepath.Join(srcDir, "kb"), 0755)
 	os.MkdirAll(filepath.Join(srcDir, "specs"), 0755)
 
-	// Set push remote to forge
-	remoteCmd := exec.CommandContext(ctx, "git", "remote", "set-url", "origin",
-		fmt.Sprintf("ssh://git@forge.lthn.ai:2223/%s/%s.git", input.Org, input.Repo))
-	remoteCmd.Dir = srcDir
-	remoteCmd.Run()
+	// Remote stays as local clone origin — agent cannot push to forge.
+	// Reviewer pulls changes from workspace and pushes after verification.
 
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
@@ -283,7 +280,7 @@ If no PLAN.md, complete TODO.md as a single unit of work.
 Commit message format: type(scope): description
 Co-Author: Co-Authored-By: Virgil <virgil@lethean.io>
 
-When all phases are done, push to forge.
+Do NOT push. Commit only — a reviewer will verify and push.
 `
 	default:
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
