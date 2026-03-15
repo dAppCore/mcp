@@ -12,6 +12,7 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/mcp/pkg/mcp"
+	"forge.lthn.ai/core/mcp/pkg/mcp/brain"
 )
 
 var workspaceFlag string
@@ -68,6 +69,9 @@ func runServe() error {
 		// Explicitly unrestricted when no workspace specified
 		opts = append(opts, mcp.WithWorkspaceRoot(""))
 	}
+
+	// Register OpenBrain subsystem (direct HTTP to api.lthn.sh)
+	opts = append(opts, mcp.WithSubsystem(brain.NewDirect()))
 
 	// Create the MCP service
 	svc, err := mcp.New(opts...)
