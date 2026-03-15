@@ -3,7 +3,9 @@
 package agentic
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"syscall"
 
@@ -96,4 +98,81 @@ func (s *PrepSubsystem) canDispatch() bool {
 		return true // unlimited
 	}
 	return s.countRunning() < cfg.Dispatch.MaxConcurrent
+}
+
+// drainQueue finds the oldest queued workspace and spawns it if a slot is available.
+func (s *PrepSubsystem) drainQueue() {
+	if !s.canDispatch() {
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+
+	entries, err := os.ReadDir(wsRoot)
+	if err != nil {
+		return
+	}
+
+	// Find oldest queued workspace (entries are sorted by name which includes timestamp)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		wsDir := filepath.Join(wsRoot, entry.Name())
+		st, err := readStatus(wsDir)
+		if err != nil || st.Status != "queued" {
+			continue
+		}
+
+		// Found a queued workspace — spawn it
+		srcDir := filepath.Join(wsDir, "src")
+		prompt := "Read PROMPT.md for instructions. All context files (CLAUDE.md, TODO.md, CONTEXT.md, CONSUMERS.md, RECENT.md) are in the parent directory. Work in this directory."
+
+		command, args, err := agentCommand(st.Agent, prompt)
+		if err != nil {
+			continue
+		}
+
+		outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", st.Agent))
+		outFile, err := os.Create(outputFile)
+		if err != nil {
+			continue
+		}
+
+		cmd := exec.Command(command, args...)
+		cmd.Dir = srcDir
+		cmd.Stdout = outFile
+		cmd.Stderr = outFile
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+		if err := cmd.Start(); err != nil {
+			outFile.Close()
+			continue
+		}
+
+		// Update status to running
+		st.Status = "running"
+		st.PID = cmd.Process.Pid
+		st.Runs++
+		writeStatus(wsDir, st)
+
+		// Monitor this one too
+		go func() {
+			cmd.Wait()
+			outFile.Close()
+
+			if st2, err := readStatus(wsDir); err == nil {
+				st2.Status = "completed"
+				st2.PID = 0
+				writeStatus(wsDir, st2)
+			}
+
+			// Recursively drain — pick up next queued item
+			s.drainQueue()
+		}()
+
+		return // Only spawn one at a time
+	}
 }

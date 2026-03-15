@@ -169,12 +169,21 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Runs:      1,
 	})
 
-	// Background goroutine to close file handle when process exits.
-	// This goroutine is fire-and-forget — if the MCP server dies,
-	// the OS reclaims the fd anyway. The agent process survives.
+	// Background goroutine: close file handle when process exits,
+	// update status, then drain queue if a slot opened up.
 	go func() {
 		cmd.Wait()
 		outFile.Close()
+
+		// Update status to completed
+		if st, err := readStatus(wsDir); err == nil {
+			st.Status = "completed"
+			st.PID = 0
+			writeStatus(wsDir, st)
+		}
+
+		// Drain queue: pop next queued workspace and spawn it
+		s.drainQueue()
 	}()
 
 	return nil, DispatchOutput{
