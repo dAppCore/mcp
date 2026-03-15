@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -92,26 +93,20 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		}, nil
 	}
 
-	// Spawn agent
+	// Spawn agent as detached process (survives parent death)
 	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s-run%d.log", agent, st.Runs+1))
 
-	var cmd *exec.Cmd
-	switch agent {
-	case "gemini":
-		cmd = exec.Command("gemini", "-p", prompt, "--yolo")
-	case "codex":
-		cmd = exec.Command("codex", "--approval-mode", "full-auto", "-q", prompt)
-	case "claude":
-		cmd = exec.Command("claude", "-p", prompt, "--dangerously-skip-permissions")
-	default:
-		return nil, ResumeOutput{}, fmt.Errorf("unknown agent: %s", agent)
+	command, args, err := agentCommand(agent, prompt)
+	if err != nil {
+		return nil, ResumeOutput{}, err
 	}
 
-	cmd.Dir = srcDir
-
 	outFile, _ := os.Create(outputFile)
+	cmd := exec.Command(command, args...)
+	cmd.Dir = srcDir
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()

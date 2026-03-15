@@ -6,10 +6,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
-	process "forge.lthn.ai/core/go-process"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -34,7 +35,6 @@ type DispatchOutput struct {
 	WorkspaceDir string `json:"workspace_dir"`
 	Prompt       string `json:"prompt,omitempty"`
 	PID          int    `json:"pid,omitempty"`
-	ProcessID    string `json:"process_id,omitempty"` // go-process ID for lifecycle management
 	OutputFile   string `json:"output_file,omitempty"`
 }
 
@@ -109,22 +109,32 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		}, nil
 	}
 
-	// Step 2: Spawn agent via go-process
+	// Step 2: Spawn agent as a detached process
+	// Uses Setpgid so the agent survives parent (MCP server) death.
+	// Output goes directly to log file (not buffered in memory).
 	command, args, err := agentCommand(input.Agent, prompt)
 	if err != nil {
 		return nil, DispatchOutput{}, err
 	}
 
-	proc, err := process.StartWithOptions(ctx, process.RunOptions{
-		Command: command,
-		Args:    args,
-		Dir:     srcDir,
-	})
+	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", input.Agent))
+	outFile, err := os.Create(outputFile)
 	if err != nil {
+		return nil, DispatchOutput{}, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	cmd := exec.Command(command, args...)
+	cmd.Dir = srcDir
+	cmd.Stdout = outFile
+	cmd.Stderr = outFile
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		outFile.Close()
 		return nil, DispatchOutput{}, fmt.Errorf("failed to spawn %s: %w", input.Agent, err)
 	}
 
-	info := proc.Info()
+	pid := cmd.Process.Pid
 
 	// Write initial status
 	writeStatus(wsDir, &WorkspaceStatus{
@@ -133,16 +143,17 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Repo:      input.Repo,
 		Org:       input.Org,
 		Task:      input.Task,
-		PID:       info.PID,
+		PID:       pid,
 		StartedAt: time.Now(),
 		Runs:      1,
 	})
 
-	// Write output to log file when process completes
-	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", input.Agent))
+	// Background goroutine to close file handle when process exits.
+	// This goroutine is fire-and-forget — if the MCP server dies,
+	// the OS reclaims the fd anyway. The agent process survives.
 	go func() {
-		proc.Wait()
-		os.WriteFile(outputFile, proc.OutputBytes(), 0644)
+		cmd.Wait()
+		outFile.Close()
 	}()
 
 	return nil, DispatchOutput{
@@ -150,8 +161,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Agent:        input.Agent,
 		Repo:         input.Repo,
 		WorkspaceDir: wsDir,
-		PID:          info.PID,
-		ProcessID:    info.ID,
+		PID:          pid,
 		OutputFile:   outputFile,
 	}, nil
 }
