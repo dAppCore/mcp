@@ -23,13 +23,13 @@ import (
 
 // PrepSubsystem provides agentic MCP tools.
 type PrepSubsystem struct {
-	forgeURL   string
-	forgeToken string
-	brainURL   string
-	brainKey   string
-	specsPath  string
-	codePath   string
-	client     *http.Client
+	forgeURL    string
+	forgeToken  string
+	brainURL    string
+	brainKey    string
+	specsPath   string
+	codePath    string
+	client *http.Client
 }
 
 // NewPrep creates an agentic subsystem.
@@ -49,13 +49,13 @@ func NewPrep() *PrepSubsystem {
 	}
 
 	return &PrepSubsystem{
-		forgeURL:   envOr("FORGE_URL", "https://forge.lthn.ai"),
-		forgeToken: forgeToken,
-		brainURL:   envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
-		brainKey:   brainKey,
-		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
-		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
-		client:     &http.Client{Timeout: 30 * time.Second},
+		forgeURL:    envOr("FORGE_URL", "https://forge.lthn.ai"),
+		forgeToken:  forgeToken,
+		brainURL:    envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
+		brainKey:    brainKey,
+		specsPath:   envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
+		codePath:    envOr("CODE_PATH", filepath.Join(home, "Code")),
+		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 

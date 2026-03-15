@@ -6,10 +6,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
+	process "forge.lthn.ai/core/go-process"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -34,6 +34,7 @@ type DispatchOutput struct {
 	WorkspaceDir string `json:"workspace_dir"`
 	Prompt       string `json:"prompt,omitempty"`
 	PID          int    `json:"pid,omitempty"`
+	ProcessID    string `json:"process_id,omitempty"` // go-process ID for lifecycle management
 	OutputFile   string `json:"output_file,omitempty"`
 }
 
@@ -42,6 +43,20 @@ func (s *PrepSubsystem) registerDispatchTool(server *mcp.Server) {
 		Name:        "agentic_dispatch",
 		Description: "Dispatch a subagent (Gemini, Codex, or Claude) to work on a task. Preps a sandboxed workspace first, then spawns the agent inside it. Templates: conventions, security, coding.",
 	}, s.dispatch)
+}
+
+// agentCommand returns the command and args for a given agent type.
+func agentCommand(agent, prompt string) (string, []string, error) {
+	switch agent {
+	case "gemini":
+		return "gemini", []string{"-p", prompt, "--yolo"}, nil
+	case "codex":
+		return "codex", []string{"--approval-mode", "full-auto", "-q", prompt}, nil
+	case "claude":
+		return "claude", []string{"-p", prompt, "--dangerously-skip-permissions"}, nil
+	default:
+		return "", nil, fmt.Errorf("unknown agent: %s", agent)
+	}
 }
 
 func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
@@ -94,46 +109,40 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		}, nil
 	}
 
-	// Step 2: Spawn agent in src/ directory
-	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", input.Agent))
-
-	var cmd *exec.Cmd
-	switch input.Agent {
-	case "gemini":
-		cmd = exec.Command("gemini", "-p", prompt, "--yolo")
-	case "codex":
-		cmd = exec.Command("codex", "--approval-mode", "full-auto", "-q", prompt)
-	case "claude":
-		cmd = exec.Command("claude", "-p", prompt, "--dangerously-skip-permissions")
-	default:
-		return nil, DispatchOutput{}, fmt.Errorf("unknown agent: %s", input.Agent)
+	// Step 2: Spawn agent via go-process
+	command, args, err := agentCommand(input.Agent, prompt)
+	if err != nil {
+		return nil, DispatchOutput{}, err
 	}
 
-	cmd.Dir = srcDir
-
-	outFile, _ := os.Create(outputFile)
-	cmd.Stdout = outFile
-	cmd.Stderr = outFile
-
-	if err := cmd.Start(); err != nil {
-		outFile.Close()
+	proc, err := process.StartWithOptions(ctx, process.RunOptions{
+		Command: command,
+		Args:    args,
+		Dir:     srcDir,
+	})
+	if err != nil {
 		return nil, DispatchOutput{}, fmt.Errorf("failed to spawn %s: %w", input.Agent, err)
 	}
+
+	info := proc.Info()
 
 	// Write initial status
 	writeStatus(wsDir, &WorkspaceStatus{
 		Status:    "running",
 		Agent:     input.Agent,
 		Repo:      input.Repo,
+		Org:       input.Org,
 		Task:      input.Task,
-		PID:       cmd.Process.Pid,
+		PID:       info.PID,
 		StartedAt: time.Now(),
 		Runs:      1,
 	})
 
+	// Write output to log file when process completes
+	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", input.Agent))
 	go func() {
-		cmd.Wait()
-		outFile.Close()
+		proc.Wait()
+		os.WriteFile(outputFile, proc.OutputBytes(), 0644)
 	}()
 
 	return nil, DispatchOutput{
@@ -141,7 +150,8 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Agent:        input.Agent,
 		Repo:         input.Repo,
 		WorkspaceDir: wsDir,
-		PID:          cmd.Process.Pid,
+		PID:          info.PID,
+		ProcessID:    info.ID,
 		OutputFile:   outputFile,
 	}, nil
 }
