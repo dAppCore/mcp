@@ -12,6 +12,7 @@ import (
 
 	"forge.lthn.ai/core/cli/pkg/cli"
 	"forge.lthn.ai/core/mcp/pkg/mcp"
+	"forge.lthn.ai/core/mcp/pkg/mcp/agentic"
 	"forge.lthn.ai/core/mcp/pkg/mcp/brain"
 )
 
@@ -72,6 +73,9 @@ func runServe() error {
 
 	// Register OpenBrain subsystem (direct HTTP to api.lthn.sh)
 	opts = append(opts, mcp.WithSubsystem(brain.NewDirect()))
+
+	// Register agentic subsystem (workspace prep, agent orchestration)
+	opts = append(opts, mcp.WithSubsystem(agentic.NewPrep()))
 
 	// Create the MCP service
 	svc, err := mcp.New(opts...)
