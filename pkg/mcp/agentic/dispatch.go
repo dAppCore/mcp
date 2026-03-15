@@ -23,6 +23,7 @@ type DispatchInput struct {
 	Template     string            `json:"template,omitempty"`      // "conventions", "security", "coding" (default)
 	PlanTemplate string            `json:"plan_template,omitempty"` // Plan template: bug-fix, code-review, new-feature, refactor, feature-port
 	Variables    map[string]string `json:"variables,omitempty"`     // Template variable substitution
+	Persona      string            `json:"persona,omitempty"`       // Persona: engineering/backend-architect, testing/api-tester, etc.
 	Issue        int               `json:"issue,omitempty"`         // Forge issue to work from
 	DryRun       bool              `json:"dry_run,omitempty"`       // Preview without executing
 }
@@ -85,6 +86,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Template:     input.Template,
 		PlanTemplate: input.PlanTemplate,
 		Variables:    input.Variables,
+		Persona:      input.Persona,
 	}
 	_, prepOut, err := s.prepWorkspace(ctx, req, prepInput)
 	if err != nil {

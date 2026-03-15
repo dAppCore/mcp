@@ -105,6 +105,7 @@ type PrepInput struct {
 	Template     string            `json:"template,omitempty"`      // Prompt template: conventions, security, coding (default: coding)
 	PlanTemplate string            `json:"plan_template,omitempty"` // Plan template slug: bug-fix, code-review, new-feature, refactor, feature-port
 	Variables    map[string]string `json:"variables,omitempty"`     // Template variable substitution
+	Persona      string            `json:"persona,omitempty"`       // Persona slug: engineering/backend-architect, testing/api-tester, etc.
 }
 
 // PrepOutput is the output for agentic_prep_workspace.
@@ -188,6 +189,14 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		os.WriteFile(filepath.Join(wsDir, "src", "GEMINI.md"), data, 0644)
 	}
 
+	// Copy persona if specified
+	if input.Persona != "" {
+		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", input.Persona+".md")
+		if data, err := os.ReadFile(personaPath); err == nil {
+			os.WriteFile(filepath.Join(wsDir, "src", "PERSONA.md"), data, 0644)
+		}
+	}
+
 	// 3. Generate TODO.md
 	if input.Issue > 0 {
 		s.generateTodo(ctx, input.Org, input.Repo, input.Issue, wsDir)
@@ -257,7 +266,8 @@ Review all Go files in src/ for security issues:
 Report findings with severity (critical/high/medium/low) and file:line references.
 `
 	case "coding":
-		prompt = `Read CLAUDE.md for project conventions and context.
+		prompt = `Read PERSONA.md if it exists — adopt that identity and approach.
+Read CLAUDE.md for project conventions and context.
 Read TODO.md for your task.
 Read PLAN.md if it exists — work through each phase in order.
 Read CONTEXT.md for relevant knowledge from previous sessions.
