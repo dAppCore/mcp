@@ -111,8 +111,8 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		}, nil
 	}
 
-	// Step 2: Check concurrency limit
-	if !s.canDispatch() {
+	// Step 2: Check per-agent concurrency limit
+	if !s.canDispatchAgent(input.Agent) {
 		// Queue the workspace — write status as "queued" and return
 		writeStatus(wsDir, &WorkspaceStatus{
 			Status:    "queued",

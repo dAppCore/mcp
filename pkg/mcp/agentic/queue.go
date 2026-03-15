@@ -14,19 +14,19 @@ import (
 
 // DispatchConfig controls agent dispatch behaviour.
 type DispatchConfig struct {
-	MaxConcurrent  int    `yaml:"max_concurrent"`
-	DefaultAgent   string `yaml:"default_agent"`
+	DefaultAgent    string `yaml:"default_agent"`
 	DefaultTemplate string `yaml:"default_template"`
-	WorkspaceRoot  string `yaml:"workspace_root"`
+	WorkspaceRoot   string `yaml:"workspace_root"`
 }
 
-// AgentsConfig is the root of .core/agents.yaml.
+// AgentsConfig is the root of config/agents.yaml.
 type AgentsConfig struct {
-	Version  int            `yaml:"version"`
-	Dispatch DispatchConfig `yaml:"dispatch"`
+	Version     int            `yaml:"version"`
+	Dispatch    DispatchConfig `yaml:"dispatch"`
+	Concurrency map[string]int `yaml:"concurrency"` // per-agent type limits
 }
 
-// loadAgentsConfig reads .core/agents.yaml from the code path.
+// loadAgentsConfig reads config/agents.yaml from the code path.
 func (s *PrepSubsystem) loadAgentsConfig() *AgentsConfig {
 	paths := []string{
 		filepath.Join(s.codePath, "core", "agent", "config", "agents.yaml"),
@@ -46,19 +46,21 @@ func (s *PrepSubsystem) loadAgentsConfig() *AgentsConfig {
 		return &cfg
 	}
 
-	// Defaults: unlimited concurrency
+	// Defaults: 1 claude, 3 gemini
 	return &AgentsConfig{
 		Dispatch: DispatchConfig{
-			MaxConcurrent:  0,
-			DefaultAgent:   "claude",
+			DefaultAgent:    "claude",
 			DefaultTemplate: "coding",
+		},
+		Concurrency: map[string]int{
+			"claude": 1,
+			"gemini": 3,
 		},
 	}
 }
 
-// countRunning counts how many agent workspaces have status "running"
-// by checking if their PID is still alive.
-func (s *PrepSubsystem) countRunning() int {
+// countRunningByAgent counts running workspaces for a specific agent type.
+func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 	home, _ := os.UserHomeDir()
 	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
 
@@ -74,7 +76,7 @@ func (s *PrepSubsystem) countRunning() int {
 		}
 
 		st, err := readStatus(filepath.Join(wsRoot, entry.Name()))
-		if err != nil || st.Status != "running" {
+		if err != nil || st.Status != "running" || st.Agent != agent {
 			continue
 		}
 
@@ -90,22 +92,28 @@ func (s *PrepSubsystem) countRunning() int {
 	return count
 }
 
-// canDispatch checks if we're under the concurrency limit.
-// Returns true if dispatch is allowed, false if it should be queued.
-func (s *PrepSubsystem) canDispatch() bool {
+// canDispatchAgent checks if we're under the concurrency limit for a specific agent type.
+func (s *PrepSubsystem) canDispatchAgent(agent string) bool {
 	cfg := s.loadAgentsConfig()
-	if cfg.Dispatch.MaxConcurrent <= 0 {
-		return true // unlimited
+	limit, ok := cfg.Concurrency[agent]
+	if !ok || limit <= 0 {
+		return true // no limit set or unlimited
 	}
-	return s.countRunning() < cfg.Dispatch.MaxConcurrent
+	return s.countRunningByAgent(agent) < limit
+}
+
+// canDispatch checks the legacy global limit (backwards compat).
+func (s *PrepSubsystem) canDispatch() bool {
+	return true // per-agent limits handle this now
+}
+
+// canDispatchFor checks per-agent concurrency.
+func (s *PrepSubsystem) canDispatchFor(agent string) bool {
+	return s.canDispatchAgent(agent)
 }
 
 // drainQueue finds the oldest queued workspace and spawns it if a slot is available.
 func (s *PrepSubsystem) drainQueue() {
-	if !s.canDispatch() {
-		return
-	}
-
 	home, _ := os.UserHomeDir()
 	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
 
@@ -114,7 +122,7 @@ func (s *PrepSubsystem) drainQueue() {
 		return
 	}
 
-	// Find oldest queued workspace (entries are sorted by name which includes timestamp)
+	// Find oldest queued workspace that has a free slot for its agent type
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -126,7 +134,12 @@ func (s *PrepSubsystem) drainQueue() {
 			continue
 		}
 
-		// Found a queued workspace — spawn it
+		// Check per-agent limit
+		if !s.canDispatchAgent(st.Agent) {
+			continue
+		}
+
+		// Found a queued workspace with a free slot — spawn it
 		srcDir := filepath.Join(wsDir, "src")
 		prompt := "Read PROMPT.md for instructions. All context files (CLAUDE.md, TODO.md, CONTEXT.md, CONSUMERS.md, RECENT.md) are in the parent directory. Work in this directory."
 
@@ -173,6 +186,6 @@ func (s *PrepSubsystem) drainQueue() {
 			s.drainQueue()
 		}()
 
-		return // Only spawn one at a time
+		return // Only spawn one at a time per drain call
 	}
 }
