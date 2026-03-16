@@ -240,6 +240,9 @@ func (s *PrepSubsystem) drainQueue() {
 				writeStatus(wsDir, st2)
 			}
 
+			// Ingest scan findings as issues
+			s.ingestFindings(wsDir)
+
 			s.drainQueue()
 		}()
 

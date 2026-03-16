@@ -59,7 +59,7 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 
 	switch base {
 	case "gemini":
-		args := []string{"-p", prompt, "--yolo"}
+		args := []string{"-p", prompt, "--yolo", "--sandbox"}
 		if model != "" {
 			args = append(args, "-m", "gemini-2.5-"+model)
 		}
@@ -208,6 +208,9 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			st.PID = 0
 			writeStatus(wsDir, st)
 		}
+
+		// Ingest scan findings as issues
+		s.ingestFindings(wsDir)
 
 		// Drain queue: pop next queued workspace and spawn it
 		s.drainQueue()
