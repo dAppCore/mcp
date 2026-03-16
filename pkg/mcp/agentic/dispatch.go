@@ -72,6 +72,10 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 			args = append(args, "--model", model)
 		}
 		return "claude", args, nil
+	case "local":
+		home, _ := os.UserHomeDir()
+		script := filepath.Join(home, "Code", "core", "agent", "scripts", "local-agent.sh")
+		return "bash", []string{script, prompt}, nil
 	default:
 		return "", nil, fmt.Errorf("unknown agent: %s", agent)
 	}
