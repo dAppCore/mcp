@@ -3,16 +3,16 @@ module forge.lthn.ai/core/mcp
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/api v0.1.2
-	forge.lthn.ai/core/cli v0.3.0
+	forge.lthn.ai/core/api v0.1.3
+	forge.lthn.ai/core/cli v0.3.5
 	forge.lthn.ai/core/go v0.3.1
-	forge.lthn.ai/core/go-ai v0.1.5
-	forge.lthn.ai/core/go-io v0.1.2
-	forge.lthn.ai/core/go-log v0.0.3
-	forge.lthn.ai/core/go-process v0.2.2
-	forge.lthn.ai/core/go-rag v0.1.0
-	forge.lthn.ai/core/go-webview v0.1.0
-	forge.lthn.ai/core/go-ws v0.2.0
+	forge.lthn.ai/core/go-ai v0.1.11
+	forge.lthn.ai/core/go-io v0.1.5
+	forge.lthn.ai/core/go-log v0.0.4
+	forge.lthn.ai/core/go-process v0.2.7
+	forge.lthn.ai/core/go-rag v0.1.9
+	forge.lthn.ai/core/go-webview v0.1.5
+	forge.lthn.ai/core/go-ws v0.2.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.4.1
@@ -21,12 +21,10 @@ require (
 )
 
 require (
-	forge.lthn.ai/core/go-crypt v0.1.6 // indirect
-	forge.lthn.ai/core/go-i18n v0.1.0 // indirect
-	forge.lthn.ai/core/go-inference v0.1.3 // indirect
+	forge.lthn.ai/core/go-i18n v0.1.5 // indirect
+	forge.lthn.ai/core/go-inference v0.1.4 // indirect
 	github.com/99designs/gqlgen v0.17.88 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/ProtonMail/go-crypto v1.4.0 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -47,7 +45,6 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -86,7 +83,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/context v1.1.2 // indirect
@@ -140,7 +136,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.25.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
-	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
@@ -149,8 +144,7 @@ require (
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
-	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
