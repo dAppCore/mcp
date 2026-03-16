@@ -3,8 +3,8 @@ package mcp
 import (
 	"context"
 	"net"
-	"os"
 
+	"forge.lthn.ai/core/go-io"
 	"forge.lthn.ai/core/go-log"
 )
 
@@ -13,7 +13,7 @@ import (
 // It accepts connections and spawns a new MCP server session for each connection.
 func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	// Clean up any stale socket file
-	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+	if err := io.Local.Delete(socketPath); err != nil {
 		s.logger.Warn("Failed to remove stale socket", "path", socketPath, "err", err)
 	}
 
@@ -23,7 +23,7 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	}
 	defer func() {
 		_ = listener.Close()
-		_ = os.Remove(socketPath)
+		_ = io.Local.Delete(socketPath)
 	}()
 
 	// Close listener when context is cancelled to unblock Accept

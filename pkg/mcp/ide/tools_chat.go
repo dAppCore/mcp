@@ -2,9 +2,9 @@ package ide
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -126,7 +126,7 @@ func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input Ch
 		Data:      input.Message,
 	})
 	if err != nil {
-		return nil, ChatSendOutput{}, fmt.Errorf("failed to send message: %w", err)
+		return nil, ChatSendOutput{}, coreerr.E("ide.chatSend", "failed to send message", err)
 	}
 	return nil, ChatSendOutput{
 		Sent:      true,

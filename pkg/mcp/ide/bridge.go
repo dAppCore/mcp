@@ -3,13 +3,11 @@ package ide
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-ws"
 	"github.com/gorilla/websocket"
 )
@@ -74,12 +72,12 @@ func (b *Bridge) Send(msg BridgeMessage) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.conn == nil {
-		return errors.New("bridge: not connected")
+		return coreerr.E("bridge.Send", "not connected", nil)
 	}
 	msg.Timestamp = time.Now()
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("bridge: marshal failed: %w", err)
+		return coreerr.E("bridge.Send", "marshal failed", err)
 	}
 	return b.conn.WriteMessage(websocket.TextMessage, data)
 }
@@ -95,7 +93,7 @@ func (b *Bridge) connectLoop(ctx context.Context) {
 		}
 
 		if err := b.dial(ctx); err != nil {
-			log.Printf("ide bridge: connect failed: %v", err)
+			coreerr.Warn("ide bridge: connect failed", "err", err)
 			select {
 			case <-ctx.Done():
 				return
@@ -132,7 +130,7 @@ func (b *Bridge) dial(ctx context.Context) error {
 	b.connected = true
 	b.mu.Unlock()
 
-	log.Printf("ide bridge: connected to %s", b.cfg.LaravelWSURL)
+	coreerr.Info("ide bridge: connected", "url", b.cfg.LaravelWSURL)
 	return nil
 }
 
@@ -155,13 +153,13 @@ func (b *Bridge) readLoop(ctx context.Context) {
 
 		_, data, err := b.conn.ReadMessage()
 		if err != nil {
-			log.Printf("ide bridge: read error: %v", err)
+			coreerr.Warn("ide bridge: read error", "err", err)
 			return
 		}
 
 		var msg BridgeMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
-			log.Printf("ide bridge: unmarshal error: %v", err)
+			coreerr.Warn("ide bridge: unmarshal error", "err", err)
 			continue
 		}
 
@@ -186,6 +184,6 @@ func (b *Bridge) dispatch(msg BridgeMessage) {
 	}
 
 	if err := b.hub.SendToChannel(channel, wsMsg); err != nil {
-		log.Printf("ide bridge: dispatch to %s failed: %v", channel, err)
+		coreerr.Warn("ide bridge: dispatch failed", "channel", channel, "err", err)
 	}
 }

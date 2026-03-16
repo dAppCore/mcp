@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	coreio "forge.lthn.ai/core/go-io"
 )
 
 // ingestFindings reads the agent output log and creates issues via the API
@@ -26,12 +28,12 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 		return
 	}
 
-	content, err := os.ReadFile(logFiles[0])
-	if err != nil || len(content) < 100 {
+	contentStr, err := coreio.Local.Read(logFiles[0])
+	if err != nil || len(contentStr) < 100 {
 		return
 	}
 
-	body := string(content)
+	body := contentStr
 
 	// Skip quota errors
 	if strings.Contains(body, "QUOTA_EXHAUSTED") || strings.Contains(body, "QuotaError") {
@@ -93,11 +95,11 @@ func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, p
 
 	// Read the agent API key from file
 	home, _ := os.UserHomeDir()
-	apiKeyData, err := os.ReadFile(filepath.Join(home, ".claude", "agent-api.key"))
+	apiKeyData, err := coreio.Local.Read(filepath.Join(home, ".claude", "agent-api.key"))
 	if err != nil {
 		return
 	}
-	apiKey := strings.TrimSpace(string(apiKeyData))
+	apiKey := strings.TrimSpace(apiKeyData)
 
 	payload, _ := json.Marshal(map[string]string{
 		"title":       title,

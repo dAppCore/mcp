@@ -26,6 +26,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 var (
@@ -272,26 +275,26 @@ func callBrainRemember(content, memType string, tags []string, project string, c
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+		return coreerr.E("callBrainRemember", "marshal", err)
 	}
 
 	req, err := http.NewRequest("POST", *apiURL+"/tools/call", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("request: %w", err)
+		return coreerr.E("callBrainRemember", "request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+*apiKey)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("http: %w", err)
+		return coreerr.E("callBrainRemember", "http", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		return coreerr.E("callBrainRemember", "HTTP "+string(respBody), nil)
 	}
 
 	var result struct {
@@ -299,10 +302,10 @@ func callBrainRemember(content, memType string, tags []string, project string, c
 		Error   string `json:"error"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return fmt.Errorf("decode: %w", err)
+		return coreerr.E("callBrainRemember", "decode", err)
 	}
 	if !result.Success {
-		return fmt.Errorf("API: %s", result.Error)
+		return coreerr.E("callBrainRemember", "API: "+result.Error, nil)
 	}
 
 	return nil
@@ -361,13 +364,13 @@ var headingRe = regexp.MustCompile(`^#{1,3}\s+(.+)$`)
 
 // parseMarkdownSections splits a markdown file by headings.
 func parseMarkdownSections(path string) []section {
-	data, err := os.ReadFile(path)
+	data, err := coreio.Local.Read(path)
 	if err != nil || len(data) == 0 {
 		return nil
 	}
 
 	var sections []section
-	lines := strings.Split(string(data), "\n")
+	lines := strings.Split(data, "\n")
 	var curHeading string
 	var curContent []string
 
@@ -395,10 +398,10 @@ func parseMarkdownSections(path string) []section {
 	}
 
 	// If no headings found, treat entire file as one section
-	if len(sections) == 0 && strings.TrimSpace(string(data)) != "" {
+	if len(sections) == 0 && strings.TrimSpace(data) != "" {
 		sections = append(sections, section{
 			heading: strings.TrimSuffix(filepath.Base(path), ".md"),
-			content: strings.TrimSpace(string(data)),
+			content: strings.TrimSpace(data),
 		})
 	}
 

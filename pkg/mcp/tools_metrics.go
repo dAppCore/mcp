@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -80,7 +79,7 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 
 	// Validate input
 	if input.Type == "" {
-		return nil, MetricsRecordOutput{}, errors.New("type cannot be empty")
+		return nil, MetricsRecordOutput{}, log.E("metricsRecord", "type cannot be empty", nil)
 	}
 
 	// Create the event
@@ -95,7 +94,7 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 	// Record the event
 	if err := ai.Record(event); err != nil {
 		log.Error("mcp: metrics record failed", "type", input.Type, "err", err)
-		return nil, MetricsRecordOutput{}, fmt.Errorf("failed to record metrics: %w", err)
+		return nil, MetricsRecordOutput{}, log.E("metricsRecord", "failed to record metrics", err)
 	}
 
 	return nil, MetricsRecordOutput{
@@ -117,7 +116,7 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	// Parse the duration
 	duration, err := parseDuration(since)
 	if err != nil {
-		return nil, MetricsQueryOutput{}, fmt.Errorf("invalid since value: %w", err)
+		return nil, MetricsQueryOutput{}, log.E("metricsQuery", "invalid since value", err)
 	}
 
 	sinceTime := time.Now().Add(-duration)
@@ -126,7 +125,7 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	events, err := ai.ReadEvents(sinceTime)
 	if err != nil {
 		log.Error("mcp: metrics query failed", "since", since, "err", err)
-		return nil, MetricsQueryOutput{}, fmt.Errorf("failed to read metrics: %w", err)
+		return nil, MetricsQueryOutput{}, log.E("metricsQuery", "failed to read metrics", err)
 	}
 
 	// Get summary
@@ -179,12 +178,12 @@ func convertMetricCounts(data any) []MetricCount {
 // parseDuration parses a duration string like "7d", "24h", "30m".
 func parseDuration(s string) (time.Duration, error) {
 	if s == "" {
-		return 0, errors.New("duration cannot be empty")
+		return 0, log.E("parseDuration", "duration cannot be empty", nil)
 	}
 
 	s = strings.TrimSpace(s)
 	if len(s) < 2 {
-		return 0, fmt.Errorf("invalid duration format: %q", s)
+		return 0, log.E("parseDuration", "invalid duration format: "+s, nil)
 	}
 
 	// Get the numeric part and unit
@@ -193,11 +192,11 @@ func parseDuration(s string) (time.Duration, error) {
 
 	num, err := strconv.Atoi(numStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid duration number: %q", numStr)
+		return 0, log.E("parseDuration", "invalid duration number: "+numStr, err)
 	}
 
 	if num <= 0 {
-		return 0, fmt.Errorf("duration must be positive: %d", num)
+		return 0, log.E("parseDuration", fmt.Sprintf("duration must be positive: %d", num), nil)
 	}
 
 	switch unit {
@@ -208,6 +207,6 @@ func parseDuration(s string) (time.Duration, error) {
 	case 'm':
 		return time.Duration(num) * time.Minute, nil
 	default:
-		return 0, fmt.Errorf("invalid duration unit: %q (expected d, h, or m)", string(unit))
+		return 0, log.E("parseDuration", "invalid duration unit: "+string(unit)+" (expected d, h, or m)", nil)
 	}
 }

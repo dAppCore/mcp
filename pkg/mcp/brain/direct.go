@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -36,8 +38,8 @@ func NewDirect() *DirectSubsystem {
 
 	apiKey := os.Getenv("CORE_BRAIN_KEY")
 	if apiKey == "" {
-		if data, err := os.ReadFile(os.ExpandEnv("$HOME/.claude/brain.key")); err == nil {
-			apiKey = strings.TrimSpace(string(data))
+		if data, err := coreio.Local.Read(os.ExpandEnv("$HOME/.claude/brain.key")); err == nil {
+			apiKey = strings.TrimSpace(data)
 		}
 	}
 
@@ -74,21 +76,21 @@ func (s *DirectSubsystem) Shutdown(_ context.Context) error { return nil }
 
 func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body any) (map[string]any, error) {
 	if s.apiKey == "" {
-		return nil, fmt.Errorf("brain: no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)")
+		return nil, coreerr.E("brain.apiCall", "no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)", nil)
 	}
 
 	var reqBody io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("brain: marshal request: %w", err)
+			return nil, coreerr.E("brain.apiCall", "marshal request", err)
 		}
 		reqBody = bytes.NewReader(data)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, s.apiURL+path, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("brain: create request: %w", err)
+		return nil, coreerr.E("brain.apiCall", "create request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
@@ -96,22 +98,22 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("brain: API call failed: %w", err)
+		return nil, coreerr.E("brain.apiCall", "API call failed", err)
 	}
 	defer resp.Body.Close()
 
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("brain: read response: %w", err)
+		return nil, coreerr.E("brain.apiCall", "read response", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("brain: API returned %d: %s", resp.StatusCode, string(respData))
+		return nil, coreerr.E("brain.apiCall", "API returned "+string(respData), nil)
 	}
 
 	var result map[string]any
 	if err := json.Unmarshal(respData, &result); err != nil {
-		return nil, fmt.Errorf("brain: parse response: %w", err)
+		return nil, coreerr.E("brain.apiCall", "parse response", err)
 	}
 
 	return result, nil

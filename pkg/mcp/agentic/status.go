@@ -5,12 +5,13 @@ package agentic
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -49,16 +50,16 @@ func writeStatus(wsDir string, status *WorkspaceStatus) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(wsDir, "status.json"), data, 0644)
+	return coreio.Local.Write(filepath.Join(wsDir, "status.json"), string(data))
 }
 
 func readStatus(wsDir string) (*WorkspaceStatus, error) {
-	data, err := os.ReadFile(filepath.Join(wsDir, "status.json"))
+	data, err := coreio.Local.Read(filepath.Join(wsDir, "status.json"))
 	if err != nil {
 		return nil, err
 	}
 	var s WorkspaceStatus
-	if err := json.Unmarshal(data, &s); err != nil {
+	if err := json.Unmarshal([]byte(data), &s); err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -99,7 +100,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	entries, err := os.ReadDir(wsRoot)
 	if err != nil {
-		return nil, StatusOutput{}, fmt.Errorf("no workspaces found: %w", err)
+		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", err)
 	}
 
 	var workspaces []WorkspaceInfo
@@ -150,9 +151,9 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			if err != nil || proc.Signal(nil) != nil {
 				// Process died — check for BLOCKED.md
 				blockedPath := filepath.Join(wsDir, "src", "BLOCKED.md")
-				if data, err := os.ReadFile(blockedPath); err == nil {
+				if data, err := coreio.Local.Read(blockedPath); err == nil {
 					info.Status = "blocked"
-					info.Question = strings.TrimSpace(string(data))
+					info.Question = strings.TrimSpace(data)
 					st.Status = "blocked"
 					st.Question = info.Question
 				} else {

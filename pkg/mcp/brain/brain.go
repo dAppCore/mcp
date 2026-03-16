@@ -6,15 +6,15 @@ package brain
 
 import (
 	"context"
-	"errors"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/mcp/pkg/mcp/ide"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
 // but it has not been initialised (headless mode).
-var errBridgeNotAvailable = errors.New("brain: bridge not available")
+var errBridgeNotAvailable = coreerr.E("brain", "bridge not available", nil)
 
 // Subsystem implements mcp.Subsystem for OpenBrain knowledge store operations.
 // It proxies brain_* tool calls to the Laravel backend via the shared IDE bridge.

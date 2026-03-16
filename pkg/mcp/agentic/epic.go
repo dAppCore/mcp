@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -53,13 +54,13 @@ func (s *PrepSubsystem) registerEpicTool(server *mcp.Server) {
 
 func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest, input EpicInput) (*mcp.CallToolResult, EpicOutput, error) {
 	if input.Title == "" {
-		return nil, EpicOutput{}, fmt.Errorf("title is required")
+		return nil, EpicOutput{}, coreerr.E("createEpic", "title is required", nil)
 	}
 	if len(input.Tasks) == 0 {
-		return nil, EpicOutput{}, fmt.Errorf("at least one task is required")
+		return nil, EpicOutput{}, coreerr.E("createEpic", "at least one task is required", nil)
 	}
 	if s.forgeToken == "" {
-		return nil, EpicOutput{}, fmt.Errorf("no Forge token configured")
+		return nil, EpicOutput{}, coreerr.E("createEpic", "no Forge token configured", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -112,7 +113,7 @@ func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest
 	epicLabels := append(labelIDs, s.resolveLabelIDs(ctx, input.Org, input.Repo, []string{"epic"})...)
 	epic, err := s.createIssue(ctx, input.Org, input.Repo, input.Title, body.String(), epicLabels)
 	if err != nil {
-		return nil, EpicOutput{}, fmt.Errorf("failed to create epic: %w", err)
+		return nil, EpicOutput{}, coreerr.E("createEpic", "failed to create epic", err)
 	}
 
 	out := EpicOutput{
@@ -162,12 +163,12 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return ChildRef{}, fmt.Errorf("create issue request failed: %w", err)
+		return ChildRef{}, coreerr.E("createIssue", "request failed", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
-		return ChildRef{}, fmt.Errorf("create issue returned %d", resp.StatusCode)
+		return ChildRef{}, coreerr.E("createIssue", fmt.Sprintf("returned %d", resp.StatusCode), nil)
 	}
 
 	var result struct {

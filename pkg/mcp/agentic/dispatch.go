@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -77,16 +79,16 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 		script := filepath.Join(home, "Code", "core", "agent", "scripts", "local-agent.sh")
 		return "bash", []string{script, prompt}, nil
 	default:
-		return "", nil, fmt.Errorf("unknown agent: %s", agent)
+		return "", nil, coreerr.E("agentCommand", "unknown agent: "+agent, nil)
 	}
 }
 
 func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
 	if input.Repo == "" {
-		return nil, DispatchOutput{}, fmt.Errorf("repo is required")
+		return nil, DispatchOutput{}, coreerr.E("dispatch", "repo is required", nil)
 	}
 	if input.Task == "" {
-		return nil, DispatchOutput{}, fmt.Errorf("task is required")
+		return nil, DispatchOutput{}, coreerr.E("dispatch", "task is required", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -111,7 +113,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	_, prepOut, err := s.prepWorkspace(ctx, req, prepInput)
 	if err != nil {
-		return nil, DispatchOutput{}, fmt.Errorf("prep workspace failed: %w", err)
+		return nil, DispatchOutput{}, coreerr.E("dispatch", "prep workspace failed", err)
 	}
 
 	wsDir := prepOut.WorkspaceDir
@@ -122,13 +124,13 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 	if input.DryRun {
 		// Read PROMPT.md for the dry run output
-		promptContent, _ := os.ReadFile(filepath.Join(wsDir, "PROMPT.md"))
+		promptRaw, _ := coreio.Local.Read(filepath.Join(wsDir, "PROMPT.md"))
 		return nil, DispatchOutput{
 			Success:      true,
 			Agent:        input.Agent,
 			Repo:         input.Repo,
 			WorkspaceDir: wsDir,
-			Prompt:       string(promptContent),
+			Prompt:       promptRaw,
 		}, nil
 	}
 
@@ -164,7 +166,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", input.Agent))
 	outFile, err := os.Create(outputFile)
 	if err != nil {
-		return nil, DispatchOutput{}, fmt.Errorf("failed to create log file: %w", err)
+		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to create log file", err)
 	}
 
 	// Fully detach from terminal:
@@ -183,7 +185,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()
-		return nil, DispatchOutput{}, fmt.Errorf("failed to spawn %s: %w", input.Agent, err)
+		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to spawn "+input.Agent, err)
 	}
 
 	pid := cmd.Process.Pid

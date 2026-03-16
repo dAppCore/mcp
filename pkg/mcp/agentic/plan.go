@@ -7,12 +7,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -145,10 +146,10 @@ func (s *PrepSubsystem) registerPlanTools(server *mcp.Server) {
 
 func (s *PrepSubsystem) planCreate(_ context.Context, _ *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, PlanCreateOutput, error) {
 	if input.Title == "" {
-		return nil, PlanCreateOutput{}, fmt.Errorf("title is required")
+		return nil, PlanCreateOutput{}, coreerr.E("planCreate", "title is required", nil)
 	}
 	if input.Objective == "" {
-		return nil, PlanCreateOutput{}, fmt.Errorf("objective is required")
+		return nil, PlanCreateOutput{}, coreerr.E("planCreate", "objective is required", nil)
 	}
 
 	id := generatePlanID(input.Title)
@@ -177,7 +178,7 @@ func (s *PrepSubsystem) planCreate(_ context.Context, _ *mcp.CallToolRequest, in
 
 	path, err := writePlan(s.plansDir(), &plan)
 	if err != nil {
-		return nil, PlanCreateOutput{}, fmt.Errorf("failed to write plan: %w", err)
+		return nil, PlanCreateOutput{}, coreerr.E("planCreate", "failed to write plan", err)
 	}
 
 	return nil, PlanCreateOutput{
@@ -189,7 +190,7 @@ func (s *PrepSubsystem) planCreate(_ context.Context, _ *mcp.CallToolRequest, in
 
 func (s *PrepSubsystem) planRead(_ context.Context, _ *mcp.CallToolRequest, input PlanReadInput) (*mcp.CallToolResult, PlanReadOutput, error) {
 	if input.ID == "" {
-		return nil, PlanReadOutput{}, fmt.Errorf("id is required")
+		return nil, PlanReadOutput{}, coreerr.E("planRead", "id is required", nil)
 	}
 
 	plan, err := readPlan(s.plansDir(), input.ID)
@@ -205,7 +206,7 @@ func (s *PrepSubsystem) planRead(_ context.Context, _ *mcp.CallToolRequest, inpu
 
 func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, input PlanUpdateInput) (*mcp.CallToolResult, PlanUpdateOutput, error) {
 	if input.ID == "" {
-		return nil, PlanUpdateOutput{}, fmt.Errorf("id is required")
+		return nil, PlanUpdateOutput{}, coreerr.E("planUpdate", "id is required", nil)
 	}
 
 	plan, err := readPlan(s.plansDir(), input.ID)
@@ -216,7 +217,7 @@ func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 	// Apply partial updates
 	if input.Status != "" {
 		if !validPlanStatus(input.Status) {
-			return nil, PlanUpdateOutput{}, fmt.Errorf("invalid status: %s (valid: draft, ready, in_progress, needs_verification, verified, approved)", input.Status)
+			return nil, PlanUpdateOutput{}, coreerr.E("planUpdate", "invalid status: "+input.Status+" (valid: draft, ready, in_progress, needs_verification, verified, approved)", nil)
 		}
 		plan.Status = input.Status
 	}
@@ -239,7 +240,7 @@ func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 	plan.UpdatedAt = time.Now()
 
 	if _, err := writePlan(s.plansDir(), plan); err != nil {
-		return nil, PlanUpdateOutput{}, fmt.Errorf("failed to write plan: %w", err)
+		return nil, PlanUpdateOutput{}, coreerr.E("planUpdate", "failed to write plan", err)
 	}
 
 	return nil, PlanUpdateOutput{
@@ -250,16 +251,16 @@ func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 
 func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, input PlanDeleteInput) (*mcp.CallToolResult, PlanDeleteOutput, error) {
 	if input.ID == "" {
-		return nil, PlanDeleteOutput{}, fmt.Errorf("id is required")
+		return nil, PlanDeleteOutput{}, coreerr.E("planDelete", "id is required", nil)
 	}
 
 	path := planPath(s.plansDir(), input.ID)
 	if _, err := os.Stat(path); err != nil {
-		return nil, PlanDeleteOutput{}, fmt.Errorf("plan not found: %s", input.ID)
+		return nil, PlanDeleteOutput{}, coreerr.E("planDelete", "plan not found: "+input.ID, nil)
 	}
 
-	if err := os.Remove(path); err != nil {
-		return nil, PlanDeleteOutput{}, fmt.Errorf("failed to delete plan: %w", err)
+	if err := coreio.Local.Delete(path); err != nil {
+		return nil, PlanDeleteOutput{}, coreerr.E("planDelete", "failed to delete plan", err)
 	}
 
 	return nil, PlanDeleteOutput{
@@ -270,13 +271,13 @@ func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, in
 
 func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, PlanListOutput, error) {
 	dir := s.plansDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, PlanListOutput{}, fmt.Errorf("failed to access plans directory: %w", err)
+	if err := coreio.Local.EnsureDir(dir); err != nil {
+		return nil, PlanListOutput{}, coreerr.E("planList", "failed to access plans directory", err)
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, PlanListOutput{}, fmt.Errorf("failed to read plans directory: %w", err)
+		return nil, PlanListOutput{}, coreerr.E("planList", "failed to read plans directory", err)
 	}
 
 	var plans []Plan
@@ -351,21 +352,21 @@ func generatePlanID(title string) string {
 }
 
 func readPlan(dir, id string) (*Plan, error) {
-	data, err := os.ReadFile(planPath(dir, id))
+	data, err := coreio.Local.Read(planPath(dir, id))
 	if err != nil {
-		return nil, fmt.Errorf("plan not found: %s", id)
+		return nil, coreerr.E("readPlan", "plan not found: "+id, nil)
 	}
 
 	var plan Plan
-	if err := json.Unmarshal(data, &plan); err != nil {
-		return nil, fmt.Errorf("failed to parse plan %s: %w", id, err)
+	if err := json.Unmarshal([]byte(data), &plan); err != nil {
+		return nil, coreerr.E("readPlan", "failed to parse plan "+id, err)
 	}
 	return &plan, nil
 }
 
 func writePlan(dir string, plan *Plan) (string, error) {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create plans directory: %w", err)
+	if err := coreio.Local.EnsureDir(dir); err != nil {
+		return "", coreerr.E("writePlan", "failed to create plans directory", err)
 	}
 
 	path := planPath(dir, plan.ID)
@@ -374,7 +375,7 @@ func writePlan(dir string, plan *Plan) (string, error) {
 		return "", err
 	}
 
-	return path, os.WriteFile(path, data, 0644)
+	return path, coreio.Local.Write(path, string(data))
 }
 
 func validPlanStatus(status string) bool {

@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
 )
@@ -43,8 +45,8 @@ func NewPrep() *PrepSubsystem {
 
 	brainKey := os.Getenv("CORE_BRAIN_KEY")
 	if brainKey == "" {
-		if data, err := os.ReadFile(filepath.Join(home, ".claude", "brain.key")); err == nil {
-			brainKey = strings.TrimSpace(string(data))
+		if data, err := coreio.Local.Read(filepath.Join(home, ".claude", "brain.key")); err == nil {
+			brainKey = strings.TrimSpace(data)
 		}
 	}
 
@@ -122,7 +124,7 @@ type PrepOutput struct {
 
 func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
 	if input.Repo == "" {
-		return nil, PrepOutput{}, fmt.Errorf("repo is required")
+		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "repo is required", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -171,29 +173,29 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	branchCmd.Run()
 
 	// Create context dirs inside src/
-	os.MkdirAll(filepath.Join(srcDir, "kb"), 0755)
-	os.MkdirAll(filepath.Join(srcDir, "specs"), 0755)
+	coreio.Local.EnsureDir(filepath.Join(srcDir, "kb"))
+	coreio.Local.EnsureDir(filepath.Join(srcDir, "specs"))
 
 	// Remote stays as local clone origin — agent cannot push to forge.
 	// Reviewer pulls changes from workspace and pushes after verification.
 
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
-	if data, err := os.ReadFile(claudeMdPath); err == nil {
-		os.WriteFile(filepath.Join(wsDir, "src", "CLAUDE.md"), data, 0644)
+	if data, err := coreio.Local.Read(claudeMdPath); err == nil {
+		coreio.Local.Write(filepath.Join(wsDir, "src", "CLAUDE.md"), data)
 		out.ClaudeMd = true
 	}
 	// Copy GEMINI.md from core/agent (ethics framework for all agents)
 	agentGeminiMd := filepath.Join(s.codePath, "core", "agent", "GEMINI.md")
-	if data, err := os.ReadFile(agentGeminiMd); err == nil {
-		os.WriteFile(filepath.Join(wsDir, "src", "GEMINI.md"), data, 0644)
+	if data, err := coreio.Local.Read(agentGeminiMd); err == nil {
+		coreio.Local.Write(filepath.Join(wsDir, "src", "GEMINI.md"), data)
 	}
 
 	// Copy persona if specified
 	if input.Persona != "" {
 		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", input.Persona+".md")
-		if data, err := os.ReadFile(personaPath); err == nil {
-			os.WriteFile(filepath.Join(wsDir, "src", "PERSONA.md"), data, 0644)
+		if data, err := coreio.Local.Read(personaPath); err == nil {
+			coreio.Local.Write(filepath.Join(wsDir, "src", "PERSONA.md"), data)
 		}
 	}
 
@@ -203,7 +205,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	} else if input.Task != "" {
 		todo := fmt.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		os.WriteFile(filepath.Join(wsDir, "src", "TODO.md"), []byte(todo), 0644)
+		coreio.Local.Write(filepath.Join(wsDir, "src", "TODO.md"), todo)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -300,7 +302,7 @@ Do NOT push. Commit only — a reviewer will verify and push.
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	os.WriteFile(filepath.Join(wsDir, "src", "PROMPT.md"), []byte(prompt), 0644)
+	coreio.Local.Write(filepath.Join(wsDir, "src", "PROMPT.md"), prompt)
 }
 
 // --- Plan template rendering ---
@@ -310,17 +312,15 @@ Do NOT push. Commit only — a reviewer will verify and push.
 func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map[string]string, task string, wsDir string) {
 	// Look for template in core/agent/prompts/templates/
 	templatePath := filepath.Join(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yaml")
-	data, err := os.ReadFile(templatePath)
+	content, err := coreio.Local.Read(templatePath)
 	if err != nil {
 		// Try .yml extension
 		templatePath = filepath.Join(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yml")
-		data, err = os.ReadFile(templatePath)
+		content, err = coreio.Local.Read(templatePath)
 		if err != nil {
 			return // Template not found, skip silently
 		}
 	}
-
-	content := string(data)
 
 	// Substitute variables ({{variable_name}} → value)
 	for key, value := range variables {
@@ -380,7 +380,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
 	}
 
-	os.WriteFile(filepath.Join(wsDir, "src", "PLAN.md"), []byte(plan.String()), 0644)
+	coreio.Local.Write(filepath.Join(wsDir, "src", "PLAN.md"), plan.String())
 }
 
 // --- Helpers (unchanged) ---
@@ -440,7 +440,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 			return '-'
 		}, page.Title) + ".md"
 
-		os.WriteFile(filepath.Join(wsDir, "src", "kb", filename), content, 0644)
+		coreio.Local.Write(filepath.Join(wsDir, "src", "kb", filename), string(content))
 		count++
 	}
 
@@ -453,8 +453,8 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 
 	for _, file := range specFiles {
 		src := filepath.Join(s.specsPath, file)
-		if data, err := os.ReadFile(src); err == nil {
-			os.WriteFile(filepath.Join(wsDir, "src", "specs", file), data, 0644)
+		if data, err := coreio.Local.Read(src); err == nil {
+			coreio.Local.Write(filepath.Join(wsDir, "src", "specs", file), data)
 			count++
 		}
 	}
@@ -503,7 +503,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		content.WriteString(fmt.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	os.WriteFile(filepath.Join(wsDir, "src", "CONTEXT.md"), []byte(content.String()), 0644)
+	coreio.Local.Write(filepath.Join(wsDir, "src", "CONTEXT.md"), content.String())
 	return len(result.Memories)
 }
 
@@ -511,24 +511,24 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 	goWorkPath := filepath.Join(s.codePath, "go.work")
 	modulePath := "forge.lthn.ai/core/" + repo
 
-	workData, err := os.ReadFile(goWorkPath)
+	workData, err := coreio.Local.Read(goWorkPath)
 	if err != nil {
 		return 0
 	}
 
 	var consumers []string
-	for _, line := range strings.Split(string(workData), "\n") {
+	for _, line := range strings.Split(workData, "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "./") {
 			continue
 		}
 		dir := filepath.Join(s.codePath, strings.TrimPrefix(line, "./"))
 		goMod := filepath.Join(dir, "go.mod")
-		modData, err := os.ReadFile(goMod)
+		modData, err := coreio.Local.Read(goMod)
 		if err != nil {
 			continue
 		}
-		if strings.Contains(string(modData), modulePath) && !strings.HasPrefix(string(modData), "module "+modulePath) {
+		if strings.Contains(modData, modulePath) && !strings.HasPrefix(modData, "module "+modulePath) {
 			consumers = append(consumers, filepath.Base(dir))
 		}
 	}
@@ -540,7 +540,7 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += fmt.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		os.WriteFile(filepath.Join(wsDir, "src", "CONSUMERS.md"), []byte(content), 0644)
+		coreio.Local.Write(filepath.Join(wsDir, "src", "CONSUMERS.md"), content)
 	}
 
 	return len(consumers)
@@ -557,7 +557,7 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		os.WriteFile(filepath.Join(wsDir, "src", "RECENT.md"), []byte(content), 0644)
+		coreio.Local.Write(filepath.Join(wsDir, "src", "RECENT.md"), content)
 	}
 
 	return len(lines)
@@ -590,5 +590,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += fmt.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	os.WriteFile(filepath.Join(wsDir, "src", "TODO.md"), []byte(content), 0644)
+	coreio.Local.Write(filepath.Join(wsDir, "src", "TODO.md"), content)
 }

@@ -2,8 +2,6 @@ package mcp
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	"forge.lthn.ai/core/go-log"
@@ -12,7 +10,7 @@ import (
 )
 
 // errIDEmpty is returned when a process tool call omits the required ID.
-var errIDEmpty = errors.New("id cannot be empty")
+var errIDEmpty = log.E("process", "id cannot be empty", nil)
 
 // ProcessStartInput contains parameters for starting a new process.
 type ProcessStartInput struct {
@@ -148,7 +146,7 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 	s.logger.Security("MCP tool execution", "tool", "process_start", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
 
 	if input.Command == "" {
-		return nil, ProcessStartOutput{}, errors.New("command cannot be empty")
+		return nil, ProcessStartOutput{}, log.E("processStart", "command cannot be empty", nil)
 	}
 
 	opts := process.RunOptions{
@@ -161,7 +159,7 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 	proc, err := s.processService.StartWithOptions(ctx, opts)
 	if err != nil {
 		log.Error("mcp: process start failed", "command", input.Command, "err", err)
-		return nil, ProcessStartOutput{}, fmt.Errorf("failed to start process: %w", err)
+		return nil, ProcessStartOutput{}, log.E("processStart", "failed to start process", err)
 	}
 
 	info := proc.Info()
@@ -185,14 +183,14 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 	proc, err := s.processService.Get(input.ID)
 	if err != nil {
 		log.Error("mcp: process stop failed", "id", input.ID, "err", err)
-		return nil, ProcessStopOutput{}, fmt.Errorf("process not found: %w", err)
+		return nil, ProcessStopOutput{}, log.E("processStop", "process not found", err)
 	}
 
 	// For graceful stop, we use Kill() which sends SIGKILL
 	// A more sophisticated implementation could use SIGTERM first
 	if err := proc.Kill(); err != nil {
 		log.Error("mcp: process stop kill failed", "id", input.ID, "err", err)
-		return nil, ProcessStopOutput{}, fmt.Errorf("failed to stop process: %w", err)
+		return nil, ProcessStopOutput{}, log.E("processStop", "failed to stop process", err)
 	}
 
 	return nil, ProcessStopOutput{
@@ -212,7 +210,7 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	if err := s.processService.Kill(input.ID); err != nil {
 		log.Error("mcp: process kill failed", "id", input.ID, "err", err)
-		return nil, ProcessKillOutput{}, fmt.Errorf("failed to kill process: %w", err)
+		return nil, ProcessKillOutput{}, log.E("processKill", "failed to kill process", err)
 	}
 
 	return nil, ProcessKillOutput{
@@ -266,7 +264,7 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 	output, err := s.processService.Output(input.ID)
 	if err != nil {
 		log.Error("mcp: process output failed", "id", input.ID, "err", err)
-		return nil, ProcessOutputOutput{}, fmt.Errorf("failed to get process output: %w", err)
+		return nil, ProcessOutputOutput{}, log.E("processOutput", "failed to get process output", err)
 	}
 
 	return nil, ProcessOutputOutput{
@@ -283,18 +281,18 @@ func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, in
 		return nil, ProcessInputOutput{}, errIDEmpty
 	}
 	if input.Input == "" {
-		return nil, ProcessInputOutput{}, errors.New("input cannot be empty")
+		return nil, ProcessInputOutput{}, log.E("processInput", "input cannot be empty", nil)
 	}
 
 	proc, err := s.processService.Get(input.ID)
 	if err != nil {
 		log.Error("mcp: process input get failed", "id", input.ID, "err", err)
-		return nil, ProcessInputOutput{}, fmt.Errorf("process not found: %w", err)
+		return nil, ProcessInputOutput{}, log.E("processInput", "process not found", err)
 	}
 
 	if err := proc.SendInput(input.Input); err != nil {
 		log.Error("mcp: process input send failed", "id", input.ID, "err", err)
-		return nil, ProcessInputOutput{}, fmt.Errorf("failed to send input: %w", err)
+		return nil, ProcessInputOutput{}, log.E("processInput", "failed to send input", err)
 	}
 
 	return nil, ProcessInputOutput{

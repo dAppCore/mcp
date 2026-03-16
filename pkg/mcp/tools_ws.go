@@ -83,7 +83,7 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Error("mcp: ws start listen failed", "addr", addr, "err", err)
-		return nil, WSStartOutput{}, fmt.Errorf("failed to listen on %s: %w", addr, err)
+		return nil, WSStartOutput{}, log.E("wsStart", "failed to listen on "+addr, err)
 	}
 
 	actualAddr := ln.Addr().String()

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -38,7 +39,7 @@ type ScanIssue struct {
 
 func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input ScanInput) (*mcp.CallToolResult, ScanOutput, error) {
 	if s.forgeToken == "" {
-		return nil, ScanOutput{}, fmt.Errorf("no Forge token configured")
+		return nil, ScanOutput{}, coreerr.E("scan", "no Forge token configured", nil)
 	}
 
 	if input.Org == "" {
@@ -105,7 +106,7 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 
 	resp, err := s.client.Do(req)
 	if err != nil || resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to list repos: %v", err)
+		return nil, coreerr.E("listOrgRepos", "failed to list repos", err)
 	}
 	defer resp.Body.Close()
 
@@ -129,7 +130,7 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 
 	resp, err := s.client.Do(req)
 	if err != nil || resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to list issues for %s: %v", repo, err)
+		return nil, coreerr.E("listRepoIssues", "failed to list issues for "+repo, err)
 	}
 	defer resp.Body.Close()
 

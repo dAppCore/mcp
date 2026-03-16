@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"syscall"
 
+	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -40,7 +42,7 @@ func (s *PrepSubsystem) registerResumeTool(server *mcp.Server) {
 
 func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, input ResumeInput) (*mcp.CallToolResult, ResumeOutput, error) {
 	if input.Workspace == "" {
-		return nil, ResumeOutput{}, fmt.Errorf("workspace is required")
+		return nil, ResumeOutput{}, coreerr.E("resume", "workspace is required", nil)
 	}
 
 	home, _ := os.UserHomeDir()
@@ -49,17 +51,17 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	// Verify workspace exists
 	if _, err := os.Stat(srcDir); err != nil {
-		return nil, ResumeOutput{}, fmt.Errorf("workspace not found: %s", input.Workspace)
+		return nil, ResumeOutput{}, coreerr.E("resume", "workspace not found: "+input.Workspace, nil)
 	}
 
 	// Read current status
 	st, err := readStatus(wsDir)
 	if err != nil {
-		return nil, ResumeOutput{}, fmt.Errorf("no status.json in workspace: %w", err)
+		return nil, ResumeOutput{}, coreerr.E("resume", "no status.json in workspace", err)
 	}
 
 	if st.Status != "blocked" && st.Status != "failed" && st.Status != "completed" {
-		return nil, ResumeOutput{}, fmt.Errorf("workspace is %s, not resumable (must be blocked, failed, or completed)", st.Status)
+		return nil, ResumeOutput{}, coreerr.E("resume", "workspace is "+st.Status+", not resumable (must be blocked, failed, or completed)", nil)
 	}
 
 	// Determine agent
@@ -72,8 +74,8 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	if input.Answer != "" {
 		answerPath := filepath.Join(srcDir, "ANSWER.md")
 		content := fmt.Sprintf("# Answer\n\n%s\n", input.Answer)
-		if err := os.WriteFile(answerPath, []byte(content), 0644); err != nil {
-			return nil, ResumeOutput{}, fmt.Errorf("failed to write ANSWER.md: %w", err)
+		if err := coreio.Local.Write(answerPath, content); err != nil {
+			return nil, ResumeOutput{}, coreerr.E("resume", "failed to write ANSWER.md", err)
 		}
 	}
 
@@ -113,7 +115,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()
-		return nil, ResumeOutput{}, fmt.Errorf("failed to spawn %s: %w", agent, err)
+		return nil, ResumeOutput{}, coreerr.E("resume", "failed to spawn "+agent, err)
 	}
 
 	// Update status

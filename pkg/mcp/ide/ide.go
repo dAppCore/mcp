@@ -2,15 +2,15 @@ package ide
 
 import (
 	"context"
-	"errors"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
 // but it has not been initialised (headless mode).
-var errBridgeNotAvailable = errors.New("bridge not available")
+var errBridgeNotAvailable = coreerr.E("ide", "bridge not available", nil)
 
 // Subsystem implements mcp.Subsystem and mcp.SubsystemWithShutdown for the IDE.
 type Subsystem struct {
