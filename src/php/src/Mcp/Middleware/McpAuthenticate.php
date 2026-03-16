@@ -75,14 +75,30 @@ class McpAuthenticate
             $apiKey = substr($apiKey, 7);
         }
 
-        // Look up workspace by API key
-        return Workspace::whereHas('apiKeys', function ($query) use ($apiKey) {
-            $query->where('key', hash('sha256', $apiKey))
-                ->where(function ($q) {
-                    $q->whereNull('expires_at')
-                        ->orWhere('expires_at', '>', now());
-                });
-        })->first();
+        // Try AgentApiKey authentication (agentic module)
+        try {
+            $agentKeyService = app(\Core\Mod\Agentic\Services\AgentApiKeyService::class);
+            $agentKey = $agentKeyService->validate($apiKey);
+            if ($agentKey) {
+                return Workspace::find($agentKey->workspace_id);
+            }
+        } catch (\Throwable) {
+            // AgentApiKeyService not available, skip
+        }
+
+        // Fall back to workspace apiKeys relationship
+        try {
+            return Workspace::whereHas('apiKeys', function ($query) use ($apiKey) {
+                $query->where('key', hash('sha256', $apiKey))
+                    ->where(function ($q) {
+                        $q->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    });
+            })->first();
+        } catch (\Throwable) {
+            // ApiKey model not available (package removed)
+            return null;
+        }
     }
 
     /**
