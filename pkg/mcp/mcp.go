@@ -562,15 +562,20 @@ func detectLanguageFromPath(path string) string {
 }
 
 // Run starts the MCP server.
-// If MCP_ADDR is set, it starts a TCP server.
-// Otherwise, it starts a Stdio server.
+// Transport selection:
+//   - MCP_HTTP_ADDR set → Streamable HTTP (with optional MCP_AUTH_TOKEN)
+//   - MCP_ADDR set → TCP
+//   - Otherwise → Stdio
 func (s *Service) Run(ctx context.Context) error {
-	addr := os.Getenv("MCP_ADDR")
-	if addr != "" {
+	if httpAddr := os.Getenv("MCP_HTTP_ADDR"); httpAddr != "" {
+		return s.ServeHTTP(ctx, httpAddr)
+	}
+	if addr := os.Getenv("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
 	}
 	return s.server.Run(ctx, &mcp.StdioTransport{})
 }
+
 
 // Server returns the underlying MCP server for advanced configuration.
 func (s *Service) Server() *mcp.Server {
