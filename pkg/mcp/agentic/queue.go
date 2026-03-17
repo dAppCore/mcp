@@ -108,7 +108,7 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 	home, _ := os.UserHomeDir()
 	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
 
-	entries, err := os.ReadDir(wsRoot)
+	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {
 		return 0
 	}
@@ -167,7 +167,7 @@ func (s *PrepSubsystem) drainQueue() {
 	home, _ := os.UserHomeDir()
 	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
 
-	entries, err := os.ReadDir(wsRoot)
+	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {
 		return
 	}
