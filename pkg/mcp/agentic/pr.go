@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -58,7 +59,7 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 	wsDir := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace", input.Workspace)
 	srcDir := filepath.Join(wsDir, "src")
 
-	if _, err := os.Stat(srcDir); err != nil {
+	if _, err := coreio.Local.List(srcDir); err != nil {
 		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace not found: "+input.Workspace, nil)
 	}
 

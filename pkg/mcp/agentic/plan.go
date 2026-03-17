@@ -255,7 +255,7 @@ func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, in
 	}
 
 	path := planPath(s.plansDir(), input.ID)
-	if _, err := os.Stat(path); err != nil {
+	if !coreio.Local.IsFile(path) {
 		return nil, PlanDeleteOutput{}, coreerr.E("planDelete", "plan not found: "+input.ID, nil)
 	}
 
@@ -275,7 +275,7 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, PlanListOutput{}, coreerr.E("planList", "failed to access plans directory", err)
 	}
 
-	entries, err := os.ReadDir(dir)
+	entries, err := coreio.Local.List(dir)
 	if err != nil {
 		return nil, PlanListOutput{}, coreerr.E("planList", "failed to read plans directory", err)
 	}

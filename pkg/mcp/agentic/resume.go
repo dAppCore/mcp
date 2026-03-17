@@ -50,7 +50,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	srcDir := filepath.Join(wsDir, "src")
 
 	// Verify workspace exists
-	if _, err := os.Stat(srcDir); err != nil {
+	if _, err := coreio.Local.List(srcDir); err != nil {
 		return nil, ResumeOutput{}, coreerr.E("resume", "workspace not found: "+input.Workspace, nil)
 	}
 

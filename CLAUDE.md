@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Core MCP is a Model Context Protocol implementation in two halves: a **Go binary** (`core-mcp`) that speaks native MCP over stdio/TCP/Unix, and a **PHP Laravel package** (`lthn/mcp`) that adds an HTTP MCP API with auth, quotas, and analytics. Both halves bridge to each other via REST or WebSocket.
+Core MCP is a Model Context Protocol implementation in two halves: a **Go binary** (`core-mcp`) that speaks native MCP over stdio/TCP/HTTP/Unix, and a **PHP Laravel package** (`lthn/mcp`) that adds an HTTP MCP API with auth, quotas, and analytics. Both halves bridge to each other via REST or WebSocket.
 
 Module: `forge.lthn.ai/core/mcp` | Licence: EUPL-1.2
 
@@ -39,9 +39,11 @@ composer lint                                       # Laravel Pint (PSR-12)
 ### Running locally
 
 ```bash
-./core-mcp mcp serve                              # Stdio transport (Claude Code / IDE)
-./core-mcp mcp serve --workspace /path/to/project  # Sandbox file ops to directory
-MCP_ADDR=127.0.0.1:9100 ./core-mcp mcp serve      # TCP transport
+./core-mcp mcp serve                                       # Stdio transport (Claude Code / IDE)
+./core-mcp mcp serve --workspace /path/to/project           # Sandbox file ops to directory
+MCP_ADDR=127.0.0.1:9100 ./core-mcp mcp serve               # TCP transport
+MCP_HTTP_ADDR=127.0.0.1:9101 ./core-mcp mcp serve          # Streamable HTTP transport
+MCP_HTTP_ADDR=:9101 MCP_AUTH_TOKEN=secret ./core-mcp mcp serve  # HTTP with Bearer auth
 ```
 
 ## Architecture
@@ -61,11 +63,15 @@ MCP_ADDR=127.0.0.1:9100 ./core-mcp mcp serve      # TCP transport
 - `ws` — `tools_ws.go` (requires `WithWSHub`)
 
 **Subsystem interface** (`Subsystem` / `SubsystemWithShutdown`): Pluggable tool groups registered via `WithSubsystem`. Three ship with the repo:
-- `tools_ml.go` — ML inference subsystem (generate, score, probe, status, backends)
 - `pkg/mcp/ide/` — IDE bridge to Laravel backend over WebSocket (chat, build, dashboard tools)
 - `pkg/mcp/brain/` — OpenBrain knowledge store proxy (remember, recall, forget, list)
+- `pkg/mcp/agentic/` — Agent orchestration (prep workspace, dispatch, resume, status, plans, PRs, epics, scan)
 
-**Transports**: stdio (default), TCP (`MCP_ADDR` env var), Unix socket (`ServeUnix`). TCP binds `127.0.0.1` by default; `0.0.0.0` emits a security warning.
+**Transports** (selected by `Run()` in priority order):
+1. Streamable HTTP (`MCP_HTTP_ADDR` env var) — Bearer token auth via `MCP_AUTH_TOKEN`, endpoint at `/mcp`
+2. TCP (`MCP_ADDR` env var) — binds `127.0.0.1` by default; `0.0.0.0` emits a security warning
+3. Stdio (default) — used by Claude Code / IDEs
+4. Unix socket (`ServeUnix`) — programmatic use only
 
 **REST bridge**: `BridgeToAPI` maps each `ToolRecord` to a `POST` endpoint via `api.ToolBridge`. 10 MB body limit.
 

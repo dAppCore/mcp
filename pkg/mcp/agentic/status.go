@@ -98,7 +98,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	home, _ := os.UserHomeDir()
 	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
 
-	entries, err := os.ReadDir(wsRoot)
+	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {
 		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", err)
 	}
