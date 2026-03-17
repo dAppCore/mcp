@@ -4,15 +4,15 @@ go 1.26.0
 
 require (
 	forge.lthn.ai/core/api v0.1.5
-	forge.lthn.ai/core/cli v0.3.6
-	forge.lthn.ai/core/go v0.3.2
+	forge.lthn.ai/core/cli v0.3.7
+	forge.lthn.ai/core/go v0.3.3
 	forge.lthn.ai/core/go-ai v0.1.12
-	forge.lthn.ai/core/go-io v0.1.6
+	forge.lthn.ai/core/go-io v0.1.7
 	forge.lthn.ai/core/go-log v0.0.4
-	forge.lthn.ai/core/go-process v0.2.8
-	forge.lthn.ai/core/go-rag v0.1.10
+	forge.lthn.ai/core/go-process v0.2.9
+	forge.lthn.ai/core/go-rag v0.1.11
 	forge.lthn.ai/core/go-webview v0.1.6
-	forge.lthn.ai/core/go-ws v0.2.4
+	forge.lthn.ai/core/go-ws v0.2.5
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.4.1
