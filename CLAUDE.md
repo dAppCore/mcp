@@ -1,139 +1,129 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code and Codex when working with this repository.
 
-## Project overview
+## Module
 
-Core MCP is a Model Context Protocol implementation in two halves: a **Go binary** (`core-mcp`) that speaks native MCP over stdio/TCP/HTTP/Unix, and a **PHP Laravel package** (`lthn/mcp`) that adds an HTTP MCP API with auth, quotas, and analytics. Both halves bridge to each other via REST or WebSocket.
+`forge.lthn.ai/core/mcp` — Model Context Protocol server with file operations, tool registration, notification broadcasting, and channel events.
 
-Module: `forge.lthn.ai/core/mcp` | Licence: EUPL-1.2
+Licence: EUPL-1.2
 
-## Build and test commands
-
-### Go
+## Build & Test
 
 ```bash
-core build                          # Build binary (./core-mcp)
-go build -o core-mcp ./cmd/core-mcp/  # Alternative without core CLI
-
-core go test                        # Run all Go tests
-core go test --run TestBridgeToAPI  # Run a single test
-core go cov                         # Coverage report
-core go cov --open                  # Open HTML coverage in browser
-core go qa                          # Format + vet + lint + test
-core go qa full                     # Also race detector, vuln scan, security audit
-core go fmt                         # gofmt
-core go lint                        # golangci-lint
-core go vet                         # go vet
+go test ./pkg/mcp/...            # run all tests
+go build ./pkg/mcp/...           # verify compilation
+go build ./cmd/core-mcp/         # build binary
 ```
 
-### PHP (from repo root or `src/php/`)
+Or via the Core CLI:
 
 ```bash
-composer test                                       # Run all PHP tests (Pest)
-composer test -- --filter=SqlQueryValidatorTest      # Single test
-composer lint                                       # Laravel Pint (PSR-12)
-./vendor/bin/pint --dirty                           # Format only changed files
+core go test
+core go qa                       # fmt + vet + lint + test
 ```
 
-### Running locally
+## API Shape
 
-```bash
-./core-mcp mcp serve                                       # Stdio transport (Claude Code / IDE)
-./core-mcp mcp serve --workspace /path/to/project           # Sandbox file ops to directory
-MCP_ADDR=127.0.0.1:9100 ./core-mcp mcp serve               # TCP transport
-MCP_HTTP_ADDR=127.0.0.1:9101 ./core-mcp mcp serve          # Streamable HTTP transport
-MCP_HTTP_ADDR=:9101 MCP_AUTH_TOKEN=secret ./core-mcp mcp serve  # HTTP with Bearer auth
+Uses `Options{}` struct, not functional options:
+
+```go
+svc, err := mcp.New(mcp.Options{
+    WorkspaceRoot:  "/path/to/project",
+    ProcessService: ps,
+    WSHub:          hub,
+    Subsystems:     []mcp.Subsystem{brain, agentic, monitor},
+})
 ```
 
-## Architecture
+**Do not use:** `WithWorkspaceRoot`, `WithSubsystem`, `WithProcessService`, `WithWSHub` — these no longer exist.
 
-### Go server (`pkg/mcp/`)
+## Notification Broadcasting
 
-`mcp.Service` is the central type, configured via functional options (`mcp.With*`). It owns the MCP server, a sandboxed filesystem `Medium`, optional subsystems, and an ordered `[]ToolRecord` that powers the REST bridge.
+```go
+// Broadcast to all connected sessions
+svc.SendNotificationToAllClients(ctx, "info", "monitor", data)
 
-**Tool registration**: All tools use the generic `addToolRecorded[In, Out]()` function which simultaneously registers the MCP handler, reflects input/output structs into JSON Schemas, and creates a REST handler closure. No per-tool glue code needed.
+// Push a named channel event
+svc.ChannelSend(ctx, "agent.complete", map[string]any{"repo": "go-io"})
 
-**Tool groups** (registered in `registerTools()`):
-- `files`, `language` — `mcp.go`
-- `metrics` — `tools_metrics.go`
-- `rag` — `tools_rag.go`
-- `process` — `tools_process.go` (requires `WithProcessService`)
-- `webview` — `tools_webview.go`
-- `ws` — `tools_ws.go` (requires `WithWSHub`)
+// Push to a specific session
+svc.ChannelSendToSession(ctx, session, "build.failed", data)
+```
 
-**Subsystem interface** (`Subsystem` / `SubsystemWithShutdown`): Pluggable tool groups registered via `WithSubsystem`. Three ship with the repo:
-- `pkg/mcp/ide/` — IDE bridge to Laravel backend over WebSocket (chat, build, dashboard tools)
-- `pkg/mcp/brain/` — OpenBrain knowledge store proxy (remember, recall, forget, list)
-- `pkg/mcp/agentic/` — Agent orchestration (prep workspace, dispatch, resume, status, plans, PRs, epics, scan)
+The `claude/channel` experimental capability is registered automatically.
 
-**Transports** (selected by `Run()` in priority order):
-1. Streamable HTTP (`MCP_HTTP_ADDR` env var) — Bearer token auth via `MCP_AUTH_TOKEN`, endpoint at `/mcp`
-2. TCP (`MCP_ADDR` env var) — binds `127.0.0.1` by default; `0.0.0.0` emits a security warning
+## Tool Groups
+
+| File | Group | Tools |
+|------|-------|-------|
+| `mcp.go` | files, language | file_read, file_write, file_delete, file_rename, file_exists, file_edit, dir_list, dir_create, lang_detect, lang_list |
+| `tools_metrics.go` | metrics | metrics_record, metrics_query |
+| `tools_process.go` | process | process_start, process_stop, process_kill, process_list, process_output, process_input |
+| `tools_rag.go` | rag | rag_query, rag_ingest, rag_collections |
+| `tools_webview.go` | webview | webview_connect, webview_navigate, etc. |
+| `tools_ws.go` | ws | ws_start, ws_info |
+
+## Subsystems
+
+| Package | Name | Purpose |
+|---------|------|---------|
+| `pkg/mcp/brain/` | brain | OpenBrain recall, remember, forget |
+| `pkg/mcp/ide/` | ide | IDE bridge to Laravel backend |
+| `pkg/mcp/agentic/` | agentic | Dispatch, status, plans, PRs, scans |
+
+## Adding a New Tool
+
+```go
+// 1. Define Input/Output structs
+type MyInput struct {
+    Name string `json:"name"`
+}
+type MyOutput struct {
+    Result string `json:"result"`
+}
+
+// 2. Write handler
+func (s *Service) myTool(ctx context.Context, req *mcp.CallToolRequest, input MyInput) (*mcp.CallToolResult, MyOutput, error) {
+    return nil, MyOutput{Result: "done"}, nil
+}
+
+// 3. Register in registerTools()
+addToolRecorded(s, server, "group", &mcp.Tool{
+    Name:        "my_tool",
+    Description: "Does something useful",
+}, s.myTool)
+```
+
+## Adding a New Subsystem
+
+```go
+type MySubsystem struct{}
+
+func (m *MySubsystem) Name() string { return "my-sub" }
+func (m *MySubsystem) RegisterTools(server *mcp.Server) {
+    // register tools here
+}
+
+// Register via Options
+svc, err := mcp.New(mcp.Options{
+    Subsystems: []mcp.Subsystem{&MySubsystem{}},
+})
+```
+
+Subsystems that need to push channel events implement `SubsystemWithNotifier`.
+
+## Transports
+
+Selected by `Run()` in priority order:
+1. Streamable HTTP (`MCP_HTTP_ADDR` env) — Bearer auth via `MCP_AUTH_TOKEN`
+2. TCP (`MCP_ADDR` env)
 3. Stdio (default) — used by Claude Code / IDEs
-4. Unix socket (`ServeUnix`) — programmatic use only
 
-**REST bridge**: `BridgeToAPI` maps each `ToolRecord` to a `POST` endpoint via `api.ToolBridge`. 10 MB body limit.
+## Test Naming
 
-### PHP package (`src/php/`)
+`_Good` (happy path), `_Bad` (expected errors), `_Ugly` (panics/edge cases).
 
-Three namespace roots mapping to the Laravel request lifecycle:
+## Go Workspace
 
-| Namespace | Path | Role |
-|-----------|------|------|
-| `Core\Front\Mcp` | `src/Front/Mcp/` | Frontage — middleware group, `McpToolHandler` contract, lifecycle events |
-| `Core\Mcp` | `src/Mcp/` | Module — service provider, models, services, tools, admin panel |
-| `Core\Website\Mcp` | `src/Website/Mcp/` | Website — playground, API explorer, metrics dashboard |
-
-Boot chain: `Core\Front\Mcp\Boot` (auto-discovered) fires `McpRoutesRegistering` / `McpToolsRegistering` → `Core\Mcp\Boot` listens and registers routes, tools, admin views, artisan commands.
-
-Key services (bound as singletons): `ToolRegistry`, `ToolAnalyticsService`, `McpQuotaService`, `CircuitBreaker`, `AuditLogService`, `QueryExecutionService`.
-
-`QueryDatabase` tool has 7-layer SQL security (keyword blocking, pattern detection, whitelist, table blocklist, row limits, timeouts, audit logging).
-
-### Brain-seed utility (`cmd/brain-seed/`)
-
-Bulk-imports MEMORY.md, plan docs, and CLAUDE.md files into OpenBrain via the PHP MCP API. Splits by headings, infers memory type, truncates to 3800 chars.
-
-## Conventions
-
-- **UK English** in all user-facing strings and docs (colour, organisation, centre, normalise)
-- **SPDX headers** in Go files: `// SPDX-License-Identifier: EUPL-1.2`
-- **`declare(strict_types=1);`** in every PHP file
-- **Full type hints** on all PHP parameters and return types
-- **Pest syntax** for PHP tests (not PHPUnit)
-- **Flux Pro** components in Livewire views (not vanilla Alpine); **Font Awesome** icons (not Heroicons)
-- **Conventional commits**: `type(scope): description` — e.g. `feat(mcp): add new tool`
-- Go test names use `_Good` / `_Bad` / `_Ugly` suffixes (happy path / error path / edge cases)
-
-## Adding a new Go tool
-
-1. Define `Input` and `Output` structs with `json` tags
-2. Write handler: `func (s *Service) myTool(ctx, *mcp.CallToolRequest, Input) (*mcp.CallToolResult, Output, error)`
-3. Register in `registerTools()`: `addToolRecorded(s, server, "group", &mcp.Tool{...}, s.myTool)`
-
-## Adding a new Go subsystem
-
-1. Create package under `pkg/mcp/`, implement `Subsystem` (and optionally `SubsystemWithShutdown`)
-2. Register: `mcp.New(mcp.WithSubsystem(&mysubsystem.Subsystem{}))`
-
-## Adding a new PHP tool
-
-1. Implement `Core\Front\Mcp\Contracts\McpToolHandler` (`schema()` + `handle()`)
-2. Register via the `McpToolsRegistering` lifecycle event
-
-## Key dependencies
-
-| Go module | Role |
-|-----------|------|
-| `github.com/modelcontextprotocol/go-sdk` | Official MCP Go SDK |
-| `forge.lthn.ai/core/go-io` | Filesystem abstraction + sandboxing |
-| `forge.lthn.ai/core/go-ml` | ML inference, scoring, probes |
-| `forge.lthn.ai/core/go-rag` | Qdrant vector search |
-| `forge.lthn.ai/core/go-process` | Process lifecycle management |
-| `forge.lthn.ai/core/api` | REST framework + `ToolBridge` |
-| `forge.lthn.ai/core/go-ws` | WebSocket hub |
-
-PHP: `lthn/php` (Core framework), Laravel 12, Livewire 3, Flux Pro.
-
-Go workspace: this module is part of `~/Code/go.work`. Requires Go 1.26+, PHP 8.2+.
+Part of `~/Code/go.work`. Use `GOWORK=off` to test in isolation.
