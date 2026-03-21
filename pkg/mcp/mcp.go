@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"forge.lthn.ai/core/go-io"
 	"forge.lthn.ai/core/go-log"
@@ -35,6 +36,8 @@ type Service struct {
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
 	wsAddr         string           // WebSocket server address
+	wsMu           sync.Mutex       // Protects wsServer and wsAddr
+	stdioMode      bool             // True when running via stdio transport
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
 }
 
@@ -661,6 +664,7 @@ func (s *Service) Run(ctx context.Context) error {
 	if addr := os.Getenv("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
 	}
+	s.stdioMode = true
 	return s.server.Run(ctx, &mcp.StdioTransport{})
 }
 

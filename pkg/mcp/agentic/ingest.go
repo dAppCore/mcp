@@ -23,7 +23,10 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 	}
 
 	// Read the log file
-	logFiles, _ := filepath.Glob(filepath.Join(wsDir, "agent-*.log"))
+	logFiles, err := filepath.Glob(filepath.Join(wsDir, "agent-*.log"))
+	if err != nil {
+		return
+	}
 	if len(logFiles) == 0 {
 		return
 	}

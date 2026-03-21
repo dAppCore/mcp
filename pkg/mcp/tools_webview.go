@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"sync"
 	"time"
 
 	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// webviewMu protects webviewInstance from concurrent access.
+var webviewMu sync.Mutex
 
 // webviewInstance holds the current webview connection.
 // This is managed by the MCP service.
@@ -250,6 +254,9 @@ func (s *Service) registerWebviewTools(server *mcp.Server) {
 
 // webviewConnect handles the webview_connect tool call.
 func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewConnectInput) (*mcp.CallToolResult, WebviewConnectOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Security("MCP tool execution", "tool", "webview_connect", "debug_url", input.DebugURL, "user", log.Username())
 
 	if input.DebugURL == "" {
@@ -288,6 +295,9 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 
 // webviewDisconnect handles the webview_disconnect tool call.
 func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewDisconnectInput) (*mcp.CallToolResult, WebviewDisconnectOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_disconnect", "user", log.Username())
 
 	if webviewInstance == nil {
@@ -312,6 +322,9 @@ func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolReques
 
 // webviewNavigate handles the webview_navigate tool call.
 func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest, input WebviewNavigateInput) (*mcp.CallToolResult, WebviewNavigateOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_navigate", "url", input.URL, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -335,6 +348,9 @@ func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest,
 
 // webviewClick handles the webview_click tool call.
 func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, input WebviewClickInput) (*mcp.CallToolResult, WebviewClickOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_click", "selector", input.Selector, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -355,6 +371,9 @@ func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, in
 
 // webviewType handles the webview_type tool call.
 func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, input WebviewTypeInput) (*mcp.CallToolResult, WebviewTypeOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_type", "selector", input.Selector, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -375,6 +394,9 @@ func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // webviewQuery handles the webview_query tool call.
 func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, input WebviewQueryInput) (*mcp.CallToolResult, WebviewQueryOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_query", "selector", input.Selector, "all", input.All, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -433,6 +455,9 @@ func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, in
 
 // webviewConsole handles the webview_console tool call.
 func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, input WebviewConsoleInput) (*mcp.CallToolResult, WebviewConsoleOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_console", "clear", input.Clear, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -465,6 +490,9 @@ func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, 
 
 // webviewEval handles the webview_eval tool call.
 func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, input WebviewEvalInput) (*mcp.CallToolResult, WebviewEvalOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Security("MCP tool execution", "tool", "webview_eval", "user", log.Username())
 
 	if webviewInstance == nil {
@@ -492,6 +520,9 @@ func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // webviewScreenshot handles the webview_screenshot tool call.
 func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolRequest, input WebviewScreenshotInput) (*mcp.CallToolResult, WebviewScreenshotOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_screenshot", "format", input.Format, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -518,6 +549,9 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 
 // webviewWait handles the webview_wait tool call.
 func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, input WebviewWaitInput) (*mcp.CallToolResult, WebviewWaitOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_wait", "selector", input.Selector, "timeout", input.Timeout, "user", log.Username())
 
 	if webviewInstance == nil {

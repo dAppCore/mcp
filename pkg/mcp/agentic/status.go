@@ -95,8 +95,7 @@ func (s *PrepSubsystem) registerStatusTool(server *mcp.Server) {
 }
 
 func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, input StatusInput) (*mcp.CallToolResult, StatusOutput, error) {
-	home, _ := os.UserHomeDir()
-	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+	wsRoot := s.workspaceRoot()
 
 	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {

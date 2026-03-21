@@ -96,6 +96,11 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 // Shutdown implements mcp.SubsystemWithShutdown.
 func (s *PrepSubsystem) Shutdown(_ context.Context) error { return nil }
 
+// workspaceRoot returns the base directory for agent workspaces.
+func (s *PrepSubsystem) workspaceRoot() string {
+	return filepath.Join(s.codePath, "host-uk", "core", ".core", "workspace")
+}
+
 // --- Input/Output types ---
 
 // PrepInput is the input for agentic_prep_workspace.
@@ -134,8 +139,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	}
 
 	// Workspace root: .core/workspace/{repo}-{timestamp}/
-	home, _ := os.UserHomeDir()
-	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+	wsRoot := s.workspaceRoot()
 	wsName := fmt.Sprintf("%s-%d", input.Repo, time.Now().Unix())
 	wsDir := filepath.Join(wsRoot, wsName)
 
@@ -395,10 +399,13 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return 0
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0
+	}
 
 	var pages []struct {
 		Title  string `json:"title"`
@@ -418,7 +425,11 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		pageReq.Header.Set("Authorization", "token "+s.forgeToken)
 
 		pageResp, err := s.client.Do(pageReq)
-		if err != nil || pageResp.StatusCode != 200 {
+		if err != nil {
+			continue
+		}
+		if pageResp.StatusCode != 200 {
+			pageResp.Body.Close()
 			continue
 		}
 
@@ -480,10 +491,13 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 	req.Header.Set("Authorization", "Bearer "+s.brainKey)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return 0
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0
+	}
 
 	respData, _ := io.ReadAll(resp.Body)
 	var result struct {
@@ -573,10 +587,13 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return
+	}
 
 	var issueData struct {
 		Title string `json:"title"`

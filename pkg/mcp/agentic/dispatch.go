@@ -174,7 +174,13 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	// - Stdin from /dev/null
 	// - TERM=dumb prevents terminal control sequences
 	// - NO_COLOR=1 disables colour output
-	devNull, _ := os.Open(os.DevNull)
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		outFile.Close()
+		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to open /dev/null", err)
+	}
+	defer devNull.Close()
+
 	cmd := exec.Command(command, args...)
 	cmd.Dir = srcDir
 	cmd.Stdin = devNull

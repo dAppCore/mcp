@@ -178,5 +178,5 @@ func (c *connConnection) Close() error {
 }
 
 func (c *connConnection) SessionID() string {
-	return "tcp-session" // Unique ID might be better, but optional
+	return "tcp-" + c.conn.RemoteAddr().String()
 }

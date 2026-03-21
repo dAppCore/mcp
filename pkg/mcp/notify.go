@@ -82,6 +82,10 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 	// Write directly to stdout (stdio transport) with newline delimiter.
 	// The official SDK doesn't expose a way to send custom notification methods,
 	// so we write the JSON-RPC notification directly to the transport.
+	// Only write when running in stdio mode — HTTP/TCP transports don't use stdout.
+	if !s.stdioMode {
+		return
+	}
 	stdoutMu.Lock()
 	os.Stdout.Write(append(msg, '\n'))
 	stdoutMu.Unlock()

@@ -149,8 +149,9 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	summary := ai.Summary(events)
 
 	// Build output
+	total, _ := summary["total"].(int)
 	output := MetricsQueryOutput{
-		Total:   summary["total"].(int),
+		Total:   total,
 		ByType:  convertMetricCounts(summary["by_type"]),
 		ByRepo:  convertMetricCounts(summary["by_repo"]),
 		ByAgent: convertMetricCounts(summary["by_agent"]),

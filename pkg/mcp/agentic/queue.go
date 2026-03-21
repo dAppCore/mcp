@@ -105,8 +105,7 @@ func (s *PrepSubsystem) delayForAgent(agent string) time.Duration {
 
 // countRunningByAgent counts running workspaces for a specific agent type.
 func (s *PrepSubsystem) countRunningByAgent(agent string) int {
-	home, _ := os.UserHomeDir()
-	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+	wsRoot := s.workspaceRoot()
 
 	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {
@@ -164,8 +163,7 @@ func (s *PrepSubsystem) canDispatch() bool {
 // drainQueue finds the oldest queued workspace and spawns it if a slot is available.
 // Applies rate-based delay between spawns.
 func (s *PrepSubsystem) drainQueue() {
-	home, _ := os.UserHomeDir()
-	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+	wsRoot := s.workspaceRoot()
 
 	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {
@@ -212,7 +210,12 @@ func (s *PrepSubsystem) drainQueue() {
 			continue
 		}
 
-		devNull, _ := os.Open(os.DevNull)
+		devNull, err := os.Open(os.DevNull)
+		if err != nil {
+			outFile.Close()
+			continue
+		}
+
 		cmd := exec.Command(command, args...)
 		cmd.Dir = srcDir
 		cmd.Stdin = devNull
@@ -223,8 +226,10 @@ func (s *PrepSubsystem) drainQueue() {
 
 		if err := cmd.Start(); err != nil {
 			outFile.Close()
+			devNull.Close()
 			continue
 		}
+		devNull.Close()
 
 		st.Status = "running"
 		st.PID = cmd.Process.Pid

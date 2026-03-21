@@ -69,6 +69,9 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 
 	s.logger.Security("MCP tool execution", "tool", "ws_start", "addr", addr, "user", log.Username())
 
+	s.wsMu.Lock()
+	defer s.wsMu.Unlock()
+
 	// Check if server is already running
 	if s.wsServer != nil {
 		return nil, WSStartOutput{
