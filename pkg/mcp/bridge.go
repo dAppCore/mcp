@@ -20,6 +20,10 @@ const maxBodySize = 10 << 20 // 10 MB
 // Each tool becomes a POST endpoint that reads a JSON body, dispatches
 // to the tool's RESTHandler (which knows the concrete input type), and
 // wraps the result in the standard api.Response envelope.
+//
+//	bridge := api.NewToolBridge()
+//	mcp.BridgeToAPI(svc, bridge)
+//	bridge.Mount(router, "/v1/tools")
 func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 	for rec := range svc.ToolsSeq() {
 		desc := api.ToolDescriptor{

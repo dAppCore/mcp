@@ -12,24 +12,32 @@ import (
 )
 
 // WSStartInput contains parameters for starting the WebSocket server.
+//
+//	input := WSStartInput{Addr: ":9090"}
 type WSStartInput struct {
-	Addr string `json:"addr,omitempty"` // Address to listen on (default: ":8080")
+	Addr string `json:"addr,omitempty"` // e.g. ":9090" (default: ":8080")
 }
 
 // WSStartOutput contains the result of starting the WebSocket server.
+//
+//	// out.Success == true, out.Addr == "127.0.0.1:9090"
 type WSStartOutput struct {
-	Success bool   `json:"success"`
-	Addr    string `json:"addr"`
-	Message string `json:"message,omitempty"`
+	Success bool   `json:"success"`           // true when server started
+	Addr    string `json:"addr"`              // actual listening address
+	Message string `json:"message,omitempty"` // e.g. "WebSocket server started at ws://127.0.0.1:9090/ws"
 }
 
-// WSInfoInput contains parameters for getting WebSocket hub info.
+// WSInfoInput takes no parameters.
+//
+//	input := WSInfoInput{}
 type WSInfoInput struct{}
 
 // WSInfoOutput contains WebSocket hub statistics.
+//
+//	// out.Clients == 3, out.Channels == 2
 type WSInfoOutput struct {
-	Clients  int `json:"clients"`
-	Channels int `json:"channels"`
+	Clients  int `json:"clients"`  // number of connected WebSocket clients
+	Channels int `json:"channels"` // number of active channels
 }
 
 // registerWSTools adds WebSocket tools to the MCP server.
@@ -116,18 +124,25 @@ func (s *Service) wsInfo(ctx context.Context, req *mcp.CallToolRequest, input WS
 	}, nil
 }
 
-// ProcessEventCallback is a callback function for process events.
-// It can be registered with the process service to forward events to WebSocket.
+// ProcessEventCallback forwards process lifecycle events to WebSocket clients.
+//
+//	cb := NewProcessEventCallback(hub)
+//	cb.OnProcessOutput("proc-abc123", "build complete\n")
+//	cb.OnProcessStatus("proc-abc123", "exited", 0)
 type ProcessEventCallback struct {
 	hub *ws.Hub
 }
 
 // NewProcessEventCallback creates a callback that forwards process events to WebSocket.
+//
+//	cb := NewProcessEventCallback(hub)
 func NewProcessEventCallback(hub *ws.Hub) *ProcessEventCallback {
 	return &ProcessEventCallback{hub: hub}
 }
 
 // OnProcessOutput forwards process output to WebSocket subscribers.
+//
+//	cb.OnProcessOutput("proc-abc123", "PASS\n")
 func (c *ProcessEventCallback) OnProcessOutput(processID string, line string) {
 	if c.hub != nil {
 		_ = c.hub.SendProcessOutput(processID, line)
@@ -135,6 +150,8 @@ func (c *ProcessEventCallback) OnProcessOutput(processID string, line string) {
 }
 
 // OnProcessStatus forwards process status changes to WebSocket subscribers.
+//
+//	cb.OnProcessStatus("proc-abc123", "exited", 0)
 func (c *ProcessEventCallback) OnProcessStatus(processID string, status string, exitCode int) {
 	if c.hub != nil {
 		_ = c.hub.SendProcessStatus(processID, status, exitCode)

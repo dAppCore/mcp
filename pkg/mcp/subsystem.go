@@ -20,6 +20,10 @@ type Subsystem interface {
 }
 
 // SubsystemWithShutdown extends Subsystem with graceful cleanup.
+//
+//	func (b *BrainSubsystem) Shutdown(ctx context.Context) error {
+//	    return b.client.Close()
+//	}
 type SubsystemWithShutdown interface {
 	Subsystem
 	Shutdown(ctx context.Context) error
@@ -36,6 +40,10 @@ type Notifier interface {
 
 // SubsystemWithNotifier extends Subsystem for those that emit channel events.
 // SetNotifier is called after New() before any tool calls.
+//
+//	func (m *MonitorSubsystem) SetNotifier(n mcp.Notifier) {
+//	    m.notifier = n
+//	}
 type SubsystemWithNotifier interface {
 	Subsystem
 	SetNotifier(n Notifier)

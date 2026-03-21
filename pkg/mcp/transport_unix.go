@@ -10,7 +10,10 @@ import (
 
 // ServeUnix starts a Unix domain socket server for the MCP service.
 // The socket file is created at the given path and removed on shutdown.
-// It accepts connections and spawns a new MCP server session for each connection.
+//
+//	if err := svc.ServeUnix(ctx, "/tmp/core-mcp.sock"); err != nil {
+//	    log.Fatal("unix transport failed", "err", err)
+//	}
 func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	// Clean up any stale socket file
 	if err := io.Local.Delete(socketPath); err != nil {

@@ -16,61 +16,85 @@ const (
 )
 
 // RAGQueryInput contains parameters for querying the RAG vector database.
+//
+//	input := RAGQueryInput{
+//	    Question:   "How do I register a service?",
+//	    Collection: "core-docs",
+//	    TopK:       3,
+//	}
 type RAGQueryInput struct {
-	Question   string `json:"question"`             // The question or search query
-	Collection string `json:"collection,omitempty"` // Collection name (default: hostuk-docs)
-	TopK       int    `json:"topK,omitempty"`       // Number of results to return (default: 5)
+	Question   string `json:"question"`             // e.g. "How do I register a service?"
+	Collection string `json:"collection,omitempty"` // e.g. "core-docs" (default: "hostuk-docs")
+	TopK       int    `json:"topK,omitempty"`       // e.g. 3 (default: 5)
 }
 
-// RAGQueryResult represents a single query result.
+// RAGQueryResult represents a single query result with relevance score.
+//
+//	// r.Source == "docs/services.md", r.Score == 0.92
 type RAGQueryResult struct {
-	Content    string  `json:"content"`
-	Source     string  `json:"source"`
-	Section    string  `json:"section,omitempty"`
-	Category   string  `json:"category,omitempty"`
-	ChunkIndex int     `json:"chunkIndex,omitempty"`
-	Score      float32 `json:"score"`
+	Content    string  `json:"content"`              // matched text chunk
+	Source     string  `json:"source"`               // e.g. "docs/services.md"
+	Section    string  `json:"section,omitempty"`    // e.g. "Service Registration"
+	Category   string  `json:"category,omitempty"`   // e.g. "guide"
+	ChunkIndex int     `json:"chunkIndex,omitempty"` // chunk position within source
+	Score      float32 `json:"score"`                // similarity score (0.0-1.0)
 }
 
 // RAGQueryOutput contains the results of a RAG query.
+//
+//	// len(out.Results) == 3, out.Collection == "core-docs"
 type RAGQueryOutput struct {
-	Results    []RAGQueryResult `json:"results"`
-	Query      string           `json:"query"`
-	Collection string           `json:"collection"`
-	Context    string           `json:"context"`
+	Results    []RAGQueryResult `json:"results"`    // ranked by similarity score
+	Query      string           `json:"query"`      // the original question
+	Collection string           `json:"collection"` // collection that was searched
+	Context    string           `json:"context"`    // pre-formatted context string for LLM consumption
 }
 
 // RAGIngestInput contains parameters for ingesting documents into the RAG database.
+//
+//	input := RAGIngestInput{
+//	    Path:       "docs/",
+//	    Collection: "core-docs",
+//	    Recreate:   true,
+//	}
 type RAGIngestInput struct {
-	Path       string `json:"path"`                 // File or directory path to ingest
-	Collection string `json:"collection,omitempty"` // Collection name (default: hostuk-docs)
-	Recreate   bool   `json:"recreate,omitempty"`   // Whether to recreate the collection
+	Path       string `json:"path"`                 // e.g. "docs/" or "docs/services.md"
+	Collection string `json:"collection,omitempty"` // e.g. "core-docs" (default: "hostuk-docs")
+	Recreate   bool   `json:"recreate,omitempty"`   // true to drop and recreate the collection
 }
 
 // RAGIngestOutput contains the result of a RAG ingest operation.
+//
+//	// out.Success == true, out.Chunks == 42, out.Collection == "core-docs"
 type RAGIngestOutput struct {
-	Success    bool   `json:"success"`
-	Path       string `json:"path"`
-	Collection string `json:"collection"`
-	Chunks     int    `json:"chunks"`
-	Message    string `json:"message,omitempty"`
+	Success    bool   `json:"success"`           // true when ingest completed
+	Path       string `json:"path"`              // e.g. "docs/"
+	Collection string `json:"collection"`        // e.g. "core-docs"
+	Chunks     int    `json:"chunks"`            // number of chunks ingested
+	Message    string `json:"message,omitempty"` // human-readable summary
 }
 
 // RAGCollectionsInput contains parameters for listing collections.
+//
+//	input := RAGCollectionsInput{ShowStats: true}
 type RAGCollectionsInput struct {
-	ShowStats bool `json:"show_stats,omitempty"` // Include collection stats (point count, status)
+	ShowStats bool `json:"show_stats,omitempty"` // true to include point counts and status
 }
 
-// CollectionInfo contains information about a collection.
+// CollectionInfo contains information about a Qdrant collection.
+//
+//	// ci.Name == "core-docs", ci.PointsCount == 1500, ci.Status == "green"
 type CollectionInfo struct {
-	Name        string `json:"name"`
-	PointsCount uint64 `json:"points_count"`
-	Status      string `json:"status"`
+	Name        string `json:"name"`         // e.g. "core-docs"
+	PointsCount uint64 `json:"points_count"` // number of vectors stored
+	Status      string `json:"status"`       // e.g. "green"
 }
 
 // RAGCollectionsOutput contains the list of available collections.
+//
+//	// len(out.Collections) == 2
 type RAGCollectionsOutput struct {
-	Collections []CollectionInfo `json:"collections"`
+	Collections []CollectionInfo `json:"collections"` // all Qdrant collections
 }
 
 // registerRAGTools adds RAG tools to the MCP server.
