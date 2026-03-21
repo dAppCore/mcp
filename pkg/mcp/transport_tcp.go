@@ -114,23 +114,18 @@ func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 }
 
 func (s *Service) handleConnection(ctx context.Context, conn net.Conn) {
-	// Note: We don't defer conn.Close() here because it's closed by the Server/Transport
-
-	// Create new server instance for this connection
-	impl := &mcp.Implementation{
-		Name:    "core-cli",
-		Version: "0.1.0",
-	}
-	server := mcp.NewServer(impl, nil)
-	s.registerTools(server)
-
-	// Create transport for this connection
+	// Connect this TCP connection to the shared server so its session
+	// is visible to Sessions() and notification broadcasting.
 	transport := &connTransport{conn: conn}
-
-	// Run server (blocks until connection closed)
-	// Server.Run calls Connect, then Read loop.
-	if err := server.Run(ctx, transport); err != nil {
+	session, err := s.server.Connect(ctx, transport, nil)
+	if err != nil {
 		diagPrintf("Connection error: %v\n", err)
+		conn.Close()
+		return
+	}
+	// Block until the session ends
+	if err := session.Wait(); err != nil {
+		diagPrintf("Session ended: %v\n", err)
 	}
 }
 

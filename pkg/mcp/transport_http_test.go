@@ -13,7 +13,7 @@ import (
 )
 
 func TestServeHTTP_Good_HealthEndpoint(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestServeHTTP_Good_AuthRequired(t *testing.T) {
 	os.Setenv("MCP_AUTH_TOKEN", "test-secret-token")
 	defer os.Unsetenv("MCP_AUTH_TOKEN")
 
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestWithAuth_Good_EmptyTokenPassthrough(t *testing.T) {
 }
 
 func TestRun_Good_HTTPTrigger(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
