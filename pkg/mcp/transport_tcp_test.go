@@ -37,8 +37,8 @@ func TestNewTCPTransport_Warning(t *testing.T) {
 	old := setDiagWriter(&buf)
 	defer setDiagWriter(old)
 
-	// Trigger warning
-	tr, err := NewTCPTransport("0.0.0.0:9101")
+	// Trigger warning — use port 0 (OS assigns free port)
+	tr, err := NewTCPTransport("0.0.0.0:0")
 	if err != nil {
 		t.Fatalf("Failed to create transport: %v", err)
 	}
