@@ -6,30 +6,36 @@ import (
 	"testing"
 	"time"
 
-	"forge.lthn.ai/core/go/pkg/core"
+	"dappco.re/go/core"
 	"forge.lthn.ai/core/go-process"
 )
 
 // newTestProcessService creates a real process.Service backed by a core.Core for CI tests.
 func newTestProcessService(t *testing.T) *process.Service {
 	t.Helper()
-	c, err := core.New(
-		core.WithName("process", process.NewService(process.Options{})),
-	)
+
+	c := core.New()
+	raw, err := process.NewService(process.Options{})(c)
 	if err != nil {
-		t.Fatalf("Failed to create framework core: %v", err)
+		t.Fatalf("Failed to create process service: %v", err)
 	}
-	svc, err := core.ServiceFor[*process.Service](c, "process")
-	if err != nil {
-		t.Fatalf("Failed to get process service: %v", err)
+	svc := raw.(*process.Service)
+
+	resultFrom := func(err error) core.Result {
+		if err != nil {
+			return core.Result{Value: err}
+		}
+		return core.Result{OK: true}
 	}
-	// Start services (calls OnStartup)
-	if err := c.ServiceStartup(context.Background(), nil); err != nil {
-		t.Fatalf("Failed to start core: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = c.ServiceShutdown(context.Background())
+	c.Service("process", core.Service{
+		OnStart: func() core.Result { return resultFrom(svc.OnStartup(context.Background())) },
+		OnStop:  func() core.Result { return resultFrom(svc.OnShutdown(context.Background())) },
 	})
+
+	if r := c.ServiceStartup(context.Background(), nil); !r.OK {
+		t.Fatalf("Failed to start core: %v", r.Value)
+	}
+	t.Cleanup(func() { c.ServiceShutdown(context.Background()) })
 	return svc
 }
 
