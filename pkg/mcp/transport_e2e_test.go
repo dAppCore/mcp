@@ -87,7 +87,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 func TestTCPTransport_E2E_FileWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -455,7 +455,7 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("one"), 0644)
 	os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("two"), 0644)
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -572,7 +572,7 @@ func assertToolExists(t *testing.T, tools []any, name string) {
 func TestTCPTransport_E2E_ToolsDiscovery(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -648,7 +648,7 @@ func TestTCPTransport_E2E_ToolsDiscovery(t *testing.T) {
 func TestTCPTransport_E2E_ErrorHandling(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

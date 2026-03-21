@@ -8,7 +8,7 @@ import (
 // TestMetricsToolsRegistered_Good verifies that metrics tools are registered with the MCP server.
 func TestMetricsToolsRegistered_Good(t *testing.T) {
 	// Create a new MCP service - this should register all tools including metrics
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

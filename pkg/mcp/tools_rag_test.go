@@ -7,7 +7,7 @@ import (
 // TestRAGToolsRegistered_Good verifies that RAG tools are registered with the MCP server.
 func TestRAGToolsRegistered_Good(t *testing.T) {
 	// Create a new MCP service - this should register all tools including RAG
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

@@ -51,7 +51,7 @@ func TestNewTCPTransport_Warning(t *testing.T) {
 }
 
 func TestServeTCP_Connection(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestServeTCP_Connection(t *testing.T) {
 }
 
 func TestRun_TCPTrigger(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestRun_TCPTrigger(t *testing.T) {
 }
 
 func TestServeTCP_MultipleConnections(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

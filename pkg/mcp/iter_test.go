@@ -8,7 +8,7 @@ import (
 )
 
 func TestService_Iterators(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

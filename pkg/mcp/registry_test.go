@@ -7,7 +7,7 @@ import (
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestToolRegistry_Good_RecordsTools(t *testing.T) {
 }
 
 func TestToolRegistry_Good_SchemaExtraction(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestToolRegistry_Good_SchemaExtraction(t *testing.T) {
 }
 
 func TestToolRegistry_Good_ToolCount(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 }
 
 func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 }
 
 func TestToolRegistry_Good_ToolRecordFields(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

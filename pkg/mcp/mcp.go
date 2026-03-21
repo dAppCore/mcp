@@ -35,73 +35,73 @@ type Service struct {
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
 }
 
-// Option configures a Service.
-type Option func(*Service) error
-
-// WithWorkspaceRoot restricts file operations to the given directory.
-// All paths are validated to be within this directory.
-// An empty string disables the restriction (not recommended).
-func WithWorkspaceRoot(root string) Option {
-	return func(s *Service) error {
-		if root == "" {
-			// Explicitly disable restriction - use unsandboxed global
-			s.workspaceRoot = ""
-			s.medium = io.Local
-			return nil
-		}
-		// Create sandboxed medium for this workspace
-		abs, err := filepath.Abs(root)
-		if err != nil {
-			return log.E("WithWorkspaceRoot", "invalid workspace root", err)
-		}
-		m, err := io.NewSandboxed(abs)
-		if err != nil {
-			return log.E("WithWorkspaceRoot", "failed to create workspace medium", err)
-		}
-		s.workspaceRoot = abs
-		s.medium = m
-		return nil
-	}
+// Options configures a Service.
+//
+//	svc, err := mcp.New(mcp.Options{
+//	    WorkspaceRoot:  "/path/to/project",
+//	    ProcessService: ps,
+//	    Subsystems:     []Subsystem{brain, agentic, monitor},
+//	})
+type Options struct {
+	WorkspaceRoot  string           // Restrict file ops to this directory (empty = cwd)
+	Unrestricted   bool             // Disable sandboxing entirely (not recommended)
+	ProcessService *process.Service // Optional process management
+	WSHub          *ws.Hub          // Optional WebSocket hub for real-time streaming
+	Subsystems     []Subsystem      // Additional tool groups registered at startup
 }
 
 // New creates a new MCP service with file operations.
-// By default, restricts file access to the current working directory.
-// Use WithWorkspaceRoot("") to disable restrictions (not recommended).
-// Returns an error if initialization fails.
-func New(opts ...Option) (*Service, error) {
+//
+//	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "."})
+func New(opts Options) (*Service, error) {
 	impl := &mcp.Implementation{
 		Name:    "core-cli",
 		Version: "0.1.0",
 	}
 
-	server := mcp.NewServer(impl, nil)
+	server := mcp.NewServer(impl, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{
+			Tools:        &mcp.ToolCapabilities{ListChanged: true},
+			Logging:      &mcp.LoggingCapabilities{},
+			Experimental: channelCapability(),
+		},
+	})
+
 	s := &Service{
-		server: server,
-		logger: log.Default(),
+		server:         server,
+		processService: opts.ProcessService,
+		wsHub:          opts.WSHub,
+		subsystems:     opts.Subsystems,
+		logger:         log.Default(),
 	}
 
-	// Default to current working directory with sandboxed medium
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, log.E("mcp.New", "failed to get working directory", err)
-	}
-	s.workspaceRoot = cwd
-	m, err := io.NewSandboxed(cwd)
-	if err != nil {
-		return nil, log.E("mcp.New", "failed to create sandboxed medium", err)
-	}
-	s.medium = m
-
-	// Apply options
-	for _, opt := range opts {
-		if err := opt(s); err != nil {
-			return nil, log.E("mcp.New", "failed to apply option", err)
+	// Workspace root: unrestricted, explicit root, or default to cwd
+	if opts.Unrestricted {
+		s.workspaceRoot = ""
+		s.medium = io.Local
+	} else {
+		root := opts.WorkspaceRoot
+		if root == "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, log.E("mcp.New", "failed to get working directory", err)
+			}
+			root = cwd
 		}
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return nil, log.E("mcp.New", "invalid workspace root", err)
+		}
+		m, merr := io.NewSandboxed(abs)
+		if merr != nil {
+			return nil, log.E("mcp.New", "failed to create workspace medium", merr)
+		}
+		s.workspaceRoot = abs
+		s.medium = m
 	}
 
 	s.registerTools(s.server)
 
-	// Register subsystem tools.
 	for _, sub := range s.subsystems {
 		sub.RegisterTools(s.server)
 	}
@@ -141,21 +141,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// WithProcessService configures the process management service.
-func WithProcessService(ps *process.Service) Option {
-	return func(s *Service) error {
-		s.processService = ps
-		return nil
-	}
-}
-
-// WithWSHub configures the WebSocket hub for real-time streaming.
-func WithWSHub(hub *ws.Hub) Option {
-	return func(s *Service) error {
-		s.wsHub = hub
-		return nil
-	}
-}
 
 // WSHub returns the WebSocket hub.
 func (s *Service) WSHub() *ws.Hub {

@@ -15,7 +15,7 @@ import (
 
 // TestRagQuery_Bad_EmptyQuestion verifies empty question returns error.
 func TestRagQuery_Bad_EmptyQuestion(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestRagQuery_Bad_EmptyQuestion(t *testing.T) {
 // zero Collection/TopK should have defaults applied. We cannot verify the actual
 // query (needs live Qdrant), but we can verify it gets past validation.
 func TestRagQuery_Good_DefaultsApplied(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestRagQuery_Good_DefaultsApplied(t *testing.T) {
 
 // TestRagIngest_Bad_EmptyPath verifies empty path returns error.
 func TestRagIngest_Bad_EmptyPath(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestRagIngest_Bad_EmptyPath(t *testing.T) {
 
 // TestRagIngest_Bad_NonexistentPath verifies nonexistent path returns error.
 func TestRagIngest_Bad_NonexistentPath(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRagIngest_Bad_NonexistentPath(t *testing.T) {
 
 // TestRagIngest_Good_DefaultCollection verifies the default collection is applied.
 func TestRagIngest_Good_DefaultCollection(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestRagIngest_Good_DefaultCollection(t *testing.T) {
 
 // TestRagCollections_Bad_NoQdrant verifies graceful error when Qdrant is not available.
 func TestRagCollections_Bad_NoQdrant(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

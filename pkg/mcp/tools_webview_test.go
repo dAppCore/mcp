@@ -22,7 +22,7 @@ func skipIfShort(t *testing.T) {
 // TestWebviewToolsRegistered_Good verifies that webview tools are registered with the MCP server.
 func TestWebviewToolsRegistered_Good(t *testing.T) {
 	// Create a new MCP service - this should register all tools including webview
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestWebviewToolHandlers_RequiresChrome(t *testing.T) {
 	// This test verifies that webview tool handlers correctly reject
 	// calls when not connected to Chrome.
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

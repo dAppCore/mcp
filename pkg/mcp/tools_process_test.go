@@ -8,7 +8,7 @@ import (
 // TestProcessToolsRegistered_Good verifies that process tools are registered when process service is available.
 func TestProcessToolsRegistered_Good(t *testing.T) {
 	// Create a new MCP service without process service - tools should not be registered
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestProcessInfo_Good(t *testing.T) {
 func TestWithProcessService_Good(t *testing.T) {
 	// Note: We can't easily create a real process.Service here without Core,
 	// so we just verify the option doesn't panic with nil.
-	s, err := New(WithProcessService(nil))
+	s, err := New(Options{ProcessService: nil})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

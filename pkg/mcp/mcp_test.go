@@ -12,7 +12,7 @@ func TestNew_Good_DefaultWorkspace(t *testing.T) {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
 
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestNew_Good_DefaultWorkspace(t *testing.T) {
 func TestNew_Good_CustomWorkspace(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestNew_Good_CustomWorkspace(t *testing.T) {
 }
 
 func TestNew_Good_NoRestriction(t *testing.T) {
-	s, err := New(WithWorkspaceRoot(""))
+	s, err := New(Options{Unrestricted: true})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestNew_Good_NoRestriction(t *testing.T) {
 
 func TestMedium_Good_ReadWrite(t *testing.T) {
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestMedium_Good_ReadWrite(t *testing.T) {
 
 func TestMedium_Good_EnsureDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestMedium_Good_EnsureDir(t *testing.T) {
 
 func TestMedium_Good_IsFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestMedium_Good_IsFile(t *testing.T) {
 
 func TestSandboxing_Traversal_Sanitized(t *testing.T) {
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestSandboxing_Symlinks_Blocked(t *testing.T) {
 		t.Skipf("Symlinks not supported: %v", err)
 	}
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
