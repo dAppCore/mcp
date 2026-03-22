@@ -42,7 +42,6 @@ type WorkspaceStatus struct {
 	Question  string         `json:"question,omitempty"`  // from BLOCKED.md
 	Runs      int            `json:"runs"`                // how many times dispatched/resumed
 	PRURL     string         `json:"pr_url,omitempty"`    // pull request URL (after PR created)
-	NextSteps []PipelineStep `json:"next_steps,omitempty"` // remaining pipeline steps
 }
 
 func writeStatus(wsDir string, status *WorkspaceStatus) error {
