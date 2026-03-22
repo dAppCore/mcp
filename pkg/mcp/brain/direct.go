@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	goio "io"
 	"net/http"
 	"os"
 	"strings"
@@ -93,7 +93,7 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 		return nil, coreerr.E("brain.apiCall", "no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)", nil)
 	}
 
-	var reqBody io.Reader
+	var reqBody goio.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
@@ -116,7 +116,7 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 	}
 	defer resp.Body.Close()
 
-	respData, err := io.ReadAll(resp.Body)
+	respData, err := goio.ReadAll(resp.Body)
 	if err != nil {
 		return nil, coreerr.E("brain.apiCall", "read response", err)
 	}

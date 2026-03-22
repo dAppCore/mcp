@@ -288,3 +288,16 @@ func TestWithProcessService_Good(t *testing.T) {
 		t.Error("Expected processService to be nil when passed nil")
 	}
 }
+
+// TestRegisterProcessTools_Bad_NilService verifies that tools are not registered when process service is nil.
+func TestRegisterProcessTools_Bad_NilService(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	registered := s.registerProcessTools(s.server)
+	if registered {
+		t.Error("Expected registerProcessTools to return false when processService is nil")
+	}
+}

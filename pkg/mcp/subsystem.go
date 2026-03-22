@@ -38,6 +38,9 @@ type Notifier interface {
 	ChannelSend(ctx context.Context, channel string, data any)
 }
 
+// Compile-time assertion: *Service implements Notifier.
+var _ Notifier = (*Service)(nil)
+
 // SubsystemWithNotifier extends Subsystem for those that emit channel events.
 // SetNotifier is called after New() before any tool calls.
 //

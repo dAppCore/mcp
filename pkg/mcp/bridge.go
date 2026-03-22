@@ -5,7 +5,7 @@ package mcp
 import (
 	"encoding/json"
 	"errors"
-	"io"
+	goio "io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -41,7 +41,7 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 			var body []byte
 			if c.Request.Body != nil {
 				var err error
-				body, err = io.ReadAll(io.LimitReader(c.Request.Body, maxBodySize))
+				body, err = goio.ReadAll(goio.LimitReader(c.Request.Body, maxBodySize))
 				if err != nil {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_request", "Failed to read request body"))
 					return

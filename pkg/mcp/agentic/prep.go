@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
+	goio "io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -25,13 +25,13 @@ import (
 
 // PrepSubsystem provides agentic MCP tools.
 type PrepSubsystem struct {
-	forgeURL    string
-	forgeToken  string
-	brainURL    string
-	brainKey    string
-	specsPath   string
-	codePath    string
-	client *http.Client
+	forgeURL   string
+	forgeToken string
+	brainURL   string
+	brainKey   string
+	specsPath  string
+	codePath   string
+	client     *http.Client
 }
 
 // NewPrep creates an agentic subsystem.
@@ -51,13 +51,13 @@ func NewPrep() *PrepSubsystem {
 	}
 
 	return &PrepSubsystem{
-		forgeURL:    envOr("FORGE_URL", "https://forge.lthn.ai"),
-		forgeToken:  forgeToken,
-		brainURL:    envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
-		brainKey:    brainKey,
-		specsPath:   envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
-		codePath:    envOr("CODE_PATH", filepath.Join(home, "Code")),
-		client: &http.Client{Timeout: 30 * time.Second},
+		forgeURL:   envOr("FORGE_URL", "https://forge.lthn.ai"),
+		forgeToken: forgeToken,
+		brainURL:   envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
+		brainKey:   brainKey,
+		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
+		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
+		client:     &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -117,14 +117,14 @@ type PrepInput struct {
 
 // PrepOutput is the output for agentic_prep_workspace.
 type PrepOutput struct {
-	Success       bool   `json:"success"`
-	WorkspaceDir  string `json:"workspace_dir"`
-	WikiPages     int    `json:"wiki_pages"`
-	SpecFiles     int    `json:"spec_files"`
-	Memories      int    `json:"memories"`
-	Consumers     int    `json:"consumers"`
-	ClaudeMd      bool   `json:"claude_md"`
-	GitLog        int    `json:"git_log_entries"`
+	Success      bool   `json:"success"`
+	WorkspaceDir string `json:"workspace_dir"`
+	WikiPages    int    `json:"wiki_pages"`
+	SpecFiles    int    `json:"spec_files"`
+	Memories     int    `json:"memories"`
+	Consumers    int    `json:"consumers"`
+	ClaudeMd     bool   `json:"claude_md"`
+	GitLog       int    `json:"git_log_entries"`
 }
 
 func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
@@ -338,9 +338,9 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		Description string   `yaml:"description"`
 		Guidelines  []string `yaml:"guidelines"`
 		Phases      []struct {
-			Name        string   `yaml:"name"`
-			Description string   `yaml:"description"`
-			Tasks       []any    `yaml:"tasks"`
+			Name        string `yaml:"name"`
+			Description string `yaml:"description"`
+			Tasks       []any  `yaml:"tasks"`
 		} `yaml:"phases"`
 	}
 
@@ -499,7 +499,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	respData, _ := io.ReadAll(resp.Body)
+	respData, _ := goio.ReadAll(resp.Body)
 	var result struct {
 		Memories []map[string]any `json:"memories"`
 	}
