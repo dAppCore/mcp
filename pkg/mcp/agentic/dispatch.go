@@ -155,7 +155,19 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		}, nil
 	}
 
-	// Step 3: Spawn agent as a detached process
+	// Step 3: Write status BEFORE spawning so concurrent dispatches
+	// see this workspace as "running" during the concurrency check.
+	writeStatus(wsDir, &WorkspaceStatus{
+		Status:    "running",
+		Agent:     input.Agent,
+		Repo:      input.Repo,
+		Org:       input.Org,
+		Task:      input.Task,
+		StartedAt: time.Now(),
+		Runs:      1,
+	})
+
+	// Step 4: Spawn agent as a detached process
 	// Uses Setpgid so the agent survives parent (MCP server) death.
 	// Output goes directly to log file (not buffered in memory).
 	command, args, err := agentCommand(input.Agent, prompt)
@@ -191,12 +203,19 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()
+		// Revert status so the slot is freed
+		writeStatus(wsDir, &WorkspaceStatus{
+			Status: "failed",
+			Agent:  input.Agent,
+			Repo:   input.Repo,
+			Task:   input.Task,
+		})
 		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to spawn "+input.Agent, err)
 	}
 
 	pid := cmd.Process.Pid
 
-	// Write initial status
+	// Update status with PID now that agent is running
 	writeStatus(wsDir, &WorkspaceStatus{
 		Status:    "running",
 		Agent:     input.Agent,
