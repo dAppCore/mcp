@@ -43,9 +43,7 @@ type AgentsConfig struct {
 // loadAgentsConfig reads config/agents.yaml from the code path.
 func (s *PrepSubsystem) loadAgentsConfig() *AgentsConfig {
 	paths := []string{
-		filepath.Join(s.codePath, "core", "agent", "config", "agents.yaml"),
-		filepath.Join(s.codePath, "core", "agent", ".core", "agents.yaml"),
-		filepath.Join(s.codePath, "host-uk", "core", ".core", "agents.yaml"),
+		filepath.Join(s.codePath, ".core", "agents.yaml"),
 	}
 
 	for _, path := range paths {
