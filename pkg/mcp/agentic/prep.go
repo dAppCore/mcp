@@ -227,15 +227,12 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 8. Copy spec files into specs/
 	out.SpecFiles = s.copySpecs(wsDir)
 
-	// 9. Copy AX reference files into .core/reference/
-	s.copyReference(wsDir)
-
-	// 11. Write PLAN.md from template (if specified)
+	// 9. Write PLAN.md from template (if specified)
 	if input.PlanTemplate != "" {
 		s.writePlanFromTemplate(input.PlanTemplate, input.Variables, input.Task, wsDir)
 	}
 
-	// 11. Write prompt template
+	// 10. Write prompt template
 	s.writePromptTemplate(input.Template, wsDir)
 
 	out.Success = true
@@ -474,34 +471,6 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	}
 
 	return count
-}
-
-// copyReference copies the AX spec and Core source files into .core/reference/
-// so dispatched agents can read the conventions and API without network access.
-func (s *PrepSubsystem) copyReference(wsDir string) {
-	refDir := filepath.Join(wsDir, "src", ".core", "reference")
-	coreio.Local.EnsureDir(refDir)
-
-	// Copy AX spec from docs repo
-	axSpec := filepath.Join(s.codePath, "core", "docs", "docs", "specs", "RFC-025-AGENT-EXPERIENCE.md")
-	if data, err := coreio.Local.Read(axSpec); err == nil {
-		coreio.Local.Write(filepath.Join(refDir, "RFC-025-AGENT-EXPERIENCE.md"), data)
-	}
-
-	// Copy Core Go source files for API reference
-	coreGoDir := filepath.Join(s.codePath, "core", "go")
-	entries, err := coreio.Local.List(coreGoDir)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" {
-			continue
-		}
-		if data, err := coreio.Local.Read(filepath.Join(coreGoDir, entry.Name())); err == nil {
-			coreio.Local.Write(filepath.Join(refDir, entry.Name()), data)
-		}
-	}
 }
 
 func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string) int {
