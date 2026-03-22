@@ -98,7 +98,7 @@ func (s *PrepSubsystem) Shutdown(_ context.Context) error { return nil }
 
 // workspaceRoot returns the base directory for agent workspaces.
 func (s *PrepSubsystem) workspaceRoot() string {
-	return filepath.Join(s.codePath, "host-uk", "core", ".core", "workspace")
+	return filepath.Join(s.codePath, ".core", "workspace")
 }
 
 // --- Input/Output types ---
