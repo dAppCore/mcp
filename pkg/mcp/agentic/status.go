@@ -95,28 +95,21 @@ func (s *PrepSubsystem) registerStatusTool(server *mcp.Server) {
 }
 
 func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, input StatusInput) (*mcp.CallToolResult, StatusOutput, error) {
-	wsRoot := s.workspaceRoot()
-
-	entries, err := coreio.Local.List(wsRoot)
-	if err != nil {
-		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", err)
+	wsDirs := s.listWorkspaceDirs()
+	if len(wsDirs) == 0 {
+		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", nil)
 	}
 
 	var workspaces []WorkspaceInfo
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
+	for _, wsDir := range wsDirs {
+		name := filepath.Base(wsDir)
 
 		// Filter by specific workspace if requested
 		if input.Workspace != "" && name != input.Workspace {
 			continue
 		}
 
-		wsDir := filepath.Join(wsRoot, name)
 		info := WorkspaceInfo{Name: name}
 
 		// Try reading status.json
@@ -129,8 +122,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			} else {
 				info.Status = "unknown"
 			}
-			fi, _ := entry.Info()
-			if fi != nil {
+			if fi, err := os.Stat(wsDir); err == nil {
 				info.Age = time.Since(fi.ModTime()).Truncate(time.Minute).String()
 			}
 			workspaces = append(workspaces, info)
