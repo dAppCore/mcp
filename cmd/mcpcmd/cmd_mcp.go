@@ -61,24 +61,23 @@ func AddMCPCommands(root *cli.Command) {
 }
 
 func runServe() error {
-	// Build MCP service options
-	var opts []mcp.Option
+	opts := mcp.Options{}
 
 	if workspaceFlag != "" {
-		opts = append(opts, mcp.WithWorkspaceRoot(workspaceFlag))
+		opts.WorkspaceRoot = workspaceFlag
 	} else {
 		// Explicitly unrestricted when no workspace specified
-		opts = append(opts, mcp.WithWorkspaceRoot(""))
+		opts.Unrestricted = true
 	}
 
-	// Register OpenBrain subsystem (direct HTTP to api.lthn.sh)
-	opts = append(opts, mcp.WithSubsystem(brain.NewDirect()))
-
-	// Register agentic subsystem (workspace prep, agent orchestration)
-	opts = append(opts, mcp.WithSubsystem(agentic.NewPrep()))
+	// Register OpenBrain and agentic subsystems
+	opts.Subsystems = []mcp.Subsystem{
+		brain.NewDirect(),
+		agentic.NewPrep(),
+	}
 
 	// Create the MCP service
-	svc, err := mcp.New(opts...)
+	svc, err := mcp.New(opts)
 	if err != nil {
 		return cli.Wrap(err, "create MCP service")
 	}

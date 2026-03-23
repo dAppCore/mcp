@@ -157,19 +157,35 @@ func TestWithAuth_Bad_MissingToken(t *testing.T) {
 	}
 }
 
-func TestWithAuth_Good_EmptyTokenPassthrough(t *testing.T) {
+func TestWithAuth_Bad_EmptyConfiguredToken(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	})
 
-	// Empty token disables auth
+	// Empty token now requires explicit configuration
 	wrapped := withAuth("", handler)
 
 	req, _ := http.NewRequest("GET", "/", nil)
 	rr := &fakeResponseWriter{code: 200}
 	wrapped.ServeHTTP(rr, req)
-	if rr.code != 200 {
-		t.Errorf("expected 200 with auth disabled, got %d", rr.code)
+	if rr.code != 401 {
+		t.Errorf("expected 401 with empty configured token, got %d", rr.code)
+	}
+}
+
+func TestWithAuth_Bad_NonBearerToken(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	})
+
+	wrapped := withAuth("my-token", handler)
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.Header.Set("Authorization", "Token my-token")
+	rr := &fakeResponseWriter{code: 200}
+	wrapped.ServeHTTP(rr, req)
+	if rr.code != 401 {
+		t.Errorf("expected 401 with non-Bearer auth, got %d", rr.code)
 	}
 }
 
@@ -231,4 +247,4 @@ func (f *fakeResponseWriter) Header() http.Header {
 }
 
 func (f *fakeResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
-func (f *fakeResponseWriter) WriteHeader(code int)         { f.code = code }
+func (f *fakeResponseWriter) WriteHeader(code int)        { f.code = code }

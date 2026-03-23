@@ -25,13 +25,13 @@ import (
 
 // PrepSubsystem provides agentic MCP tools.
 type PrepSubsystem struct {
-	forgeURL    string
-	forgeToken  string
-	brainURL    string
-	brainKey    string
-	specsPath   string
-	codePath    string
-	client *http.Client
+	forgeURL   string
+	forgeToken string
+	brainURL   string
+	brainKey   string
+	specsPath  string
+	codePath   string
+	client     *http.Client
 }
 
 // NewPrep creates an agentic subsystem.
@@ -51,13 +51,13 @@ func NewPrep() *PrepSubsystem {
 	}
 
 	return &PrepSubsystem{
-		forgeURL:    envOr("FORGE_URL", "https://forge.lthn.ai"),
-		forgeToken:  forgeToken,
-		brainURL:    envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
-		brainKey:    brainKey,
-		specsPath:   envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
-		codePath:    envOr("CODE_PATH", filepath.Join(home, "Code")),
-		client: &http.Client{Timeout: 30 * time.Second},
+		forgeURL:   envOr("FORGE_URL", "https://forge.lthn.ai"),
+		forgeToken: forgeToken,
+		brainURL:   envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
+		brainKey:   brainKey,
+		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
+		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
+		client:     &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -66,6 +66,42 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, error) {
+	if strings.TrimSpace(value) != value {
+		return "", coreerr.E("prepWorkspace", field+" contains whitespace", nil)
+	}
+	if value == "" {
+		return "", nil
+	}
+	if strings.Contains(value, "\\") {
+		return "", coreerr.E("prepWorkspace", field+" contains invalid path separator", nil)
+	}
+
+	parts := strings.Split(value, "/")
+	if !allowSubdirs && len(parts) != 1 {
+		return "", coreerr.E("prepWorkspace", field+" may not contain subdirectories", nil)
+	}
+
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", coreerr.E("prepWorkspace", field+" contains invalid path segment", nil)
+		}
+		for _, r := range part {
+			switch {
+			case r >= 'a' && r <= 'z',
+				r >= 'A' && r <= 'Z',
+				r >= '0' && r <= '9',
+				r == '-' || r == '_' || r == '.':
+				continue
+			default:
+				return "", coreerr.E("prepWorkspace", field+" contains invalid characters", nil)
+			}
+		}
+	}
+
+	return value, nil
 }
 
 // Name implements mcp.Subsystem.
@@ -117,20 +153,41 @@ type PrepInput struct {
 
 // PrepOutput is the output for agentic_prep_workspace.
 type PrepOutput struct {
-	Success       bool   `json:"success"`
-	WorkspaceDir  string `json:"workspace_dir"`
-	WikiPages     int    `json:"wiki_pages"`
-	SpecFiles     int    `json:"spec_files"`
-	Memories      int    `json:"memories"`
-	Consumers     int    `json:"consumers"`
-	ClaudeMd      bool   `json:"claude_md"`
-	GitLog        int    `json:"git_log_entries"`
+	Success      bool   `json:"success"`
+	WorkspaceDir string `json:"workspace_dir"`
+	WikiPages    int    `json:"wiki_pages"`
+	SpecFiles    int    `json:"spec_files"`
+	Memories     int    `json:"memories"`
+	Consumers    int    `json:"consumers"`
+	ClaudeMd     bool   `json:"claude_md"`
+	GitLog       int    `json:"git_log_entries"`
 }
 
 func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
 	if input.Repo == "" {
 		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "repo is required", nil)
 	}
+
+	repo, err := sanitizeRepoPathSegment(input.Repo, "repo", false)
+	if err != nil {
+		return nil, PrepOutput{}, err
+	}
+	input.Repo = repo
+
+	planTemplate, err := sanitizeRepoPathSegment(input.PlanTemplate, "plan_template", false)
+	if err != nil {
+		return nil, PrepOutput{}, err
+	}
+	input.PlanTemplate = planTemplate
+
+	persona := input.Persona
+	if persona != "" {
+		persona, err = sanitizeRepoPathSegment(persona, "persona", true)
+		if err != nil {
+			return nil, PrepOutput{}, err
+		}
+	}
+
 	if input.Org == "" {
 		input.Org = "core"
 	}
@@ -154,7 +211,9 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 1. Clone repo into src/ and create feature branch
 	srcDir := filepath.Join(wsDir, "src")
 	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
-	cloneCmd.Run()
+	if err := cloneCmd.Run(); err != nil {
+		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
+	}
 
 	// Create feature branch
 	taskSlug := strings.Map(func(r rune) rune {
@@ -170,11 +229,14 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		taskSlug = taskSlug[:40]
 	}
 	taskSlug = strings.Trim(taskSlug, "-")
-	branchName := fmt.Sprintf("agent/%s", taskSlug)
-
-	branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
-	branchCmd.Dir = srcDir
-	branchCmd.Run()
+	if taskSlug != "" {
+		branchName := fmt.Sprintf("agent/%s", taskSlug)
+		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
+		branchCmd.Dir = srcDir
+		if err := branchCmd.Run(); err != nil {
+			return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to create branch", err)
+		}
+	}
 
 	// Create context dirs inside src/
 	coreio.Local.EnsureDir(filepath.Join(srcDir, "kb"))
@@ -196,8 +258,8 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	}
 
 	// Copy persona if specified
-	if input.Persona != "" {
-		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", input.Persona+".md")
+	if persona != "" {
+		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
 			coreio.Local.Write(filepath.Join(wsDir, "src", "PERSONA.md"), data)
 		}
@@ -338,9 +400,9 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		Description string   `yaml:"description"`
 		Guidelines  []string `yaml:"guidelines"`
 		Phases      []struct {
-			Name        string   `yaml:"name"`
-			Description string   `yaml:"description"`
-			Tasks       []any    `yaml:"tasks"`
+			Name        string `yaml:"name"`
+			Description string `yaml:"description"`
+			Tasks       []any  `yaml:"tasks"`
 		} `yaml:"phases"`
 	}
 
