@@ -6,11 +6,12 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
+	"forge.lthn.ai/core/go-log"
 )
 
 // Register is the service factory for core.WithService.
-// Creates the MCP service, registers subsystems from other services
-// already in the Core conclave, and wires notifiers.
+// Creates the MCP service, discovers subsystems from other Core services,
+// and wires notifiers.
 //
 //	core.New(
 //	    core.WithService(agentic.Register),
@@ -38,13 +39,40 @@ func Register(c *core.Core) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
+	svc.coreRef = c
+
 	return core.Result{Value: svc, OK: true}
 }
 
-// OnStartup implements core.Startable — MCP is ready for tool calls.
-// Transport is NOT started here — the CLI command (mcp/serve) starts
-// the appropriate transport explicitly.
+// OnStartup implements core.Startable — registers MCP transport commands.
 func (s *Service) OnStartup(ctx context.Context) error {
+	c, ok := s.coreRef.(*core.Core)
+	if !ok || c == nil {
+		return nil
+	}
+
+	c.Command("mcp", core.Command{
+		Description: "Start the MCP server on stdio",
+		Action: func(opts core.Options) core.Result {
+			s.logger.Info("MCP stdio server starting")
+			if err := s.ServeStdio(ctx); err != nil {
+				return core.Result{Value: err, OK: false}
+			}
+			return core.Result{OK: true}
+		},
+	})
+
+	c.Command("serve", core.Command{
+		Description: "Start as a persistent HTTP daemon",
+		Action: func(opts core.Options) core.Result {
+			log.Default().Info("MCP HTTP server starting")
+			if err := s.Run(ctx); err != nil {
+				return core.Result{Value: err, OK: false}
+			}
+			return core.Result{OK: true}
+		},
+	})
+
 	return nil
 }
 
