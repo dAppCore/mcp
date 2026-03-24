@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
+	goio "io"
 	"net"
 	"os"
 	"sync"
@@ -23,7 +23,7 @@ var diagMu sync.Mutex
 
 // diagWriter is the destination for warning and diagnostic messages.
 // Use diagPrintf to write to it safely.
-var diagWriter io.Writer = os.Stderr
+var diagWriter goio.Writer = os.Stderr
 
 // diagPrintf writes a formatted message to diagWriter under the mutex.
 func diagPrintf(format string, args ...any) {
@@ -34,7 +34,7 @@ func diagPrintf(format string, args ...any) {
 
 // setDiagWriter swaps the diagnostic writer and returns the previous one.
 // Used by tests to capture output without racing.
-func setDiagWriter(w io.Writer) io.Writer {
+func setDiagWriter(w goio.Writer) goio.Writer {
 	diagMu.Lock()
 	defer diagMu.Unlock()
 	old := diagWriter
@@ -156,7 +156,7 @@ func (c *connConnection) Read(ctx context.Context) (jsonrpc.Message, error) {
 			return nil, err
 		}
 		// EOF - connection closed cleanly
-		return nil, io.EOF
+		return nil, goio.EOF
 	}
 	line := c.scanner.Bytes()
 	return jsonrpc.DecodeMessage(line)

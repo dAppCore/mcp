@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
+	goio "io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -130,7 +130,7 @@ func main() {
 		filename := strings.TrimSuffix(filepath.Base(f), ".md")
 
 		if len(sections) == 0 {
-			fmt.Printf("  skip %s/%s (no sections)\n", project, filename)
+			coreerr.Warn("brain-seed: skip file (no sections)", "project", project, "file", filename)
 			skipped++
 			continue
 		}
@@ -157,7 +157,7 @@ func main() {
 			}
 
 			if err := callBrainRemember(content, memType, tags, project, confidence); err != nil {
-				fmt.Printf("  FAIL %s/%s :: %s — %v\n", project, filename, sec.heading, err)
+				coreerr.Error("brain-seed: import failed", "project", project, "file", filename, "heading", sec.heading, "err", err)
 				errors++
 				continue
 			}
@@ -197,7 +197,7 @@ func main() {
 				}
 
 				if err := callBrainRemember(content, "plan", tags, project, 0.6); err != nil {
-					fmt.Printf("  FAIL %s :: %s / %s — %v\n", project, filename, sec.heading, err)
+					coreerr.Error("brain-seed: plan import failed", "project", project, "file", filename, "heading", sec.heading, "err", err)
 					errors++
 					continue
 				}
@@ -237,7 +237,7 @@ func main() {
 				}
 
 				if err := callBrainRemember(content, "convention", tags, project, 0.9); err != nil {
-					fmt.Printf("  FAIL %s :: CLAUDE.md / %s — %v\n", project, sec.heading, err)
+					coreerr.Error("brain-seed: claude-md import failed", "project", project, "heading", sec.heading, "err", err)
 					errors++
 					continue
 				}
@@ -291,7 +291,7 @@ func callBrainRemember(content, memType string, tags []string, project string, c
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, _ := goio.ReadAll(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return coreerr.E("callBrainRemember", "HTTP "+string(respBody), nil)

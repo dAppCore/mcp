@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
+	goio "io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -561,7 +561,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	respData, _ := io.ReadAll(resp.Body)
+	respData, _ := goio.ReadAll(resp.Body)
 	var result struct {
 		Memories []map[string]any `json:"memories"`
 	}
