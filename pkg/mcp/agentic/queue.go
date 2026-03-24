@@ -43,9 +43,7 @@ type AgentsConfig struct {
 // loadAgentsConfig reads config/agents.yaml from the code path.
 func (s *PrepSubsystem) loadAgentsConfig() *AgentsConfig {
 	paths := []string{
-		filepath.Join(s.codePath, "core", "agent", "config", "agents.yaml"),
-		filepath.Join(s.codePath, "core", "agent", ".core", "agents.yaml"),
-		filepath.Join(s.codePath, "host-uk", "core", ".core", "agents.yaml"),
+		filepath.Join(s.codePath, ".core", "agents.yaml"),
 	}
 
 	for _, path := range paths {
@@ -103,31 +101,55 @@ func (s *PrepSubsystem) delayForAgent(agent string) time.Duration {
 	return time.Duration(rate.SustainedDelay) * time.Second
 }
 
-// countRunningByAgent counts running workspaces for a specific agent type.
-func (s *PrepSubsystem) countRunningByAgent(agent string) int {
+// listWorkspaceDirs returns all workspace directories, including those
+// nested one level deep (e.g. workspace/core/go-io-123/).
+func (s *PrepSubsystem) listWorkspaceDirs() []string {
 	wsRoot := s.workspaceRoot()
-
 	entries, err := coreio.Local.List(wsRoot)
 	if err != nil {
-		return 0
+		return nil
 	}
 
-	count := 0
+	var dirs []string
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
+		path := filepath.Join(wsRoot, entry.Name())
+		// Check if this dir has a status.json (it's a workspace)
+		if coreio.Local.IsFile(filepath.Join(path, "status.json")) {
+			dirs = append(dirs, path)
+			continue
+		}
+		// Otherwise check one level deeper (org subdirectory)
+		subEntries, err := coreio.Local.List(path)
+		if err != nil {
+			continue
+		}
+		for _, sub := range subEntries {
+			if sub.IsDir() {
+				subPath := filepath.Join(path, sub.Name())
+				if coreio.Local.IsFile(filepath.Join(subPath, "status.json")) {
+					dirs = append(dirs, subPath)
+				}
+			}
+		}
+	}
+	return dirs
+}
 
-		st, err := readStatus(filepath.Join(wsRoot, entry.Name()))
+// countRunningByAgent counts running workspaces for a specific agent type.
+func (s *PrepSubsystem) countRunningByAgent(agent string) int {
+	count := 0
+	for _, wsDir := range s.listWorkspaceDirs() {
+		st, err := readStatus(wsDir)
 		if err != nil || st.Status != "running" {
 			continue
 		}
-		// Match on base agent type (gemini:flash matches gemini)
 		stBase := strings.SplitN(st.Agent, ":", 2)[0]
 		if stBase != agent {
 			continue
 		}
-
 		if st.PID > 0 {
 			proc, err := os.FindProcess(st.PID)
 			if err == nil && proc.Signal(syscall.Signal(0)) == nil {
@@ -135,7 +157,6 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 			}
 		}
 	}
-
 	return count
 }
 
@@ -163,19 +184,7 @@ func (s *PrepSubsystem) canDispatch() bool {
 // drainQueue finds the oldest queued workspace and spawns it if a slot is available.
 // Applies rate-based delay between spawns.
 func (s *PrepSubsystem) drainQueue() {
-	wsRoot := s.workspaceRoot()
-
-	entries, err := coreio.Local.List(wsRoot)
-	if err != nil {
-		return
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		wsDir := filepath.Join(wsRoot, entry.Name())
+	for _, wsDir := range s.listWorkspaceDirs() {
 		st, err := readStatus(wsDir)
 		if err != nil || st.Status != "queued" {
 			continue

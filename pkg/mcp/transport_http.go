@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	coreerr "forge.lthn.ai/core/go-log"
@@ -81,18 +82,27 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 }
 
 // withAuth wraps an http.Handler with Bearer token authentication.
-// If token is empty, authentication is disabled (passthrough).
+// If token is empty, requests are rejected.
 func withAuth(token string, next http.Handler) http.Handler {
-	if token == "" {
-		return next
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSpace(token) == "" {
+			w.Header().Set("WWW-Authenticate", `Bearer`)
+			http.Error(w, `{"error":"authentication not configured"}`, http.StatusUnauthorized)
+			return
+		}
+
 		auth := r.Header.Get("Authorization")
-		if len(auth) < 7 || auth[:7] != "Bearer " {
+		if !strings.HasPrefix(auth, "Bearer ") {
 			http.Error(w, `{"error":"missing Bearer token"}`, http.StatusUnauthorized)
 			return
 		}
-		provided := auth[7:]
+
+		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		if len(provided) == 0 {
+			http.Error(w, `{"error":"missing Bearer token"}`, http.StatusUnauthorized)
+			return
+		}
+
 		if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
 			return

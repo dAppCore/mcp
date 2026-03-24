@@ -29,19 +29,19 @@ import (
 
 // WorkspaceStatus represents the current state of an agent workspace.
 type WorkspaceStatus struct {
-	Status    string    `json:"status"`              // running, completed, blocked, failed
-	Agent     string    `json:"agent"`               // gemini, claude, codex
-	Repo      string    `json:"repo"`                // target repo
-	Org       string    `json:"org,omitempty"`       // forge org (e.g. "core")
-	Task      string    `json:"task"`                // task description
-	Branch    string    `json:"branch,omitempty"`    // git branch name
-	Issue     int       `json:"issue,omitempty"`     // forge issue number
-	PID       int       `json:"pid,omitempty"`       // process ID (if running)
-	StartedAt time.Time `json:"started_at"`          // when dispatch started
-	UpdatedAt time.Time `json:"updated_at"`          // last status change
-	Question  string    `json:"question,omitempty"`  // from BLOCKED.md
-	Runs      int       `json:"runs"`                // how many times dispatched/resumed
-	PRURL     string    `json:"pr_url,omitempty"`    // pull request URL (after PR created)
+	Status    string         `json:"status"`              // running, completed, blocked, failed
+	Agent     string         `json:"agent"`               // gemini, claude, codex
+	Repo      string         `json:"repo"`                // target repo
+	Org       string         `json:"org,omitempty"`       // forge org (e.g. "core")
+	Task      string         `json:"task"`                // task description
+	Branch    string         `json:"branch,omitempty"`    // git branch name
+	Issue     int            `json:"issue,omitempty"`     // forge issue number
+	PID       int            `json:"pid,omitempty"`       // process ID (if running)
+	StartedAt time.Time      `json:"started_at"`          // when dispatch started
+	UpdatedAt time.Time      `json:"updated_at"`          // last status change
+	Question  string         `json:"question,omitempty"`  // from BLOCKED.md
+	Runs      int            `json:"runs"`                // how many times dispatched/resumed
+	PRURL     string         `json:"pr_url,omitempty"`    // pull request URL (after PR created)
 }
 
 func writeStatus(wsDir string, status *WorkspaceStatus) error {
@@ -95,28 +95,21 @@ func (s *PrepSubsystem) registerStatusTool(server *mcp.Server) {
 }
 
 func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, input StatusInput) (*mcp.CallToolResult, StatusOutput, error) {
-	wsRoot := s.workspaceRoot()
-
-	entries, err := coreio.Local.List(wsRoot)
-	if err != nil {
-		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", err)
+	wsDirs := s.listWorkspaceDirs()
+	if len(wsDirs) == 0 {
+		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", nil)
 	}
 
 	var workspaces []WorkspaceInfo
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
+	for _, wsDir := range wsDirs {
+		name := filepath.Base(wsDir)
 
 		// Filter by specific workspace if requested
 		if input.Workspace != "" && name != input.Workspace {
 			continue
 		}
 
-		wsDir := filepath.Join(wsRoot, name)
 		info := WorkspaceInfo{Name: name}
 
 		// Try reading status.json
@@ -129,8 +122,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			} else {
 				info.Status = "unknown"
 			}
-			fi, _ := entry.Info()
-			if fi != nil {
+			if fi, err := os.Stat(wsDir); err == nil {
 				info.Age = time.Since(fi.ModTime()).Truncate(time.Minute).String()
 			}
 			workspaces = append(workspaces, info)
