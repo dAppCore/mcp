@@ -5,7 +5,7 @@ package mcp
 import (
 	"encoding/json"
 	"errors"
-	"io"
+	goio "io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +20,10 @@ const maxBodySize = 10 << 20 // 10 MB
 // Each tool becomes a POST endpoint that reads a JSON body, dispatches
 // to the tool's RESTHandler (which knows the concrete input type), and
 // wraps the result in the standard api.Response envelope.
+//
+//	bridge := api.NewToolBridge()
+//	mcp.BridgeToAPI(svc, bridge)
+//	bridge.Mount(router, "/v1/tools")
 func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 	for rec := range svc.ToolsSeq() {
 		desc := api.ToolDescriptor{
@@ -37,7 +41,7 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 			var body []byte
 			if c.Request.Body != nil {
 				var err error
-				body, err = io.ReadAll(io.LimitReader(c.Request.Body, maxBodySize))
+				body, err = goio.ReadAll(goio.LimitReader(c.Request.Body, maxBodySize))
 				if err != nil {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_request", "Failed to read request body"))
 					return

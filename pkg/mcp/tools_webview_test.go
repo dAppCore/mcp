@@ -22,7 +22,7 @@ func skipIfShort(t *testing.T) {
 // TestWebviewToolsRegistered_Good verifies that webview tools are registered with the MCP server.
 func TestWebviewToolsRegistered_Good(t *testing.T) {
 	// Create a new MCP service - this should register all tools including webview
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestWebviewToolHandlers_RequiresChrome(t *testing.T) {
 	// This test verifies that webview tool handlers correctly reject
 	// calls when not connected to Chrome.
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -448,5 +448,153 @@ func TestWebviewWaitOutput_Good(t *testing.T) {
 	}
 	if output.Message == "" {
 		t.Error("Expected message to be set")
+	}
+}
+
+// --- Handler tests beyond nil-guard ---
+
+// setStubWebview injects a zero-value Webview stub so handler validation
+// logic beyond the nil-guard can be exercised without a running Chrome.
+// The previous value is restored via t.Cleanup.
+func setStubWebview(t *testing.T) {
+	t.Helper()
+	webviewMu.Lock()
+	old := webviewInstance
+	webviewInstance = &webview.Webview{}
+	webviewMu.Unlock()
+	t.Cleanup(func() {
+		webviewMu.Lock()
+		webviewInstance = old
+		webviewMu.Unlock()
+	})
+}
+
+// TestWebviewDisconnect_Good_NoConnection verifies disconnect succeeds when not connected.
+func TestWebviewDisconnect_Good_NoConnection(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, out, err := s.webviewDisconnect(ctx, nil, WebviewDisconnectInput{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !out.Success {
+		t.Error("Expected success to be true")
+	}
+	if out.Message != "No active connection" {
+		t.Errorf("Expected message 'No active connection', got %q", out.Message)
+	}
+}
+
+// TestWebviewConnect_Bad_EmptyURL verifies connect rejects an empty debug URL.
+func TestWebviewConnect_Bad_EmptyURL(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewConnect(ctx, nil, WebviewConnectInput{DebugURL: ""})
+	if err == nil {
+		t.Error("Expected error for empty debug URL, got nil")
+	}
+}
+
+// TestWebviewNavigate_Bad_EmptyURL verifies navigate rejects an empty URL.
+func TestWebviewNavigate_Bad_EmptyURL(t *testing.T) {
+	setStubWebview(t)
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewNavigate(ctx, nil, WebviewNavigateInput{URL: ""})
+	if err == nil {
+		t.Error("Expected error for empty URL, got nil")
+	}
+}
+
+// TestWebviewClick_Bad_EmptySelector verifies click rejects an empty selector.
+func TestWebviewClick_Bad_EmptySelector(t *testing.T) {
+	setStubWebview(t)
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewClick(ctx, nil, WebviewClickInput{Selector: ""})
+	if err == nil {
+		t.Error("Expected error for empty selector, got nil")
+	}
+}
+
+// TestWebviewType_Bad_EmptySelector verifies type rejects an empty selector.
+func TestWebviewType_Bad_EmptySelector(t *testing.T) {
+	setStubWebview(t)
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewType(ctx, nil, WebviewTypeInput{Selector: "", Text: "test"})
+	if err == nil {
+		t.Error("Expected error for empty selector, got nil")
+	}
+}
+
+// TestWebviewQuery_Bad_EmptySelector verifies query rejects an empty selector.
+func TestWebviewQuery_Bad_EmptySelector(t *testing.T) {
+	setStubWebview(t)
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewQuery(ctx, nil, WebviewQueryInput{Selector: ""})
+	if err == nil {
+		t.Error("Expected error for empty selector, got nil")
+	}
+}
+
+// TestWebviewEval_Bad_EmptyScript verifies eval rejects an empty script.
+func TestWebviewEval_Bad_EmptyScript(t *testing.T) {
+	setStubWebview(t)
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewEval(ctx, nil, WebviewEvalInput{Script: ""})
+	if err == nil {
+		t.Error("Expected error for empty script, got nil")
+	}
+}
+
+// TestWebviewWait_Bad_EmptySelector verifies wait rejects an empty selector.
+func TestWebviewWait_Bad_EmptySelector(t *testing.T) {
+	setStubWebview(t)
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx := t.Context()
+	_, _, err = s.webviewWait(ctx, nil, WebviewWaitInput{Selector: ""})
+	if err == nil {
+		t.Error("Expected error for empty selector, got nil")
 	}
 }

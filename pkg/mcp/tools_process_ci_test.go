@@ -1,3 +1,5 @@
+//go:build ci
+
 package mcp
 
 import (
@@ -43,7 +45,7 @@ func newTestProcessService(t *testing.T) *process.Service {
 func newTestMCPWithProcess(t *testing.T) (*Service, *process.Service) {
 	t.Helper()
 	ps := newTestProcessService(t)
-	s, err := New(WithProcessService(ps))
+	s, err := New(Options{ProcessService: ps})
 	if err != nil {
 		t.Fatalf("Failed to create MCP service: %v", err)
 	}

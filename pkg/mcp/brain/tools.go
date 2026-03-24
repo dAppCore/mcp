@@ -200,13 +200,17 @@ func (s *Subsystem) brainList(_ context.Context, _ *mcp.CallToolRequest, input L
 		return nil, ListOutput{}, errBridgeNotAvailable
 	}
 
+	limit := input.Limit
+	if limit == 0 {
+		limit = 50 // sensible default — backend clamps 0 to 1
+	}
 	err := s.bridge.Send(ide.BridgeMessage{
 		Type: "brain_list",
 		Data: map[string]any{
 			"project":  input.Project,
 			"type":     input.Type,
 			"agent_id": input.AgentID,
-			"limit":    input.Limit,
+			"limit":    limit,
 		},
 	})
 	if err != nil {

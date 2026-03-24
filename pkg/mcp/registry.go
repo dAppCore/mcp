@@ -14,13 +14,23 @@ import (
 
 // RESTHandler handles a tool call from a REST endpoint.
 // It receives raw JSON input and returns the typed output or an error.
+//
+//	var h RESTHandler = func(ctx context.Context, body []byte) (any, error) {
+//	    var input ReadFileInput
+//	    json.Unmarshal(body, &input)
+//	    return ReadFileOutput{Content: "...", Path: input.Path}, nil
+//	}
 type RESTHandler func(ctx context.Context, body []byte) (any, error)
 
 // ToolRecord captures metadata about a registered MCP tool.
+//
+//	for _, rec := range svc.Tools() {
+//	    fmt.Printf("tool=%s group=%s desc=%s\n", rec.Name, rec.Group, rec.Description)
+//	}
 type ToolRecord struct {
-	Name         string         // Tool name, e.g. "file_read"
-	Description  string         // Human-readable description
-	Group        string         // Subsystem group name, e.g. "files", "rag"
+	Name         string         // e.g. "file_read"
+	Description  string         // e.g. "Read the contents of a file"
+	Group        string         // e.g. "files", "rag", "process"
 	InputSchema  map[string]any // JSON Schema from Go struct reflection
 	OutputSchema map[string]any // JSON Schema from Go struct reflection
 	RESTHandler  RESTHandler    // REST-callable handler created at registration time

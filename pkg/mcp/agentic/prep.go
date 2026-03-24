@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
+	goio "io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -25,13 +25,13 @@ import (
 
 // PrepSubsystem provides agentic MCP tools.
 type PrepSubsystem struct {
-	forgeURL    string
-	forgeToken  string
-	brainURL    string
-	brainKey    string
-	specsPath   string
-	codePath    string
-	client *http.Client
+	forgeURL   string
+	forgeToken string
+	brainURL   string
+	brainKey   string
+	specsPath  string
+	codePath   string
+	client     *http.Client
 }
 
 // NewPrep creates an agentic subsystem.
@@ -51,13 +51,13 @@ func NewPrep() *PrepSubsystem {
 	}
 
 	return &PrepSubsystem{
-		forgeURL:    envOr("FORGE_URL", "https://forge.lthn.ai"),
-		forgeToken:  forgeToken,
-		brainURL:    envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
-		brainKey:    brainKey,
-		specsPath:   envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
-		codePath:    envOr("CODE_PATH", filepath.Join(home, "Code")),
-		client: &http.Client{Timeout: 30 * time.Second},
+		forgeURL:   envOr("FORGE_URL", "https://forge.lthn.ai"),
+		forgeToken: forgeToken,
+		brainURL:   envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
+		brainKey:   brainKey,
+		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
+		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
+		client:     &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -66,6 +66,42 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, error) {
+	if strings.TrimSpace(value) != value {
+		return "", coreerr.E("prepWorkspace", field+" contains whitespace", nil)
+	}
+	if value == "" {
+		return "", nil
+	}
+	if strings.Contains(value, "\\") {
+		return "", coreerr.E("prepWorkspace", field+" contains invalid path separator", nil)
+	}
+
+	parts := strings.Split(value, "/")
+	if !allowSubdirs && len(parts) != 1 {
+		return "", coreerr.E("prepWorkspace", field+" may not contain subdirectories", nil)
+	}
+
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", coreerr.E("prepWorkspace", field+" contains invalid path segment", nil)
+		}
+		for _, r := range part {
+			switch {
+			case r >= 'a' && r <= 'z',
+				r >= 'A' && r <= 'Z',
+				r >= '0' && r <= '9',
+				r == '-' || r == '_' || r == '.':
+				continue
+			default:
+				return "", coreerr.E("prepWorkspace", field+" contains invalid characters", nil)
+			}
+		}
+	}
+
+	return value, nil
 }
 
 // Name implements mcp.Subsystem.
@@ -96,6 +132,11 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 // Shutdown implements mcp.SubsystemWithShutdown.
 func (s *PrepSubsystem) Shutdown(_ context.Context) error { return nil }
 
+// workspaceRoot returns the base directory for agent workspaces.
+func (s *PrepSubsystem) workspaceRoot() string {
+	return filepath.Join(s.codePath, ".core", "workspace")
+}
+
 // --- Input/Output types ---
 
 // PrepInput is the input for agentic_prep_workspace.
@@ -112,20 +153,41 @@ type PrepInput struct {
 
 // PrepOutput is the output for agentic_prep_workspace.
 type PrepOutput struct {
-	Success       bool   `json:"success"`
-	WorkspaceDir  string `json:"workspace_dir"`
-	WikiPages     int    `json:"wiki_pages"`
-	SpecFiles     int    `json:"spec_files"`
-	Memories      int    `json:"memories"`
-	Consumers     int    `json:"consumers"`
-	ClaudeMd      bool   `json:"claude_md"`
-	GitLog        int    `json:"git_log_entries"`
+	Success      bool   `json:"success"`
+	WorkspaceDir string `json:"workspace_dir"`
+	WikiPages    int    `json:"wiki_pages"`
+	SpecFiles    int    `json:"spec_files"`
+	Memories     int    `json:"memories"`
+	Consumers    int    `json:"consumers"`
+	ClaudeMd     bool   `json:"claude_md"`
+	GitLog       int    `json:"git_log_entries"`
 }
 
 func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
 	if input.Repo == "" {
 		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "repo is required", nil)
 	}
+
+	repo, err := sanitizeRepoPathSegment(input.Repo, "repo", false)
+	if err != nil {
+		return nil, PrepOutput{}, err
+	}
+	input.Repo = repo
+
+	planTemplate, err := sanitizeRepoPathSegment(input.PlanTemplate, "plan_template", false)
+	if err != nil {
+		return nil, PrepOutput{}, err
+	}
+	input.PlanTemplate = planTemplate
+
+	persona := input.Persona
+	if persona != "" {
+		persona, err = sanitizeRepoPathSegment(persona, "persona", true)
+		if err != nil {
+			return nil, PrepOutput{}, err
+		}
+	}
+
 	if input.Org == "" {
 		input.Org = "core"
 	}
@@ -134,8 +196,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	}
 
 	// Workspace root: .core/workspace/{repo}-{timestamp}/
-	home, _ := os.UserHomeDir()
-	wsRoot := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace")
+	wsRoot := s.workspaceRoot()
 	wsName := fmt.Sprintf("%s-%d", input.Repo, time.Now().Unix())
 	wsDir := filepath.Join(wsRoot, wsName)
 
@@ -150,7 +211,9 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 1. Clone repo into src/ and create feature branch
 	srcDir := filepath.Join(wsDir, "src")
 	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
-	cloneCmd.Run()
+	if err := cloneCmd.Run(); err != nil {
+		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
+	}
 
 	// Create feature branch
 	taskSlug := strings.Map(func(r rune) rune {
@@ -166,11 +229,14 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		taskSlug = taskSlug[:40]
 	}
 	taskSlug = strings.Trim(taskSlug, "-")
-	branchName := fmt.Sprintf("agent/%s", taskSlug)
-
-	branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
-	branchCmd.Dir = srcDir
-	branchCmd.Run()
+	if taskSlug != "" {
+		branchName := fmt.Sprintf("agent/%s", taskSlug)
+		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
+		branchCmd.Dir = srcDir
+		if err := branchCmd.Run(); err != nil {
+			return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to create branch", err)
+		}
+	}
 
 	// Create context dirs inside src/
 	coreio.Local.EnsureDir(filepath.Join(srcDir, "kb"))
@@ -192,8 +258,8 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	}
 
 	// Copy persona if specified
-	if input.Persona != "" {
-		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", input.Persona+".md")
+	if persona != "" {
+		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
 			coreio.Local.Write(filepath.Join(wsDir, "src", "PERSONA.md"), data)
 		}
@@ -334,9 +400,9 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		Description string   `yaml:"description"`
 		Guidelines  []string `yaml:"guidelines"`
 		Phases      []struct {
-			Name        string   `yaml:"name"`
-			Description string   `yaml:"description"`
-			Tasks       []any    `yaml:"tasks"`
+			Name        string `yaml:"name"`
+			Description string `yaml:"description"`
+			Tasks       []any  `yaml:"tasks"`
 		} `yaml:"phases"`
 	}
 
@@ -395,10 +461,13 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return 0
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0
+	}
 
 	var pages []struct {
 		Title  string `json:"title"`
@@ -418,7 +487,11 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		pageReq.Header.Set("Authorization", "token "+s.forgeToken)
 
 		pageResp, err := s.client.Do(pageReq)
-		if err != nil || pageResp.StatusCode != 200 {
+		if err != nil {
+			continue
+		}
+		if pageResp.StatusCode != 200 {
+			pageResp.Body.Close()
 			continue
 		}
 
@@ -480,12 +553,15 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 	req.Header.Set("Authorization", "Bearer "+s.brainKey)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return 0
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0
+	}
 
-	respData, _ := io.ReadAll(resp.Body)
+	respData, _ := goio.ReadAll(resp.Body)
 	var result struct {
 		Memories []map[string]any `json:"memories"`
 	}
@@ -573,10 +649,13 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return
+	}
 
 	var issueData struct {
 		Title string `json:"title"`

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"forge.lthn.ai/core/go-io"
 	"forge.lthn.ai/core/go-log"
@@ -22,6 +23,9 @@ import (
 
 // Service provides a lightweight MCP server with file operations only.
 // For full GUI features, use the core-gui package.
+//
+//	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "/home/user/project"})
+//	defer svc.Shutdown(ctx)
 type Service struct {
 	server         *mcp.Server
 	workspaceRoot  string           // Root directory for file operations (empty = unrestricted)
@@ -32,104 +36,139 @@ type Service struct {
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
 	wsAddr         string           // WebSocket server address
+	wsMu           sync.Mutex       // Protects wsServer and wsAddr
+	stdioMode      bool             // True when running via stdio transport
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
 }
 
-// Option configures a Service.
-type Option func(*Service) error
-
-// WithWorkspaceRoot restricts file operations to the given directory.
-// All paths are validated to be within this directory.
-// An empty string disables the restriction (not recommended).
-func WithWorkspaceRoot(root string) Option {
-	return func(s *Service) error {
-		if root == "" {
-			// Explicitly disable restriction - use unsandboxed global
-			s.workspaceRoot = ""
-			s.medium = io.Local
-			return nil
-		}
-		// Create sandboxed medium for this workspace
-		abs, err := filepath.Abs(root)
-		if err != nil {
-			return log.E("WithWorkspaceRoot", "invalid workspace root", err)
-		}
-		m, err := io.NewSandboxed(abs)
-		if err != nil {
-			return log.E("WithWorkspaceRoot", "failed to create workspace medium", err)
-		}
-		s.workspaceRoot = abs
-		s.medium = m
-		return nil
-	}
+// Options configures a Service.
+//
+//	svc, err := mcp.New(mcp.Options{
+//	    WorkspaceRoot:  "/path/to/project",
+//	    ProcessService: ps,
+//	    Subsystems:     []Subsystem{brain, agentic, monitor},
+//	})
+type Options struct {
+	WorkspaceRoot  string           // Restrict file ops to this directory (empty = cwd)
+	Unrestricted   bool             // Disable sandboxing entirely (not recommended)
+	ProcessService *process.Service // Optional process management
+	WSHub          *ws.Hub          // Optional WebSocket hub for real-time streaming
+	Subsystems     []Subsystem      // Additional tool groups registered at startup
 }
 
 // New creates a new MCP service with file operations.
-// By default, restricts file access to the current working directory.
-// Use WithWorkspaceRoot("") to disable restrictions (not recommended).
-// Returns an error if initialization fails.
-func New(opts ...Option) (*Service, error) {
+//
+//	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "."})
+func New(opts Options) (*Service, error) {
 	impl := &mcp.Implementation{
 		Name:    "core-cli",
 		Version: "0.1.0",
 	}
 
-	server := mcp.NewServer(impl, nil)
+	server := mcp.NewServer(impl, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{
+			Tools:        &mcp.ToolCapabilities{ListChanged: true},
+			Logging:      &mcp.LoggingCapabilities{},
+			Experimental: channelCapability(),
+		},
+	})
+
 	s := &Service{
-		server: server,
-		logger: log.Default(),
+		server:         server,
+		processService: opts.ProcessService,
+		wsHub:          opts.WSHub,
+		subsystems:     opts.Subsystems,
+		logger:         log.Default(),
 	}
 
-	// Default to current working directory with sandboxed medium
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, log.E("mcp.New", "failed to get working directory", err)
-	}
-	s.workspaceRoot = cwd
-	m, err := io.NewSandboxed(cwd)
-	if err != nil {
-		return nil, log.E("mcp.New", "failed to create sandboxed medium", err)
-	}
-	s.medium = m
-
-	// Apply options
-	for _, opt := range opts {
-		if err := opt(s); err != nil {
-			return nil, log.E("mcp.New", "failed to apply option", err)
+	// Workspace root: unrestricted, explicit root, or default to cwd
+	if opts.Unrestricted {
+		s.workspaceRoot = ""
+		s.medium = io.Local
+	} else {
+		root := opts.WorkspaceRoot
+		if root == "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, log.E("mcp.New", "failed to get working directory", err)
+			}
+			root = cwd
 		}
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return nil, log.E("mcp.New", "invalid workspace root", err)
+		}
+		m, merr := io.NewSandboxed(abs)
+		if merr != nil {
+			return nil, log.E("mcp.New", "failed to create workspace medium", merr)
+		}
+		s.workspaceRoot = abs
+		s.medium = m
 	}
 
 	s.registerTools(s.server)
 
-	// Register subsystem tools.
 	for _, sub := range s.subsystems {
 		sub.RegisterTools(s.server)
+		if sn, ok := sub.(SubsystemWithNotifier); ok {
+			sn.SetNotifier(s)
+		}
+		// Wire channel callback for subsystems that use func-based notification
+		type channelWirer interface {
+			OnChannel(func(ctx context.Context, channel string, data any))
+		}
+		if cw, ok := sub.(channelWirer); ok {
+			svc := s // capture for closure
+			cw.OnChannel(func(ctx context.Context, channel string, data any) {
+				svc.ChannelSend(ctx, channel, data)
+			})
+		}
 	}
 
 	return s, nil
 }
 
 // Subsystems returns the registered subsystems.
+//
+//	for _, sub := range svc.Subsystems() {
+//	    fmt.Println(sub.Name())
+//	}
 func (s *Service) Subsystems() []Subsystem {
 	return s.subsystems
 }
 
 // SubsystemsSeq returns an iterator over the registered subsystems.
+//
+//	for sub := range svc.SubsystemsSeq() {
+//	    fmt.Println(sub.Name())
+//	}
 func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
 	return slices.Values(s.subsystems)
 }
 
 // Tools returns all recorded tool metadata.
+//
+//	for _, t := range svc.Tools() {
+//	    fmt.Printf("%s (%s): %s\n", t.Name, t.Group, t.Description)
+//	}
 func (s *Service) Tools() []ToolRecord {
 	return s.tools
 }
 
 // ToolsSeq returns an iterator over all recorded tool metadata.
+//
+//	for rec := range svc.ToolsSeq() {
+//	    fmt.Println(rec.Name)
+//	}
 func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
 	return slices.Values(s.tools)
 }
 
 // Shutdown gracefully shuts down all subsystems that support it.
+//
+//	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+//	defer cancel()
+//	if err := svc.Shutdown(ctx); err != nil { log.Fatal(err) }
 func (s *Service) Shutdown(ctx context.Context) error {
 	for _, sub := range s.subsystems {
 		if sh, ok := sub.(SubsystemWithShutdown); ok {
@@ -141,28 +180,21 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// WithProcessService configures the process management service.
-func WithProcessService(ps *process.Service) Option {
-	return func(s *Service) error {
-		s.processService = ps
-		return nil
-	}
-}
 
-// WithWSHub configures the WebSocket hub for real-time streaming.
-func WithWSHub(hub *ws.Hub) Option {
-	return func(s *Service) error {
-		s.wsHub = hub
-		return nil
-	}
-}
-
-// WSHub returns the WebSocket hub.
+// WSHub returns the WebSocket hub, or nil if not configured.
+//
+//	if hub := svc.WSHub(); hub != nil {
+//	    hub.SendProcessOutput("proc-1", "build complete")
+//	}
 func (s *Service) WSHub() *ws.Hub {
 	return s.wsHub
 }
 
-// ProcessService returns the process service.
+// ProcessService returns the process service, or nil if not configured.
+//
+//	if ps := svc.ProcessService(); ps != nil {
+//	    procs := ps.Running()
+//	}
 func (s *Service) ProcessService() *process.Service {
 	return s.processService
 }
@@ -226,134 +258,186 @@ func (s *Service) registerTools(server *mcp.Server) {
 // Tool input/output types for MCP file operations.
 
 // ReadFileInput contains parameters for reading a file.
+//
+//	input := ReadFileInput{Path: "src/main.go"}
 type ReadFileInput struct {
-	Path string `json:"path"`
+	Path string `json:"path"` // e.g. "src/main.go"
 }
 
 // ReadFileOutput contains the result of reading a file.
+//
+//	// Returned by the file_read tool:
+//	// out.Content == "package main\n..."
+//	// out.Language == "go"
+//	// out.Path == "src/main.go"
 type ReadFileOutput struct {
-	Content  string `json:"content"`
-	Language string `json:"language"`
-	Path     string `json:"path"`
+	Content  string `json:"content"`  // e.g. "package main\n..."
+	Language string `json:"language"` // e.g. "go"
+	Path     string `json:"path"`     // e.g. "src/main.go"
 }
 
 // WriteFileInput contains parameters for writing a file.
+//
+//	input := WriteFileInput{Path: "config/app.yaml", Content: "port: 8080\n"}
 type WriteFileInput struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Path    string `json:"path"`    // e.g. "config/app.yaml"
+	Content string `json:"content"` // e.g. "port: 8080\n"
 }
 
 // WriteFileOutput contains the result of writing a file.
+//
+//	// out.Success == true, out.Path == "config/app.yaml"
 type WriteFileOutput struct {
-	Success bool   `json:"success"`
-	Path    string `json:"path"`
+	Success bool   `json:"success"` // true when the write succeeded
+	Path    string `json:"path"`    // e.g. "config/app.yaml"
 }
 
 // ListDirectoryInput contains parameters for listing a directory.
+//
+//	input := ListDirectoryInput{Path: "src/"}
 type ListDirectoryInput struct {
-	Path string `json:"path"`
+	Path string `json:"path"` // e.g. "src/"
 }
 
 // ListDirectoryOutput contains the result of listing a directory.
+//
+//	// out.Path == "src/", len(out.Entries) == 3
 type ListDirectoryOutput struct {
-	Entries []DirectoryEntry `json:"entries"`
-	Path    string           `json:"path"`
+	Entries []DirectoryEntry `json:"entries"` // one entry per file/subdirectory
+	Path    string           `json:"path"`    // e.g. "src/"
 }
 
 // DirectoryEntry represents a single entry in a directory listing.
+//
+//	// entry.Name == "main.go", entry.IsDir == false, entry.Size == 1024
 type DirectoryEntry struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	IsDir bool   `json:"isDir"`
-	Size  int64  `json:"size"`
+	Name  string `json:"name"`  // e.g. "main.go"
+	Path  string `json:"path"`  // e.g. "src/main.go"
+	IsDir bool   `json:"isDir"` // true for directories
+	Size  int64  `json:"size"`  // file size in bytes
 }
 
 // CreateDirectoryInput contains parameters for creating a directory.
+//
+//	input := CreateDirectoryInput{Path: "src/handlers"}
 type CreateDirectoryInput struct {
-	Path string `json:"path"`
+	Path string `json:"path"` // e.g. "src/handlers"
 }
 
 // CreateDirectoryOutput contains the result of creating a directory.
+//
+//	// out.Success == true, out.Path == "src/handlers"
 type CreateDirectoryOutput struct {
-	Success bool   `json:"success"`
-	Path    string `json:"path"`
+	Success bool   `json:"success"` // true when creation succeeded
+	Path    string `json:"path"`    // e.g. "src/handlers"
 }
 
 // DeleteFileInput contains parameters for deleting a file.
+//
+//	input := DeleteFileInput{Path: "tmp/debug.log"}
 type DeleteFileInput struct {
-	Path string `json:"path"`
+	Path string `json:"path"` // e.g. "tmp/debug.log"
 }
 
 // DeleteFileOutput contains the result of deleting a file.
+//
+//	// out.Success == true, out.Path == "tmp/debug.log"
 type DeleteFileOutput struct {
-	Success bool   `json:"success"`
-	Path    string `json:"path"`
+	Success bool   `json:"success"` // true when deletion succeeded
+	Path    string `json:"path"`    // e.g. "tmp/debug.log"
 }
 
 // RenameFileInput contains parameters for renaming a file.
+//
+//	input := RenameFileInput{OldPath: "pkg/util.go", NewPath: "pkg/helpers.go"}
 type RenameFileInput struct {
-	OldPath string `json:"oldPath"`
-	NewPath string `json:"newPath"`
+	OldPath string `json:"oldPath"` // e.g. "pkg/util.go"
+	NewPath string `json:"newPath"` // e.g. "pkg/helpers.go"
 }
 
 // RenameFileOutput contains the result of renaming a file.
+//
+//	// out.Success == true, out.OldPath == "pkg/util.go", out.NewPath == "pkg/helpers.go"
 type RenameFileOutput struct {
-	Success bool   `json:"success"`
-	OldPath string `json:"oldPath"`
-	NewPath string `json:"newPath"`
+	Success bool   `json:"success"` // true when rename succeeded
+	OldPath string `json:"oldPath"` // e.g. "pkg/util.go"
+	NewPath string `json:"newPath"` // e.g. "pkg/helpers.go"
 }
 
 // FileExistsInput contains parameters for checking file existence.
+//
+//	input := FileExistsInput{Path: "go.mod"}
 type FileExistsInput struct {
-	Path string `json:"path"`
+	Path string `json:"path"` // e.g. "go.mod"
 }
 
 // FileExistsOutput contains the result of checking file existence.
+//
+//	// out.Exists == true, out.IsDir == false, out.Path == "go.mod"
 type FileExistsOutput struct {
-	Exists bool   `json:"exists"`
-	IsDir  bool   `json:"isDir"`
-	Path   string `json:"path"`
+	Exists bool   `json:"exists"` // true when the path exists
+	IsDir  bool   `json:"isDir"`  // true when the path is a directory
+	Path   string `json:"path"`   // e.g. "go.mod"
 }
 
 // DetectLanguageInput contains parameters for detecting file language.
+//
+//	input := DetectLanguageInput{Path: "cmd/server/main.go"}
 type DetectLanguageInput struct {
-	Path string `json:"path"`
+	Path string `json:"path"` // e.g. "cmd/server/main.go"
 }
 
 // DetectLanguageOutput contains the detected programming language.
+//
+//	// out.Language == "go", out.Path == "cmd/server/main.go"
 type DetectLanguageOutput struct {
-	Language string `json:"language"`
-	Path     string `json:"path"`
+	Language string `json:"language"` // e.g. "go", "typescript", "python"
+	Path     string `json:"path"`     // e.g. "cmd/server/main.go"
 }
 
-// GetSupportedLanguagesInput is an empty struct for the languages query.
+// GetSupportedLanguagesInput takes no parameters.
+//
+//	input := GetSupportedLanguagesInput{}
 type GetSupportedLanguagesInput struct{}
 
 // GetSupportedLanguagesOutput contains the list of supported languages.
+//
+//	// len(out.Languages) == 15
+//	// out.Languages[0].ID == "typescript"
 type GetSupportedLanguagesOutput struct {
-	Languages []LanguageInfo `json:"languages"`
+	Languages []LanguageInfo `json:"languages"` // all recognised languages
 }
 
 // LanguageInfo describes a supported programming language.
+//
+//	// info.ID == "go", info.Name == "Go", info.Extensions == [".go"]
 type LanguageInfo struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Extensions []string `json:"extensions"`
+	ID         string   `json:"id"`         // e.g. "go"
+	Name       string   `json:"name"`       // e.g. "Go"
+	Extensions []string `json:"extensions"` // e.g. [".go"]
 }
 
-// EditDiffInput contains parameters for editing a file via diff.
+// EditDiffInput contains parameters for editing a file via string replacement.
+//
+//	input := EditDiffInput{
+//	    Path:      "main.go",
+//	    OldString: "fmt.Println(\"hello\")",
+//	    NewString: "fmt.Println(\"world\")",
+//	}
 type EditDiffInput struct {
-	Path       string `json:"path"`
-	OldString  string `json:"old_string"`
-	NewString  string `json:"new_string"`
-	ReplaceAll bool   `json:"replace_all,omitempty"`
+	Path       string `json:"path"`                  // e.g. "main.go"
+	OldString  string `json:"old_string"`             // text to find
+	NewString  string `json:"new_string"`             // replacement text
+	ReplaceAll bool   `json:"replace_all,omitempty"` // replace all occurrences (default: first only)
 }
 
 // EditDiffOutput contains the result of a diff-based edit operation.
+//
+//	// out.Success == true, out.Replacements == 1, out.Path == "main.go"
 type EditDiffOutput struct {
-	Path         string `json:"path"`
-	Success      bool   `json:"success"`
-	Replacements int    `json:"replacements"`
+	Path         string `json:"path"`         // e.g. "main.go"
+	Success      bool   `json:"success"`      // true when at least one replacement was made
+	Replacements int    `json:"replacements"` // number of replacements performed
 }
 
 // Tool handlers
@@ -561,11 +645,18 @@ func detectLanguageFromPath(path string) string {
 	}
 }
 
-// Run starts the MCP server.
-// Transport selection:
-//   - MCP_HTTP_ADDR set → Streamable HTTP (with optional MCP_AUTH_TOKEN)
-//   - MCP_ADDR set → TCP
-//   - Otherwise → Stdio
+// Run starts the MCP server, auto-selecting transport from environment.
+//
+//	// Stdio (default):
+//	svc.Run(ctx)
+//
+//	// TCP (set MCP_ADDR):
+//	os.Setenv("MCP_ADDR", "127.0.0.1:9100")
+//	svc.Run(ctx)
+//
+//	// HTTP (set MCP_HTTP_ADDR):
+//	os.Setenv("MCP_HTTP_ADDR", "127.0.0.1:9101")
+//	svc.Run(ctx)
 func (s *Service) Run(ctx context.Context) error {
 	if httpAddr := os.Getenv("MCP_HTTP_ADDR"); httpAddr != "" {
 		return s.ServeHTTP(ctx, httpAddr)
@@ -573,11 +664,15 @@ func (s *Service) Run(ctx context.Context) error {
 	if addr := os.Getenv("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
 	}
+	s.stdioMode = true
 	return s.server.Run(ctx, &mcp.StdioTransport{})
 }
 
 
 // Server returns the underlying MCP server for advanced configuration.
+//
+//	server := svc.Server()
+//	mcp.AddTool(server, &mcp.Tool{Name: "custom_tool"}, handler)
 func (s *Service) Server() *mcp.Server {
 	return s.server
 }

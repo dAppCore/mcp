@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -54,11 +54,10 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 		return nil, CreatePROutput{}, coreerr.E("createPR", "no Forge token configured", nil)
 	}
 
-	home, _ := os.UserHomeDir()
-	wsDir := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace", input.Workspace)
+	wsDir := filepath.Join(s.workspaceRoot(), input.Workspace)
 	srcDir := filepath.Join(wsDir, "src")
 
-	if _, err := os.Stat(srcDir); err != nil {
+	if _, err := coreio.Local.List(srcDir); err != nil {
 		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace not found: "+input.Workspace, nil)
 	}
 
@@ -309,10 +308,13 @@ func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return nil, coreerr.E("listRepoPRs", "failed to list PRs for "+repo, err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, coreerr.E("listRepoPRs", fmt.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+	}
 
 	var prs []struct {
 		Number    int    `json:"number"`

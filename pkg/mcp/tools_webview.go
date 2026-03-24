@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"sync"
 	"time"
 
 	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// webviewMu protects webviewInstance from concurrent access.
+var webviewMu sync.Mutex
 
 // webviewInstance holds the current webview connection.
 // This is managed by the MCP service.
@@ -22,133 +26,177 @@ var (
 )
 
 // WebviewConnectInput contains parameters for connecting to Chrome DevTools.
+//
+//	input := WebviewConnectInput{DebugURL: "http://localhost:9222", Timeout: 10}
 type WebviewConnectInput struct {
-	DebugURL string `json:"debug_url"`         // Chrome DevTools URL (e.g., http://localhost:9222)
-	Timeout  int    `json:"timeout,omitempty"` // Default timeout in seconds (default: 30)
+	DebugURL string `json:"debug_url"`         // e.g. "http://localhost:9222"
+	Timeout  int    `json:"timeout,omitempty"` // seconds (default: 30)
 }
 
 // WebviewConnectOutput contains the result of connecting to Chrome.
+//
+//	// out.Success == true, out.Message == "Connected to Chrome DevTools at http://localhost:9222"
 type WebviewConnectOutput struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
+	Success bool   `json:"success"`           // true when connection established
+	Message string `json:"message,omitempty"` // connection status
 }
 
 // WebviewNavigateInput contains parameters for navigating to a URL.
+//
+//	input := WebviewNavigateInput{URL: "https://lthn.ai/dashboard"}
 type WebviewNavigateInput struct {
-	URL string `json:"url"` // URL to navigate to
+	URL string `json:"url"` // e.g. "https://lthn.ai/dashboard"
 }
 
 // WebviewNavigateOutput contains the result of navigation.
+//
+//	// out.Success == true, out.URL == "https://lthn.ai/dashboard"
 type WebviewNavigateOutput struct {
-	Success bool   `json:"success"`
-	URL     string `json:"url"`
+	Success bool   `json:"success"` // true when navigation completed
+	URL     string `json:"url"`     // the URL navigated to
 }
 
 // WebviewClickInput contains parameters for clicking an element.
+//
+//	input := WebviewClickInput{Selector: "button.submit"}
 type WebviewClickInput struct {
-	Selector string `json:"selector"` // CSS selector
+	Selector string `json:"selector"` // e.g. "button.submit"
 }
 
 // WebviewClickOutput contains the result of a click action.
+//
+//	// out.Success == true
 type WebviewClickOutput struct {
-	Success bool `json:"success"`
+	Success bool `json:"success"` // true when the click was performed
 }
 
-// WebviewTypeInput contains parameters for typing text.
+// WebviewTypeInput contains parameters for typing text into a form element.
+//
+//	input := WebviewTypeInput{Selector: "input#email", Text: "user@example.com"}
 type WebviewTypeInput struct {
-	Selector string `json:"selector"` // CSS selector
-	Text     string `json:"text"`     // Text to type
+	Selector string `json:"selector"` // e.g. "input#email"
+	Text     string `json:"text"`     // e.g. "user@example.com"
 }
 
 // WebviewTypeOutput contains the result of a type action.
+//
+//	// out.Success == true
 type WebviewTypeOutput struct {
-	Success bool `json:"success"`
+	Success bool `json:"success"` // true when text was typed
 }
 
-// WebviewQueryInput contains parameters for querying an element.
+// WebviewQueryInput contains parameters for querying DOM elements.
+//
+//	input := WebviewQueryInput{Selector: "div.card", All: true}
 type WebviewQueryInput struct {
-	Selector string `json:"selector"`      // CSS selector
-	All      bool   `json:"all,omitempty"` // If true, return all matching elements
+	Selector string `json:"selector"`      // e.g. "div.card"
+	All      bool   `json:"all,omitempty"` // true to return all matches (default: first only)
 }
 
-// WebviewQueryOutput contains the result of a query.
+// WebviewQueryOutput contains the result of a DOM query.
+//
+//	// out.Found == true, out.Count == 3, len(out.Elements) == 3
 type WebviewQueryOutput struct {
-	Found    bool                 `json:"found"`
-	Count    int                  `json:"count"`
-	Elements []WebviewElementInfo `json:"elements,omitempty"`
+	Found    bool                 `json:"found"`              // true when at least one element matched
+	Count    int                  `json:"count"`              // number of matches
+	Elements []WebviewElementInfo `json:"elements,omitempty"` // matched elements
 }
 
 // WebviewElementInfo represents information about a DOM element.
+//
+//	// el.TagName == "div", el.Attributes["class"] == "card active"
 type WebviewElementInfo struct {
-	NodeID      int                  `json:"nodeId"`
-	TagName     string               `json:"tagName"`
-	Attributes  map[string]string    `json:"attributes,omitempty"`
-	BoundingBox *webview.BoundingBox `json:"boundingBox,omitempty"`
+	NodeID      int                  `json:"nodeId"`                // CDP node identifier
+	TagName     string               `json:"tagName"`               // e.g. "div", "button"
+	Attributes  map[string]string    `json:"attributes,omitempty"`  // e.g. {"class": "card", "id": "main"}
+	BoundingBox *webview.BoundingBox `json:"boundingBox,omitempty"` // viewport coordinates
 }
 
 // WebviewConsoleInput contains parameters for getting console output.
+//
+//	input := WebviewConsoleInput{Clear: true}
 type WebviewConsoleInput struct {
-	Clear bool `json:"clear,omitempty"` // If true, clear console after getting messages
+	Clear bool `json:"clear,omitempty"` // true to clear the buffer after reading
 }
 
 // WebviewConsoleOutput contains console messages.
+//
+//	// out.Count == 5, out.Messages[0].Type == "log"
 type WebviewConsoleOutput struct {
-	Messages []WebviewConsoleMessage `json:"messages"`
-	Count    int                     `json:"count"`
+	Messages []WebviewConsoleMessage `json:"messages"` // captured console entries
+	Count    int                     `json:"count"`    // number of messages
 }
 
-// WebviewConsoleMessage represents a console message.
+// WebviewConsoleMessage represents a single browser console entry.
+//
+//	// msg.Type == "log", msg.Text == "App loaded"
 type WebviewConsoleMessage struct {
-	Type      string `json:"type"`
-	Text      string `json:"text"`
-	Timestamp string `json:"timestamp"`
-	URL       string `json:"url,omitempty"`
-	Line      int    `json:"line,omitempty"`
+	Type      string `json:"type"`           // e.g. "log", "warn", "error"
+	Text      string `json:"text"`           // e.g. "App loaded"
+	Timestamp string `json:"timestamp"`      // RFC3339 formatted
+	URL       string `json:"url,omitempty"`  // source file URL
+	Line      int    `json:"line,omitempty"` // source line number
 }
 
 // WebviewEvalInput contains parameters for evaluating JavaScript.
+//
+//	input := WebviewEvalInput{Script: "document.title"}
 type WebviewEvalInput struct {
-	Script string `json:"script"` // JavaScript to evaluate
+	Script string `json:"script"` // e.g. "document.title"
 }
 
 // WebviewEvalOutput contains the result of JavaScript evaluation.
+//
+//	// out.Success == true, out.Result == "Dashboard - Host UK"
 type WebviewEvalOutput struct {
-	Success bool   `json:"success"`
-	Result  any    `json:"result,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Success bool   `json:"success"`          // true when script executed without error
+	Result  any    `json:"result,omitempty"` // return value of the script
+	Error   string `json:"error,omitempty"`  // JS error message if execution failed
 }
 
 // WebviewScreenshotInput contains parameters for taking a screenshot.
+//
+//	input := WebviewScreenshotInput{Format: "png"}
 type WebviewScreenshotInput struct {
-	Format string `json:"format,omitempty"` // "png" or "jpeg" (default: png)
+	Format string `json:"format,omitempty"` // "png" or "jpeg" (default: "png")
 }
 
 // WebviewScreenshotOutput contains the screenshot data.
+//
+//	// out.Success == true, out.Format == "png", len(out.Data) > 0
 type WebviewScreenshotOutput struct {
-	Success bool   `json:"success"`
-	Data    string `json:"data"` // Base64 encoded image
-	Format  string `json:"format"`
+	Success bool   `json:"success"` // true when screenshot was captured
+	Data    string `json:"data"`    // base64-encoded image bytes
+	Format  string `json:"format"`  // "png" or "jpeg"
 }
 
-// WebviewWaitInput contains parameters for waiting operations.
+// WebviewWaitInput contains parameters for waiting for an element to appear.
+//
+//	input := WebviewWaitInput{Selector: "div.loaded", Timeout: 10}
 type WebviewWaitInput struct {
-	Selector string `json:"selector,omitempty"` // Wait for selector
-	Timeout  int    `json:"timeout,omitempty"`  // Timeout in seconds
+	Selector string `json:"selector,omitempty"` // e.g. "div.loaded"
+	Timeout  int    `json:"timeout,omitempty"`  // seconds to wait before timing out
 }
 
-// WebviewWaitOutput contains the result of waiting.
+// WebviewWaitOutput contains the result of waiting for an element.
+//
+//	// out.Success == true, out.Message == "Element found: div.loaded"
 type WebviewWaitOutput struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
+	Success bool   `json:"success"`           // true when element appeared
+	Message string `json:"message,omitempty"` // e.g. "Element found: div.loaded"
 }
 
-// WebviewDisconnectInput contains parameters for disconnecting.
+// WebviewDisconnectInput takes no parameters.
+//
+//	input := WebviewDisconnectInput{}
 type WebviewDisconnectInput struct{}
 
 // WebviewDisconnectOutput contains the result of disconnecting.
+//
+//	// out.Success == true, out.Message == "Disconnected from Chrome DevTools"
 type WebviewDisconnectOutput struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
+	Success bool   `json:"success"`           // true when disconnection completed
+	Message string `json:"message,omitempty"` // e.g. "Disconnected from Chrome DevTools"
 }
 
 // registerWebviewTools adds webview tools to the MCP server.
@@ -206,6 +254,9 @@ func (s *Service) registerWebviewTools(server *mcp.Server) {
 
 // webviewConnect handles the webview_connect tool call.
 func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewConnectInput) (*mcp.CallToolResult, WebviewConnectOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Security("MCP tool execution", "tool", "webview_connect", "debug_url", input.DebugURL, "user", log.Username())
 
 	if input.DebugURL == "" {
@@ -244,6 +295,9 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 
 // webviewDisconnect handles the webview_disconnect tool call.
 func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewDisconnectInput) (*mcp.CallToolResult, WebviewDisconnectOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_disconnect", "user", log.Username())
 
 	if webviewInstance == nil {
@@ -268,6 +322,9 @@ func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolReques
 
 // webviewNavigate handles the webview_navigate tool call.
 func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest, input WebviewNavigateInput) (*mcp.CallToolResult, WebviewNavigateOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_navigate", "url", input.URL, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -291,6 +348,9 @@ func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest,
 
 // webviewClick handles the webview_click tool call.
 func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, input WebviewClickInput) (*mcp.CallToolResult, WebviewClickOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_click", "selector", input.Selector, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -311,6 +371,9 @@ func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, in
 
 // webviewType handles the webview_type tool call.
 func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, input WebviewTypeInput) (*mcp.CallToolResult, WebviewTypeOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_type", "selector", input.Selector, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -331,6 +394,9 @@ func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // webviewQuery handles the webview_query tool call.
 func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, input WebviewQueryInput) (*mcp.CallToolResult, WebviewQueryOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_query", "selector", input.Selector, "all", input.All, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -389,6 +455,9 @@ func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, in
 
 // webviewConsole handles the webview_console tool call.
 func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, input WebviewConsoleInput) (*mcp.CallToolResult, WebviewConsoleOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_console", "clear", input.Clear, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -421,6 +490,9 @@ func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, 
 
 // webviewEval handles the webview_eval tool call.
 func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, input WebviewEvalInput) (*mcp.CallToolResult, WebviewEvalOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Security("MCP tool execution", "tool", "webview_eval", "user", log.Username())
 
 	if webviewInstance == nil {
@@ -448,6 +520,9 @@ func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // webviewScreenshot handles the webview_screenshot tool call.
 func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolRequest, input WebviewScreenshotInput) (*mcp.CallToolResult, WebviewScreenshotOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_screenshot", "format", input.Format, "user", log.Username())
 
 	if webviewInstance == nil {
@@ -474,6 +549,9 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 
 // webviewWait handles the webview_wait tool call.
 func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, input WebviewWaitInput) (*mcp.CallToolResult, WebviewWaitOutput, error) {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
 	s.logger.Info("MCP tool execution", "tool", "webview_wait", "selector", input.Selector, "timeout", input.Timeout, "user", log.Username())
 
 	if webviewInstance == nil {

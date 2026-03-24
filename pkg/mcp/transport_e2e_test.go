@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -10,8 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"context"
 )
 
 // jsonRPCRequest builds a raw JSON-RPC 2.0 request string with newline delimiter.
@@ -87,7 +86,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -148,20 +147,20 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Step 1: Send initialize request
+	// Step 1: Send initialise request
 	initReq := jsonRPCRequest(1, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": "TestClient", "version": "1.0.0"},
 	})
 	if _, err := conn.Write([]byte(initReq)); err != nil {
-		t.Fatalf("Failed to send initialize: %v", err)
+		t.Fatalf("Failed to send initialise: %v", err)
 	}
 
-	// Read initialize response
+	// Read initialise response
 	initResp := readJSONRPCResponse(t, scanner, conn)
 	if initResp["error"] != nil {
-		t.Fatalf("Initialize returned error: %v", initResp["error"])
+		t.Fatalf("Initialise returned error: %v", initResp["error"])
 	}
 	result, ok := initResp["result"].(map[string]any)
 	if !ok {
@@ -251,7 +250,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 func TestTCPTransport_E2E_FileWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -291,7 +290,7 @@ func TestTCPTransport_E2E_FileWrite(t *testing.T) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Initialize handshake
+	// Initialise handshake
 	conn.Write([]byte(jsonRPCRequest(1, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
@@ -344,7 +343,7 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -379,7 +378,7 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Step 1: Initialize
+	// Step 1: Initialise
 	conn.Write([]byte(jsonRPCRequest(1, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
@@ -387,10 +386,10 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 	})))
 	initResp := readJSONRPCResponse(t, scanner, conn)
 	if initResp["error"] != nil {
-		t.Fatalf("Initialize returned error: %v", initResp["error"])
+		t.Fatalf("Initialise returned error: %v", initResp["error"])
 	}
 
-	// Step 2: Send initialized notification
+	// Step 2: Send initialised notification
 	conn.Write([]byte(jsonRPCNotification("notifications/initialized")))
 
 	// Step 3: tools/list
@@ -455,7 +454,7 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("one"), 0644)
 	os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("two"), 0644)
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -488,7 +487,7 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Initialize
+	// Initialise
 	conn.Write([]byte(jsonRPCRequest(1, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
@@ -572,7 +571,7 @@ func assertToolExists(t *testing.T, tools []any, name string) {
 func TestTCPTransport_E2E_ToolsDiscovery(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -610,7 +609,7 @@ func TestTCPTransport_E2E_ToolsDiscovery(t *testing.T) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Initialize
+	// Initialise
 	conn.Write([]byte(jsonRPCRequest(1, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
@@ -648,7 +647,7 @@ func TestTCPTransport_E2E_ToolsDiscovery(t *testing.T) {
 func TestTCPTransport_E2E_ErrorHandling(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -686,7 +685,7 @@ func TestTCPTransport_E2E_ErrorHandling(t *testing.T) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Initialize
+	// Initialise
 	conn.Write([]byte(jsonRPCRequest(1, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
@@ -737,6 +736,3 @@ func TestTCPTransport_E2E_ErrorHandling(t *testing.T) {
 	cancel()
 	<-errCh
 }
-
-// Suppress "unused import" for fmt — used in helpers
-var _ = fmt.Sprintf

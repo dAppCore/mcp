@@ -9,7 +9,7 @@ import (
 // TestWSToolsRegistered_Good verifies that WebSocket tools are registered when hub is available.
 func TestWSToolsRegistered_Good(t *testing.T) {
 	// Create a new MCP service without ws hub - tools should not be registered
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestWSInfoOutput_Good(t *testing.T) {
 func TestWithWSHub_Good(t *testing.T) {
 	hub := ws.NewHub()
 
-	s, err := New(WithWSHub(hub))
+	s, err := New(Options{WSHub: hub})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestWithWSHub_Good(t *testing.T) {
 
 // TestWithWSHub_Nil verifies the WithWSHub option with nil.
 func TestWithWSHub_Nil(t *testing.T) {
-	s, err := New(WithWSHub(nil))
+	s, err := New(Options{WSHub: nil})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestProcessEventCallback_NilHub(t *testing.T) {
 // TestServiceWSHub_Good verifies the WSHub getter method.
 func TestServiceWSHub_Good(t *testing.T) {
 	hub := ws.NewHub()
-	s, err := New(WithWSHub(hub))
+	s, err := New(Options{WSHub: hub})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestServiceWSHub_Good(t *testing.T) {
 
 // TestServiceWSHub_Nil verifies the WSHub getter returns nil when not configured.
 func TestServiceWSHub_Nil(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestServiceWSHub_Nil(t *testing.T) {
 
 // TestServiceProcessService_Nil verifies the ProcessService getter returns nil when not configured.
 func TestServiceProcessService_Nil(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

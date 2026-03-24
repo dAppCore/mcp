@@ -31,9 +31,9 @@ func (s *shutdownSubsystem) Shutdown(_ context.Context) error {
 	return s.shutdownErr
 }
 
-func TestWithSubsystem_Good_Registration(t *testing.T) {
+func TestSubsystem_Good_Registration(t *testing.T) {
 	sub := &stubSubsystem{name: "test-sub"}
-	svc, err := New(WithSubsystem(sub))
+	svc, err := New(Options{Subsystems: []Subsystem{sub}})
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
@@ -46,9 +46,9 @@ func TestWithSubsystem_Good_Registration(t *testing.T) {
 	}
 }
 
-func TestWithSubsystem_Good_ToolsRegistered(t *testing.T) {
+func TestSubsystem_Good_ToolsRegistered(t *testing.T) {
 	sub := &stubSubsystem{name: "tools-sub"}
-	_, err := New(WithSubsystem(sub))
+	_, err := New(Options{Subsystems: []Subsystem{sub}})
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
@@ -57,10 +57,10 @@ func TestWithSubsystem_Good_ToolsRegistered(t *testing.T) {
 	}
 }
 
-func TestWithSubsystem_Good_MultipleSubsystems(t *testing.T) {
+func TestSubsystem_Good_MultipleSubsystems(t *testing.T) {
 	sub1 := &stubSubsystem{name: "sub-1"}
 	sub2 := &stubSubsystem{name: "sub-2"}
-	svc, err := New(WithSubsystem(sub1), WithSubsystem(sub2))
+	svc, err := New(Options{Subsystems: []Subsystem{sub1, sub2}})
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestWithSubsystem_Good_MultipleSubsystems(t *testing.T) {
 
 func TestSubsystemShutdown_Good(t *testing.T) {
 	sub := &shutdownSubsystem{stubSubsystem: stubSubsystem{name: "shutdown-sub"}}
-	svc, err := New(WithSubsystem(sub))
+	svc, err := New(Options{Subsystems: []Subsystem{sub}})
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestSubsystemShutdown_Bad_Error(t *testing.T) {
 		stubSubsystem: stubSubsystem{name: "fail-sub"},
 		shutdownErr:   context.DeadlineExceeded,
 	}
-	svc, err := New(WithSubsystem(sub))
+	svc, err := New(Options{Subsystems: []Subsystem{sub}})
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
@@ -102,9 +102,8 @@ func TestSubsystemShutdown_Bad_Error(t *testing.T) {
 }
 
 func TestSubsystemShutdown_Good_NoShutdownInterface(t *testing.T) {
-	// A plain Subsystem (without Shutdown) should not cause errors.
 	sub := &stubSubsystem{name: "plain-sub"}
-	svc, err := New(WithSubsystem(sub))
+	svc, err := New(Options{Subsystems: []Subsystem{sub}})
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}

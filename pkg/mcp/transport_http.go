@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	coreerr "forge.lthn.ai/core/go-log"
@@ -15,16 +16,22 @@ import (
 )
 
 // DefaultHTTPAddr is the default address for the MCP HTTP server.
+//
+//	svc.ServeHTTP(ctx, DefaultHTTPAddr) // "127.0.0.1:9101"
 const DefaultHTTPAddr = "127.0.0.1:9101"
 
 // ServeHTTP starts the MCP server with Streamable HTTP transport.
 // Supports Bearer token authentication via MCP_AUTH_TOKEN env var.
 // If no token is set, authentication is disabled (local development mode).
 //
-// The server exposes a single endpoint at /mcp that handles:
-//   - GET:    Open SSE stream for server-to-client notifications
-//   - POST:   Send JSON-RPC messages (tool calls, etc.)
-//   - DELETE: Terminate session
+//	// Local development (no auth):
+//	svc.ServeHTTP(ctx, "127.0.0.1:9101")
+//
+//	// Production (with auth):
+//	os.Setenv("MCP_AUTH_TOKEN", "sk-abc123")
+//	svc.ServeHTTP(ctx, "0.0.0.0:9101")
+//
+// Endpoint /mcp: GET (SSE stream), POST (JSON-RPC), DELETE (terminate session).
 func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 	if addr == "" {
 		addr = DefaultHTTPAddr
@@ -75,18 +82,27 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 }
 
 // withAuth wraps an http.Handler with Bearer token authentication.
-// If token is empty, authentication is disabled (passthrough).
+// If token is empty, requests are rejected.
 func withAuth(token string, next http.Handler) http.Handler {
-	if token == "" {
-		return next
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSpace(token) == "" {
+			w.Header().Set("WWW-Authenticate", `Bearer`)
+			http.Error(w, `{"error":"authentication not configured"}`, http.StatusUnauthorized)
+			return
+		}
+
 		auth := r.Header.Get("Authorization")
-		if len(auth) < 7 || auth[:7] != "Bearer " {
+		if !strings.HasPrefix(auth, "Bearer ") {
 			http.Error(w, `{"error":"missing Bearer token"}`, http.StatusUnauthorized)
 			return
 		}
-		provided := auth[7:]
+
+		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		if len(provided) == 0 {
+			http.Error(w, `{"error":"missing Bearer token"}`, http.StatusUnauthorized)
+			return
+		}
+
 		if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
 			return

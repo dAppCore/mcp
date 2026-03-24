@@ -105,10 +105,13 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return nil, coreerr.E("listOrgRepos", "failed to list repos", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, coreerr.E("listOrgRepos", fmt.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
+	}
 
 	var repos []struct {
 		Name string `json:"name"`
@@ -129,10 +132,13 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return nil, coreerr.E("listRepoIssues", "failed to list issues for "+repo, err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, coreerr.E("listRepoIssues", fmt.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+	}
 
 	var issues []struct {
 		Number int    `json:"number"`

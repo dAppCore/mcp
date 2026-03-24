@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
@@ -8,25 +10,44 @@ import (
 
 // Subsystem registers additional MCP tools at startup.
 // Implementations should be safe to call concurrently.
+//
+//	type BrainSubsystem struct{}
+//	func (b *BrainSubsystem) Name() string { return "brain" }
+//	func (b *BrainSubsystem) RegisterTools(server *mcp.Server) { ... }
 type Subsystem interface {
-	// Name returns a human-readable identifier for logging.
 	Name() string
-
-	// RegisterTools adds tools to the MCP server during initialisation.
 	RegisterTools(server *mcp.Server)
 }
 
 // SubsystemWithShutdown extends Subsystem with graceful cleanup.
+//
+//	func (b *BrainSubsystem) Shutdown(ctx context.Context) error {
+//	    return b.client.Close()
+//	}
 type SubsystemWithShutdown interface {
 	Subsystem
 	Shutdown(ctx context.Context) error
 }
 
-// WithSubsystem registers a subsystem whose tools will be added
-// after the built-in tools during New().
-func WithSubsystem(sub Subsystem) Option {
-	return func(s *Service) error {
-		s.subsystems = append(s.subsystems, sub)
-		return nil
-	}
+// Notifier pushes events to connected MCP sessions.
+// Implemented by *Service. Sub-packages accept this interface
+// to avoid circular imports.
+//
+//	notifier.ChannelSend(ctx, "build.complete", data)
+type Notifier interface {
+	ChannelSend(ctx context.Context, channel string, data any)
+}
+
+// Compile-time assertion: *Service implements Notifier.
+var _ Notifier = (*Service)(nil)
+
+// SubsystemWithNotifier extends Subsystem for those that emit channel events.
+// SetNotifier is called after New() before any tool calls.
+//
+//	func (m *MonitorSubsystem) SetNotifier(n mcp.Notifier) {
+//	    m.notifier = n
+//	}
+type SubsystemWithNotifier interface {
+	Subsystem
+	SetNotifier(n Notifier)
 }

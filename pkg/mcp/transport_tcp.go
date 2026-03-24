@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
+	goio "io"
 	"net"
 	"os"
 	"sync"
@@ -14,6 +14,8 @@ import (
 )
 
 // DefaultTCPAddr is the default address for the MCP TCP server.
+//
+//	t, err := NewTCPTransport(DefaultTCPAddr) // "127.0.0.1:9100"
 const DefaultTCPAddr = "127.0.0.1:9100"
 
 // diagMu protects diagWriter from concurrent access across tests and goroutines.
@@ -21,7 +23,7 @@ var diagMu sync.Mutex
 
 // diagWriter is the destination for warning and diagnostic messages.
 // Use diagPrintf to write to it safely.
-var diagWriter io.Writer = os.Stderr
+var diagWriter goio.Writer = os.Stderr
 
 // diagPrintf writes a formatted message to diagWriter under the mutex.
 func diagPrintf(format string, args ...any) {
@@ -32,7 +34,7 @@ func diagPrintf(format string, args ...any) {
 
 // setDiagWriter swaps the diagnostic writer and returns the previous one.
 // Used by tests to capture output without racing.
-func setDiagWriter(w io.Writer) io.Writer {
+func setDiagWriter(w goio.Writer) goio.Writer {
 	diagMu.Lock()
 	defer diagMu.Unlock()
 	old := diagWriter
@@ -44,15 +46,19 @@ func setDiagWriter(w io.Writer) io.Writer {
 const maxMCPMessageSize = 10 * 1024 * 1024
 
 // TCPTransport manages a TCP listener for MCP.
+//
+//	t, err := NewTCPTransport("127.0.0.1:9100")
 type TCPTransport struct {
 	addr     string
 	listener net.Listener
 }
 
 // NewTCPTransport creates a new TCP transport listener.
-// It listens on the provided address (e.g. "localhost:9100").
 // Defaults to 127.0.0.1 when the host component is empty (e.g. ":9100").
 // Emits a security warning when explicitly binding to 0.0.0.0 (all interfaces).
+//
+//	t, err := NewTCPTransport("127.0.0.1:9100")
+//	t, err := NewTCPTransport(":9100") // defaults to 127.0.0.1:9100
 func NewTCPTransport(addr string) (*TCPTransport, error) {
 	host, port, _ := net.SplitHostPort(addr)
 	if host == "" {
@@ -69,6 +75,10 @@ func NewTCPTransport(addr string) (*TCPTransport, error) {
 
 // ServeTCP starts a TCP server for the MCP service.
 // It accepts connections and spawns a new MCP server session for each connection.
+//
+//	if err := svc.ServeTCP(ctx, "127.0.0.1:9100"); err != nil {
+//	    log.Fatal("tcp transport failed", "err", err)
+//	}
 func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 	t, err := NewTCPTransport(addr)
 	if err != nil {
@@ -104,23 +114,18 @@ func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 }
 
 func (s *Service) handleConnection(ctx context.Context, conn net.Conn) {
-	// Note: We don't defer conn.Close() here because it's closed by the Server/Transport
-
-	// Create new server instance for this connection
-	impl := &mcp.Implementation{
-		Name:    "core-cli",
-		Version: "0.1.0",
-	}
-	server := mcp.NewServer(impl, nil)
-	s.registerTools(server)
-
-	// Create transport for this connection
+	// Connect this TCP connection to the shared server so its session
+	// is visible to Sessions() and notification broadcasting.
 	transport := &connTransport{conn: conn}
-
-	// Run server (blocks until connection closed)
-	// Server.Run calls Connect, then Read loop.
-	if err := server.Run(ctx, transport); err != nil {
+	session, err := s.server.Connect(ctx, transport, nil)
+	if err != nil {
 		diagPrintf("Connection error: %v\n", err)
+		conn.Close()
+		return
+	}
+	// Block until the session ends
+	if err := session.Wait(); err != nil {
+		diagPrintf("Session ended: %v\n", err)
 	}
 }
 
@@ -151,7 +156,7 @@ func (c *connConnection) Read(ctx context.Context) (jsonrpc.Message, error) {
 			return nil, err
 		}
 		// EOF - connection closed cleanly
-		return nil, io.EOF
+		return nil, goio.EOF
 	}
 	line := c.scanner.Bytes()
 	return jsonrpc.DecodeMessage(line)
@@ -173,5 +178,5 @@ func (c *connConnection) Close() error {
 }
 
 func (c *connConnection) SessionID() string {
-	return "tcp-session" // Unique ID might be better, but optional
+	return "tcp-" + c.conn.RemoteAddr().String()
 }

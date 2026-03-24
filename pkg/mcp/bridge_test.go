@@ -21,7 +21,7 @@ func init() {
 }
 
 func TestBridgeToAPI_Good_AllTools(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestBridgeToAPI_Good_AllTools(t *testing.T) {
 }
 
 func TestBridgeToAPI_Good_DescribableGroup(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc, err := New(WithWorkspaceRoot(tmpDir))
+	svc, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 }
 
 func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 }
 
 func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
-	svc, err := New(WithWorkspaceRoot(t.TempDir()))
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

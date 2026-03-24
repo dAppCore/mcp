@@ -85,7 +85,7 @@
                     @elseif(!$isAuthenticated && !$apiKey)
                         <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                             <p class="text-sm text-amber-700 dark:text-amber-300">
-                                <a href="{{ route('login') }}" class="underline hover:no-underline">{{ __('mcp::mcp.playground.auth.sign_in_prompt') }}</a>
+                                <a href="{{ url('/login') }}" class="underline hover:no-underline">{{ __('mcp::mcp.playground.auth.sign_in_prompt') }}</a>
                                 {{ __('mcp::mcp.playground.auth.sign_in_description') }}
                             </p>
                         </div>

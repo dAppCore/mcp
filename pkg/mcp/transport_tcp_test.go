@@ -37,8 +37,8 @@ func TestNewTCPTransport_Warning(t *testing.T) {
 	old := setDiagWriter(&buf)
 	defer setDiagWriter(old)
 
-	// Trigger warning
-	tr, err := NewTCPTransport("0.0.0.0:9101")
+	// Trigger warning — use port 0 (OS assigns free port)
+	tr, err := NewTCPTransport("0.0.0.0:0")
 	if err != nil {
 		t.Fatalf("Failed to create transport: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestNewTCPTransport_Warning(t *testing.T) {
 }
 
 func TestServeTCP_Connection(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestServeTCP_Connection(t *testing.T) {
 }
 
 func TestRun_TCPTrigger(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestRun_TCPTrigger(t *testing.T) {
 }
 
 func TestServeTCP_MultipleConnections(t *testing.T) {
-	s, err := New()
+	s, err := New(Options{})
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

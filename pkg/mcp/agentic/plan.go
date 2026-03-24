@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -255,7 +254,7 @@ func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, in
 	}
 
 	path := planPath(s.plansDir(), input.ID)
-	if _, err := os.Stat(path); err != nil {
+	if !coreio.Local.IsFile(path) {
 		return nil, PlanDeleteOutput{}, coreerr.E("planDelete", "plan not found: "+input.ID, nil)
 	}
 
@@ -275,7 +274,7 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, PlanListOutput{}, coreerr.E("planList", "failed to access plans directory", err)
 	}
 
-	entries, err := os.ReadDir(dir)
+	entries, err := coreio.Local.List(dir)
 	if err != nil {
 		return nil, PlanListOutput{}, coreerr.E("planList", "failed to read plans directory", err)
 	}
@@ -313,8 +312,7 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 // --- Helpers ---
 
 func (s *PrepSubsystem) plansDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Code", "host-uk", "core", ".core", "plans")
+	return filepath.Join(s.codePath, ".core", "plans")
 }
 
 func planPath(dir, id string) string {
@@ -354,7 +352,7 @@ func generatePlanID(title string) string {
 func readPlan(dir, id string) (*Plan, error) {
 	data, err := coreio.Local.Read(planPath(dir, id))
 	if err != nil {
-		return nil, coreerr.E("readPlan", "plan not found: "+id, nil)
+		return nil, coreerr.E("readPlan", "plan not found: "+id, err)
 	}
 
 	var plan Plan

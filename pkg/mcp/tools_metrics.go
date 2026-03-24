@@ -19,45 +19,62 @@ const (
 )
 
 // MetricsRecordInput contains parameters for recording a metrics event.
+//
+//	input := MetricsRecordInput{
+//	    Type:    "dispatch.complete",
+//	    AgentID: "cladius",
+//	    Repo:    "core-php",
+//	    Data:    map[string]any{"duration": "4m32s"},
+//	}
 type MetricsRecordInput struct {
-	Type    string         `json:"type"`               // Event type (required)
-	AgentID string         `json:"agent_id,omitempty"` // Agent identifier
-	Repo    string         `json:"repo,omitempty"`     // Repository name
-	Data    map[string]any `json:"data,omitempty"`     // Additional event data
+	Type    string         `json:"type"`               // e.g. "dispatch.complete"
+	AgentID string         `json:"agent_id,omitempty"` // e.g. "cladius"
+	Repo    string         `json:"repo,omitempty"`     // e.g. "core-php"
+	Data    map[string]any `json:"data,omitempty"`     // arbitrary key-value data
 }
 
 // MetricsRecordOutput contains the result of recording a metrics event.
+//
+//	// out.Success == true, out.Timestamp == 2026-03-21T14:30:00Z
 type MetricsRecordOutput struct {
-	Success   bool      `json:"success"`
-	Timestamp time.Time `json:"timestamp"`
+	Success   bool      `json:"success"`   // true when the event was recorded
+	Timestamp time.Time `json:"timestamp"` // server-assigned timestamp
 }
 
 // MetricsQueryInput contains parameters for querying metrics.
+//
+//	input := MetricsQueryInput{Since: "24h"}
 type MetricsQueryInput struct {
-	Since string `json:"since,omitempty"` // Time range like "7d", "24h", "30m" (default: "7d")
+	Since string `json:"since,omitempty"` // e.g. "7d", "24h", "30m" (default: "7d")
 }
 
 // MetricsQueryOutput contains the results of a metrics query.
+//
+//	// out.Total == 42, len(out.Events) <= 10
 type MetricsQueryOutput struct {
-	Total   int                `json:"total"`
-	ByType  []MetricCount      `json:"by_type"`
-	ByRepo  []MetricCount      `json:"by_repo"`
-	ByAgent []MetricCount      `json:"by_agent"`
-	Events  []MetricEventBrief `json:"events"` // Most recent 10 events
+	Total   int                `json:"total"`    // total events in range
+	ByType  []MetricCount      `json:"by_type"`  // counts grouped by event type
+	ByRepo  []MetricCount      `json:"by_repo"`  // counts grouped by repository
+	ByAgent []MetricCount      `json:"by_agent"` // counts grouped by agent ID
+	Events  []MetricEventBrief `json:"events"`   // most recent 10 events
 }
 
 // MetricCount represents a count for a specific key.
+//
+//	// mc.Key == "dispatch.complete", mc.Count == 15
 type MetricCount struct {
-	Key   string `json:"key"`
-	Count int    `json:"count"`
+	Key   string `json:"key"`   // e.g. "dispatch.complete" or "core-php"
+	Count int    `json:"count"` // number of events matching this key
 }
 
 // MetricEventBrief represents a brief summary of an event.
+//
+//	// ev.Type == "dispatch.complete", ev.AgentID == "cladius", ev.Repo == "core-php"
 type MetricEventBrief struct {
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-	AgentID   string    `json:"agent_id,omitempty"`
-	Repo      string    `json:"repo,omitempty"`
+	Type      string    `json:"type"`               // e.g. "dispatch.complete"
+	Timestamp time.Time `json:"timestamp"`           // when the event occurred
+	AgentID   string    `json:"agent_id,omitempty"` // e.g. "cladius"
+	Repo      string    `json:"repo,omitempty"`     // e.g. "core-php"
 }
 
 // registerMetricsTools adds metrics tools to the MCP server.
@@ -132,8 +149,9 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	summary := ai.Summary(events)
 
 	// Build output
+	total, _ := summary["total"].(int)
 	output := MetricsQueryOutput{
-		Total:   summary["total"].(int),
+		Total:   total,
 		ByType:  convertMetricCounts(summary["by_type"]),
 		ByRepo:  convertMetricCounts(summary["by_repo"]),
 		ByAgent: convertMetricCounts(summary["by_agent"]),

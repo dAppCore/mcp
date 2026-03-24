@@ -50,7 +50,7 @@
                             {{ $workspace->name }}
                         </span>
                     @else
-                        <a href="{{ route('login') }}" class="text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300">
+                        <a href="{{ url('/login') }}" class="text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300">
                             Sign in
                         </a>
                     @endif

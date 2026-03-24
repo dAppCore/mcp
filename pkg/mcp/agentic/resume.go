@@ -45,12 +45,11 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, coreerr.E("resume", "workspace is required", nil)
 	}
 
-	home, _ := os.UserHomeDir()
-	wsDir := filepath.Join(home, "Code", "host-uk", "core", ".core", "workspace", input.Workspace)
+	wsDir := filepath.Join(s.workspaceRoot(), input.Workspace)
 	srcDir := filepath.Join(wsDir, "src")
 
 	// Verify workspace exists
-	if _, err := os.Stat(srcDir); err != nil {
+	if _, err := coreio.Local.List(srcDir); err != nil {
 		return nil, ResumeOutput{}, coreerr.E("resume", "workspace not found: "+input.Workspace, nil)
 	}
 
@@ -103,8 +102,17 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, err
 	}
 
-	devNull, _ := os.Open(os.DevNull)
-	outFile, _ := os.Create(outputFile)
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		return nil, ResumeOutput{}, coreerr.E("resume", "failed to open /dev/null", err)
+	}
+	defer devNull.Close()
+
+	outFile, err := os.Create(outputFile)
+	if err != nil {
+		return nil, ResumeOutput{}, coreerr.E("resume", "failed to create log file", err)
+	}
+
 	cmd := exec.Command(command, args...)
 	cmd.Dir = srcDir
 	cmd.Stdin = devNull

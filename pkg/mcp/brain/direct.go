@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	goio "io"
 	"net/http"
 	"os"
 	"strings"
@@ -18,13 +18,27 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// channelSender is the callback for pushing channel events.
+type channelSender func(ctx context.Context, channel string, data any)
+
 // DirectSubsystem implements mcp.Subsystem for OpenBrain via direct HTTP calls.
 // Unlike Subsystem (which uses the IDE WebSocket bridge), this calls the
 // Laravel API directly — suitable for standalone core-mcp usage.
 type DirectSubsystem struct {
-	apiURL string
-	apiKey string
-	client *http.Client
+	apiURL    string
+	apiKey    string
+	client    *http.Client
+	onChannel channelSender
+}
+
+// OnChannel sets a callback for channel event broadcasting.
+// Called by the MCP service after creation to wire up notifications.
+//
+//	brain.OnChannel(func(ctx context.Context, ch string, data any) {
+//	    mcpService.ChannelSend(ctx, ch, data)
+//	})
+func (s *DirectSubsystem) OnChannel(fn func(ctx context.Context, channel string, data any)) {
+	s.onChannel = fn
 }
 
 // NewDirect creates a brain subsystem that calls the OpenBrain API directly.
@@ -79,7 +93,7 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 		return nil, coreerr.E("brain.apiCall", "no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)", nil)
 	}
 
-	var reqBody io.Reader
+	var reqBody goio.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
@@ -102,7 +116,7 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 	}
 	defer resp.Body.Close()
 
-	respData, err := io.ReadAll(resp.Body)
+	respData, err := goio.ReadAll(resp.Body)
 	if err != nil {
 		return nil, coreerr.E("brain.apiCall", "read response", err)
 	}
@@ -132,6 +146,13 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 	}
 
 	id, _ := result["id"].(string)
+	if s.onChannel != nil {
+		s.onChannel(ctx, "brain.remember.complete", map[string]any{
+			"id":      id,
+			"type":    input.Type,
+			"project": input.Project,
+		})
+	}
 	return nil, RememberOutput{
 		Success:   true,
 		MemoryID:  id,
@@ -185,6 +206,12 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 		}
 	}
 
+	if s.onChannel != nil {
+		s.onChannel(ctx, "brain.recall.complete", map[string]any{
+			"query": input.Query,
+			"count": len(memories),
+		})
+	}
 	return nil, RecallOutput{
 		Success:  true,
 		Count:    len(memories),

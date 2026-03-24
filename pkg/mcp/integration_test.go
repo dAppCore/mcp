@@ -11,7 +11,7 @@ import (
 
 func TestIntegration_FileTools(t *testing.T) {
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -85,7 +85,7 @@ func TestIntegration_FileTools(t *testing.T) {
 
 func TestIntegration_ErrorPaths(t *testing.T) {
 	tmpDir := t.TempDir()
-	s, err := New(WithWorkspaceRoot(tmpDir))
+	s, err := New(Options{WorkspaceRoot: tmpDir})
 	assert.NoError(t, err)
 
 	ctx := context.Background()
