@@ -11,9 +11,9 @@ import (
 	"syscall"
 
 	"forge.lthn.ai/core/cli/pkg/cli"
-	"forge.lthn.ai/core/mcp/pkg/mcp"
-	"forge.lthn.ai/core/mcp/pkg/mcp/agentic"
-	"forge.lthn.ai/core/mcp/pkg/mcp/brain"
+	"dappco.re/go/mcp/pkg/mcp"
+	"dappco.re/go/mcp/pkg/mcp/agentic"
+	"dappco.re/go/mcp/pkg/mcp/brain"
 )
 
 var workspaceFlag string

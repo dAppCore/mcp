@@ -1,4 +1,4 @@
-module forge.lthn.ai/core/mcp
+module dappco.re/go/mcp
 
 go 1.26.0
 
