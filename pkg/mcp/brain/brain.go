@@ -8,7 +8,7 @@ import (
 	"context"
 
 	coreerr "forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/mcp/pkg/mcp/ide"
+	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

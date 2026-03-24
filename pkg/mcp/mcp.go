@@ -39,6 +39,7 @@ type Service struct {
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
 	stdioMode      bool             // True when running via stdio transport
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
+	coreRef        any              // *core.Core — stored by Register, used by OnStartup
 }
 
 // Options configures a Service.
