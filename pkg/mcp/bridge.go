@@ -3,7 +3,6 @@
 package mcp
 
 import (
-	"encoding/json"
 	"net/http"
 
 	core "dappco.re/go/core"
@@ -49,11 +48,9 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 
 			result, err := handler(c.Request.Context(), body)
 			if err != nil {
-				// Classify JSON parse errors as client errors (400),
-				// everything else as server errors (500).
-				var syntaxErr *json.SyntaxError
-				var typeErr *json.UnmarshalTypeError
-				if core.As(err, &syntaxErr) || core.As(err, &typeErr) {
+				// Body present + error = likely bad input (malformed JSON).
+				// No body + error = tool execution failure.
+				if len(body) > 0 && core.Contains(err.Error(), "unmarshal") {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_input", "Malformed JSON in request body"))
 					return
 				}
