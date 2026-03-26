@@ -3,10 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"sync"
 	"time"
 
+	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -289,7 +289,7 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 
 	return nil, WebviewConnectOutput{
 		Success: true,
-		Message: fmt.Sprintf("Connected to Chrome DevTools at %s", input.DebugURL),
+		Message: core.Sprintf("Connected to Chrome DevTools at %s", input.DebugURL),
 	}, nil
 }
 
@@ -569,6 +569,6 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	return nil, WebviewWaitOutput{
 		Success: true,
-		Message: fmt.Sprintf("Element found: %s", input.Selector),
+		Message: core.Sprintf("Element found: %s", input.Selector),
 	}, nil
 }

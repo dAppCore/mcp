@@ -8,10 +8,7 @@ import (
 	"context"
 	"iter"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -95,21 +92,13 @@ func New(opts Options) (*Service, error) {
 	} else {
 		root := opts.WorkspaceRoot
 		if root == "" {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return nil, log.E("mcp.New", "failed to get working directory", err)
-			}
-			root = cwd
+			root = core.Env("DIR_CWD")
 		}
-		abs, err := filepath.Abs(root)
-		if err != nil {
-			return nil, log.E("mcp.New", "invalid workspace root", err)
-		}
-		m, merr := io.NewSandboxed(abs)
+		s.workspaceRoot = root
+		m, merr := io.NewSandboxed(root)
 		if merr != nil {
-			return nil, log.E("mcp.New", "failed to create workspace medium", merr)
+			return nil, core.E("mcp.New", "failed to create workspace medium", merr)
 		}
-		s.workspaceRoot = abs
 		s.medium = m
 	}
 
@@ -483,9 +472,9 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 		}
 		result = append(result, DirectoryEntry{
 			Name: e.Name(),
-			Path: filepath.Join(input.Path, e.Name()), // Note: This might be relative path, client might expect absolute?
+			Path: core.JoinPath(input.Path, e.Name()), // Note: This might be relative path, client might expect absolute?
 			// Issue 103 says "Replace ... with local.Medium sandboxing".
-			// Previous code returned `filepath.Join(input.Path, e.Name())`.
+			// Previous code returned `core.JoinPath(input.Path, e.Name())`.
 			// If input.Path is relative, this preserves it.
 			IsDir: e.IsDir(),
 			Size:  size,
@@ -572,16 +561,16 @@ func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input 
 	count := 0
 
 	if input.ReplaceAll {
-		count = strings.Count(content, input.OldString)
+		count = countOccurrences(content, input.OldString)
 		if count == 0 {
 			return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string not found in file", nil)
 		}
-		content = strings.ReplaceAll(content, input.OldString, input.NewString)
+		content = core.Replace(content, input.OldString, input.NewString)
 	} else {
-		if !strings.Contains(content, input.OldString) {
+		if !core.Contains(content, input.OldString) {
 			return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string not found in file", nil)
 		}
-		content = strings.Replace(content, input.OldString, input.NewString, 1)
+		content = replaceFirst(content, input.OldString, input.NewString)
 		count = 1
 	}
 
@@ -598,7 +587,7 @@ func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input 
 
 // detectLanguageFromPath maps file extensions to language IDs.
 func detectLanguageFromPath(path string) string {
-	ext := filepath.Ext(path)
+	ext := core.PathExt(path)
 	switch ext {
 	case ".ts", ".tsx":
 		return "typescript"
@@ -645,7 +634,7 @@ func detectLanguageFromPath(path string) string {
 	case ".kt", ".kts":
 		return "kotlin"
 	default:
-		if filepath.Base(path) == "Dockerfile" {
+		if core.PathBase(path) == "Dockerfile" {
 			return "dockerfile"
 		}
 		return "plaintext"
@@ -665,16 +654,43 @@ func detectLanguageFromPath(path string) string {
 //	os.Setenv("MCP_HTTP_ADDR", "127.0.0.1:9101")
 //	svc.Run(ctx)
 func (s *Service) Run(ctx context.Context) error {
-	if httpAddr := os.Getenv("MCP_HTTP_ADDR"); httpAddr != "" {
+	if httpAddr := core.Env("MCP_HTTP_ADDR"); httpAddr != "" {
 		return s.ServeHTTP(ctx, httpAddr)
 	}
-	if addr := os.Getenv("MCP_ADDR"); addr != "" {
+	if addr := core.Env("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
 	}
 	s.stdioMode = true
 	return s.server.Run(ctx, &mcp.StdioTransport{})
 }
 
+
+// countOccurrences counts non-overlapping instances of substr in s.
+func countOccurrences(s, substr string) int {
+	if substr == "" {
+		return 0
+	}
+	count := 0
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			count++
+			i += len(substr) - 1
+		}
+	}
+	return count
+}
+
+// replaceFirst replaces the first occurrence of old with new in s.
+func replaceFirst(s, old, new string) string {
+	i := 0
+	for i <= len(s)-len(old) {
+		if s[i:i+len(old)] == old {
+			return core.Concat(s[:i], new, s[i+len(old):])
+		}
+		i++
+	}
+	return s
+}
 
 // Server returns the underlying MCP server for advanced configuration.
 //

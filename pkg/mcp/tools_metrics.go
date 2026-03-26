@@ -2,12 +2,11 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"forge.lthn.ai/core/go-ai/ai"
+	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -199,7 +198,7 @@ func parseDuration(s string) (time.Duration, error) {
 		return 0, log.E("parseDuration", "duration cannot be empty", nil)
 	}
 
-	s = strings.TrimSpace(s)
+	s = core.Trim(s)
 	if len(s) < 2 {
 		return 0, log.E("parseDuration", "invalid duration format: "+s, nil)
 	}
@@ -214,7 +213,7 @@ func parseDuration(s string) (time.Duration, error) {
 	}
 
 	if num <= 0 {
-		return 0, log.E("parseDuration", fmt.Sprintf("duration must be positive: %d", num), nil)
+		return 0, log.E("parseDuration", core.Sprintf("duration must be positive: %d", num), nil)
 	}
 
 	switch unit {

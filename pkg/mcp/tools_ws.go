@@ -2,10 +2,10 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 
+	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -111,7 +111,7 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 	return nil, WSStartOutput{
 		Success: true,
 		Addr:    actualAddr,
-		Message: fmt.Sprintf("WebSocket server started at ws://%s/ws", actualAddr),
+		Message: core.Sprintf("WebSocket server started at ws://%s/ws", actualAddr),
 	}, nil
 }
 

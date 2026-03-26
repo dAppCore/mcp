@@ -2,8 +2,8 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 
+	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-rag"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -193,7 +193,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 			log.Error("mcp: rag ingest directory failed", "path", input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest directory", err)
 		}
-		message = fmt.Sprintf("Successfully ingested directory %s into collection %s", input.Path, collection)
+		message = core.Sprintf("Successfully ingested directory %s into collection %s", input.Path, collection)
 	} else {
 		// Ingest single file
 		chunks, err = rag.IngestSingleFile(ctx, input.Path, collection)
@@ -201,7 +201,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 			log.Error("mcp: rag ingest file failed", "path", input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest file", err)
 		}
-		message = fmt.Sprintf("Successfully ingested file %s (%d chunks) into collection %s", input.Path, chunks, collection)
+		message = core.Sprintf("Successfully ingested file %s (%d chunks) into collection %s", input.Path, chunks, collection)
 	}
 
 	return nil, RAGIngestOutput{
