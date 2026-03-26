@@ -8,6 +8,7 @@ import (
 	"context"
 	"iter"
 	"net/http"
+	"os"
 	"slices"
 	"sync"
 
@@ -661,7 +662,10 @@ func (s *Service) Run(ctx context.Context) error {
 		return s.ServeTCP(ctx, addr)
 	}
 	s.stdioMode = true
-	return s.server.Run(ctx, &mcp.StdioTransport{})
+	return s.server.Run(ctx, &mcp.IOTransport{
+		Reader: os.Stdin,
+		Writer: sharedStdout,
+	})
 }
 
 
