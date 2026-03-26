@@ -4,10 +4,9 @@ package mcp
 
 import (
 	"encoding/json"
-	"errors"
-	goio "io"
 	"net/http"
 
+	core "dappco.re/go/core"
 	"github.com/gin-gonic/gin"
 
 	api "forge.lthn.ai/core/api"
@@ -40,12 +39,12 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 		bridge.Add(desc, func(c *gin.Context) {
 			var body []byte
 			if c.Request.Body != nil {
-				var err error
-				body, err = goio.ReadAll(goio.LimitReader(c.Request.Body, maxBodySize))
-				if err != nil {
+				r := core.ReadAll(c.Request.Body)
+				if !r.OK {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_request", "Failed to read request body"))
 					return
 				}
+				body = []byte(r.Value.(string))
 			}
 
 			result, err := handler(c.Request.Context(), body)
@@ -54,7 +53,7 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 				// everything else as server errors (500).
 				var syntaxErr *json.SyntaxError
 				var typeErr *json.UnmarshalTypeError
-				if errors.As(err, &syntaxErr) || errors.As(err, &typeErr) {
+				if core.As(err, &syntaxErr) || core.As(err, &typeErr) {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_input", "Malformed JSON in request body"))
 					return
 				}
