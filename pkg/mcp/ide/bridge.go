@@ -2,7 +2,7 @@ package ide
 
 import (
 	"context"
-	"encoding/json"
+	core "dappco.re/go/core"
 	"net/http"
 	"sync"
 	"time"
@@ -75,10 +75,7 @@ func (b *Bridge) Send(msg BridgeMessage) error {
 		return coreerr.E("bridge.Send", "not connected", nil)
 	}
 	msg.Timestamp = time.Now()
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return coreerr.E("bridge.Send", "marshal failed", err)
-	}
+	data := []byte(core.JSONMarshalString(msg))
 	return b.conn.WriteMessage(websocket.TextMessage, data)
 }
 
@@ -158,8 +155,8 @@ func (b *Bridge) readLoop(ctx context.Context) {
 		}
 
 		var msg BridgeMessage
-		if err := json.Unmarshal(data, &msg); err != nil {
-			coreerr.Warn("ide bridge: unmarshal error", "err", err)
+		if r := core.JSONUnmarshal(data, &msg); !r.OK {
+			coreerr.Warn("ide bridge: unmarshal error")
 			continue
 		}
 
