@@ -38,8 +38,15 @@ type Notifier interface {
 	ChannelSend(ctx context.Context, channel string, data any)
 }
 
-// Compile-time assertion: *Service implements Notifier.
-var _ Notifier = (*Service)(nil)
+// ChannelPush is a Core IPC message that any service can send to push
+// a channel event to connected Claude Code sessions.
+// The MCP service catches this in HandleIPCEvents and calls ChannelSend.
+//
+//	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: map[string]any{"repo": "go-io"}})
+type ChannelPush struct {
+	Channel string
+	Data    any
+}
 
 // SubsystemWithNotifier extends Subsystem for those that emit channel events.
 // SetNotifier is called after New() before any tool calls.

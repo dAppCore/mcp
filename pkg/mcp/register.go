@@ -80,6 +80,18 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 	return core.Result{OK: true}
 }
 
+// HandleIPCEvents implements Core's IPC handler interface.
+// Catches ChannelPush messages from other services and pushes them to Claude Code sessions.
+//
+//	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: statusMap})
+func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
+	switch ev := msg.(type) {
+	case ChannelPush:
+		s.ChannelSend(context.Background(), ev.Channel, ev.Data)
+	}
+	return core.Result{OK: true}
+}
+
 // OnShutdown implements core.Stoppable — stops the MCP transport.
 func (s *Service) OnShutdown(ctx context.Context) core.Result {
 	if err := s.Shutdown(ctx); err != nil {
