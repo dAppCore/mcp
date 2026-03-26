@@ -4,11 +4,10 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"iter"
 	"reflect"
-	"strings"
 
+	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -46,8 +45,11 @@ func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 	restHandler := func(ctx context.Context, body []byte) (any, error) {
 		var input In
 		if len(body) > 0 {
-			if err := json.Unmarshal(body, &input); err != nil {
-				return nil, err
+			if r := core.JSONUnmarshal(body, &input); !r.OK {
+				if err, ok := r.Value.(error); ok {
+					return nil, err
+				}
+				return nil, core.E("registry.RESTHandler", "failed to unmarshal input", nil)
 			}
 		}
 		// nil: REST callers have no MCP request context.
@@ -129,12 +131,20 @@ func structSchema(v any) map[string]any {
 
 // splitTag splits a struct tag value by commas.
 func splitTag(tag string) []string {
-	return strings.Split(tag, ",")
+	return core.Split(tag, ",")
 }
 
 // splitTagSeq returns an iterator over the tag parts.
 func splitTagSeq(tag string) iter.Seq[string] {
-	return strings.SplitSeq(tag, ",")
+	// core.Split returns []string; wrap as iterator
+	parts := core.Split(tag, ",")
+	return func(yield func(string) bool) {
+		for _, p := range parts {
+			if !yield(p) {
+				return
+			}
+		}
+	}
 }
 
 // goTypeToJSONType maps Go types to JSON Schema types.

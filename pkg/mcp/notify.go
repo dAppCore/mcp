@@ -8,11 +8,11 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"iter"
 	"os"
 	"sync"
 
+	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -55,17 +55,13 @@ type channelParams struct {
 //	s.ChannelSend(ctx, "build.failed", map[string]any{"repo": "core", "error": "test timeout"})
 func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 	// Marshal the data payload as the content string
-	contentBytes, err := json.Marshal(data)
-	if err != nil {
-		s.logger.Debug("channel: failed to marshal data", "channel", channel, "error", err)
-		return
-	}
+	content := core.JSONMarshalString(data)
 
 	notification := channelNotification{
 		JSONRPC: "2.0",
 		Method:  "notifications/claude/channel",
 		Params: channelParams{
-			Content: string(contentBytes),
+			Content: content,
 			Meta: map[string]string{
 				"source":  "core-agent",
 				"channel": channel,
@@ -73,11 +69,7 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 		},
 	}
 
-	msg, err := json.Marshal(notification)
-	if err != nil {
-		s.logger.Debug("channel: failed to marshal notification", "channel", channel, "error", err)
-		return
-	}
+	msg := core.JSONMarshalString(notification)
 
 	// Write directly to stdout (stdio transport) with newline delimiter.
 	// The official SDK doesn't expose a way to send custom notification methods,
@@ -87,7 +79,7 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 		return
 	}
 	stdoutMu.Lock()
-	os.Stdout.Write(append(msg, '\n'))
+	os.Stdout.Write([]byte(core.Concat(msg, "\n")))
 	stdoutMu.Unlock()
 }
 
