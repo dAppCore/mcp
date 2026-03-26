@@ -3,7 +3,7 @@ module dappco.re/go/mcp
 go 1.26.0
 
 require (
-	dappco.re/go/core v0.4.7
+	dappco.re/go/core v0.8.0-alpha.1
 	forge.lthn.ai/core/api v0.1.5
 	forge.lthn.ai/core/cli v0.3.7
 	forge.lthn.ai/core/go-ai v0.1.12
