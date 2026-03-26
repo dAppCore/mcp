@@ -39,15 +39,19 @@ func Register(c *core.Core) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	svc.coreRef = c
+	svc.ServiceRuntime = core.NewServiceRuntime(c, McpOptions{})
+	svc.coreRef = c // kept until all methods migrate to s.Core()
 
 	return core.Result{Value: svc, OK: true}
 }
 
 // OnStartup implements core.Startable — registers MCP transport commands.
+//
+//	core-agent mcp    — start MCP server on stdio
+//	core-agent serve  — start MCP server on HTTP
 func (s *Service) OnStartup(ctx context.Context) core.Result {
-	c, ok := s.coreRef.(*core.Core)
-	if !ok || c == nil {
+	c := s.Core()
+	if c == nil {
 		return core.Result{OK: true}
 	}
 

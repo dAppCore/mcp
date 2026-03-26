@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-io"
 	"forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-process"
@@ -27,6 +28,8 @@ import (
 //	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "/home/user/project"})
 //	defer svc.Shutdown(ctx)
 type Service struct {
+	*core.ServiceRuntime[McpOptions] // Core access via s.Core()
+
 	server         *mcp.Server
 	workspaceRoot  string           // Root directory for file operations (empty = unrestricted)
 	medium         io.Medium        // Filesystem medium for sandboxed operations
@@ -39,8 +42,11 @@ type Service struct {
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
 	stdioMode      bool             // True when running via stdio transport
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
-	coreRef        any              // *core.Core — stored by Register, used by OnStartup
+	coreRef        any              // Deprecated: use s.Core() via ServiceRuntime
 }
+
+// McpOptions configures the MCP service runtime.
+type McpOptions struct{}
 
 // Options configures a Service.
 //
