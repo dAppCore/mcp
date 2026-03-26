@@ -45,10 +45,10 @@ func Register(c *core.Core) core.Result {
 }
 
 // OnStartup implements core.Startable — registers MCP transport commands.
-func (s *Service) OnStartup(ctx context.Context) error {
+func (s *Service) OnStartup(ctx context.Context) core.Result {
 	c, ok := s.coreRef.(*core.Core)
 	if !ok || c == nil {
-		return nil
+		return core.Result{OK: true}
 	}
 
 	c.Command("mcp", core.Command{
@@ -73,10 +73,13 @@ func (s *Service) OnStartup(ctx context.Context) error {
 		},
 	})
 
-	return nil
+	return core.Result{OK: true}
 }
 
 // OnShutdown implements core.Stoppable — stops the MCP transport.
-func (s *Service) OnShutdown(ctx context.Context) error {
-	return s.Shutdown(ctx)
+func (s *Service) OnShutdown(ctx context.Context) core.Result {
+	if err := s.Shutdown(ctx); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
+	return core.Result{OK: true}
 }
