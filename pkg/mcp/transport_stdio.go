@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"os"
 
 	"forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -15,5 +16,9 @@ import (
 //	}
 func (s *Service) ServeStdio(ctx context.Context) error {
 	s.logger.Info("MCP Stdio server starting", "user", log.Username())
-	return s.server.Run(ctx, &mcp.StdioTransport{})
+	s.stdioMode = true
+	return s.server.Run(ctx, &mcp.IOTransport{
+		Reader: os.Stdin,
+		Writer: sharedStdout,
+	})
 }
