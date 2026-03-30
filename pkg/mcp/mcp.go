@@ -31,7 +31,7 @@ type Service struct {
 	server         *mcp.Server
 	workspaceRoot  string           // Root directory for file operations (empty = unrestricted)
 	medium         io.Medium        // Filesystem medium for sandboxed operations
-	subsystems     []Subsystem      // Additional subsystems registered via WithSubsystem
+	subsystems     []Subsystem      // Additional subsystems registered via Options.Subsystems
 	logger         *log.Logger      // Logger for tool execution auditing
 	processService *process.Service // Process management service (optional)
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)

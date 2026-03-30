@@ -93,7 +93,7 @@ Key test files:
 | `transport_tcp_test.go` | TCP transport, loopback default, `0.0.0.0` warning |
 | `transport_e2e_test.go` | End-to-end TCP client/server round-trip |
 | `tools_metrics_test.go` | Duration parsing, metrics record/query |
-| `tools_ml_test.go` | ML subsystem tool registration |
+| `brain/brain_test.go` | Brain subsystem registration and bridge-nil handling |
 | `tools_process_test.go` | Process start/stop/kill/list/output/input |
 | `tools_process_ci_test.go` | CI-safe process tests (no external binaries) |
 | `tools_rag_test.go` | RAG query/ingest/collections |
@@ -170,17 +170,17 @@ core/mcp/
 |   +-- mcp/
 |       +-- mcp.go           # Service, file tools, Run()
 |       +-- registry.go      # ToolRecord, addToolRecorded, schema extraction
-|       +-- subsystem.go     # Subsystem interface, WithSubsystem option
+|       +-- subsystem.go     # Subsystem interface, Options-based registration
 |       +-- bridge.go        # BridgeToAPI (MCP-to-REST adapter)
 |       +-- transport_stdio.go
 |       +-- transport_tcp.go
 |       +-- transport_unix.go
 |       +-- tools_metrics.go # Metrics record/query
-|       +-- tools_ml.go      # MLSubsystem (generate, score, probe, status, backends)
 |       +-- tools_process.go # Process management tools
 |       +-- tools_rag.go     # RAG query/ingest/collections
 |       +-- tools_webview.go # Chrome DevTools automation
 |       +-- tools_ws.go      # WebSocket server tools
+|       +-- agentic/
 |       +-- brain/
 |       |   +-- brain.go     # Brain subsystem
 |       |   +-- tools.go     # remember/recall/forget/list tools
@@ -321,7 +321,11 @@ func (s *Subsystem) RegisterTools(server *mcp.Server) {
 2. Register when creating the service:
 
 ```go
-mcp.New(mcp.WithSubsystem(&mysubsystem.Subsystem{}))
+mcp.New(mcp.Options{
+    Subsystems: []mcp.Subsystem{
+        &mysubsystem.Subsystem{},
+    },
+})
 ```
 
 ## Adding a new PHP tool

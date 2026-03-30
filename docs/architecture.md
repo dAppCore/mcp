@@ -19,14 +19,18 @@ slice of `ToolRecord` metadata that powers the REST bridge.
 
 ```go
 svc, err := mcp.New(
-    mcp.WithWorkspaceRoot("/home/user/project"),
-    mcp.WithSubsystem(mcp.NewMLSubsystem(mlService)),
-    mcp.WithProcessService(processService),
-    mcp.WithWSHub(wsHub),
+    mcp.Options{
+        WorkspaceRoot:  "/home/user/project",
+        ProcessService: processService,
+        WSHub:         wsHub,
+        Subsystems: []mcp.Subsystem{
+            &MySubsystem{},
+        },
+    },
 )
 ```
 
-Options follow the functional-options pattern. `WithWorkspaceRoot` creates a
+Options are provided via the `mcp.Options` DTO. `WorkspaceRoot` creates a
 sandboxed `io.Medium` that confines all file operations to a single directory
 tree. Passing an empty string disables sandboxing (not recommended for
 untrusted clients).
@@ -71,7 +75,7 @@ The service registers the following tools at startup:
 | **ws** | `ws_start`, `ws_info` | `tools_ws.go` |
 
 Process and WebSocket tools are conditionally registered -- they require
-`WithProcessService` and `WithWSHub` respectively.
+`ProcessService` and `WSHub` in `Options` respectively.
 
 ### Subsystem interface
 
@@ -93,17 +97,22 @@ type SubsystemWithShutdown interface {
 }
 ```
 
-Two subsystems ship with this repo:
+Three subsystems ship with this repo:
 
-#### ML subsystem (`tools_ml.go`)
+#### Agentic subsystem (`pkg/mcp/agentic/`)
 
-`MLSubsystem` wraps a `go-ml.Service` and exposes five tools:
+`agentic` tools prepare workspaces, dispatch agents, and track execution
+status for issue-driven task workflows.
 
-- `ml_generate` -- text generation via any registered inference backend.
-- `ml_score` -- heuristic and semantic scoring of prompt/response pairs.
-- `ml_probe` -- capability probes (predefined prompts run through the model).
-- `ml_status` -- training and generation progress from InfluxDB.
-- `ml_backends` -- lists registered inference backends and their availability.
+#### Brain subsystem (`pkg/mcp/brain/`)
+
+Proxies OpenBrain knowledge-store operations to the Laravel backend via the IDE
+bridge. Four tools:
+
+- `brain_remember` -- store a memory (decision, observation, bug, etc.).
+- `brain_recall` -- semantic search across stored memories.
+- `brain_forget` -- permanently delete a memory.
+- `brain_list` -- list memories with filtering (no vector search).
 
 #### IDE subsystem (`pkg/mcp/ide/`)
 
@@ -120,16 +129,6 @@ The IDE bridge (`Bridge`) maintains a persistent WebSocket connection to the
 Laravel backend with exponential-backoff reconnection. Messages are forwarded
 from Laravel to a local `ws.Hub` for real-time streaming to the IDE frontend.
 
-#### Brain subsystem (`pkg/mcp/brain/`)
-
-Proxies OpenBrain knowledge-store operations to the Laravel backend via the
-IDE bridge. Four tools:
-
-- `brain_remember` -- store a memory (decision, observation, bug, etc.).
-- `brain_recall` -- semantic search across stored memories.
-- `brain_forget` -- permanently delete a memory.
-- `brain_list` -- list memories with filtering (no vector search).
-
 ### Transports
 
 The Go server supports three transports, all using line-delimited JSON-RPC:
@@ -141,8 +140,8 @@ The Go server supports three transports, all using line-delimited JSON-RPC:
 | **Unix** | `ServeUnix(ctx, path)` | caller-specified socket path |
 
 TCP binds to `127.0.0.1` by default when the host component is empty. Binding
-to `0.0.0.0` emits a security warning. Each accepted connection spawns a
-fresh `mcp.Server` instance with its own tool set.
+to `0.0.0.0` emits a security warning. Each accepted connection becomes a
+session on the shared `mcp.Server`.
 
 ### REST bridge
 
