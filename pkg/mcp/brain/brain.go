@@ -7,8 +7,8 @@ package brain
 import (
 	"context"
 
-	coreerr "forge.lthn.ai/core/go-log"
 	"dappco.re/go/mcp/pkg/mcp/ide"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -19,7 +19,8 @@ var errBridgeNotAvailable = coreerr.E("brain", "bridge not available", nil)
 // Subsystem implements mcp.Subsystem for OpenBrain knowledge store operations.
 // It proxies brain_* tool calls to the Laravel backend via the shared IDE bridge.
 type Subsystem struct {
-	bridge *ide.Bridge
+	bridge   *ide.Bridge
+	notifier Notifier
 }
 
 // New creates a brain subsystem that uses the given IDE bridge for Laravel communication.
@@ -30,6 +31,16 @@ func New(bridge *ide.Bridge) *Subsystem {
 
 // Name implements mcp.Subsystem.
 func (s *Subsystem) Name() string { return "brain" }
+
+// Notifier pushes events to MCP sessions (matches pkg/mcp.Notifier).
+type Notifier interface {
+	ChannelSend(ctx context.Context, channel string, data any)
+}
+
+// SetNotifier stores the shared notifier so this subsystem can emit channel events.
+func (s *Subsystem) SetNotifier(n Notifier) {
+	s.notifier = n
+}
 
 // RegisterTools implements mcp.Subsystem.
 func (s *Subsystem) RegisterTools(server *mcp.Server) {

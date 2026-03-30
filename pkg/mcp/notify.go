@@ -13,7 +13,6 @@ import (
 	"os"
 	"sync"
 
-	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -54,56 +53,38 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 	}
 }
 
-// channelNotification is the JSON-RPC notification format for claude/channel.
-type channelNotification struct {
-	JSONRPC string         `json:"jsonrpc"`
-	Method  string         `json:"method"`
-	Params  channelParams  `json:"params"`
-}
-
-type channelParams struct {
-	Content string            `json:"content"`
-	Meta    map[string]string `json:"meta,omitempty"`
-}
-
 // ChannelSend pushes a channel event to all connected clients via
 // the notifications/claude/channel JSON-RPC method.
 //
 //	s.ChannelSend(ctx, "agent.complete", map[string]any{"repo": "go-io", "workspace": "go-io-123"})
 //	s.ChannelSend(ctx, "build.failed", map[string]any{"repo": "core", "error": "test timeout"})
 func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
-	// Marshal the data payload as the content string
-	content := core.JSONMarshalString(data)
-
-	notification := channelNotification{
-		JSONRPC: "2.0",
-		Method:  "notifications/claude/channel",
-		Params: channelParams{
-			Content: content,
-			Meta: map[string]string{
-				"source":  "core-agent",
-				"channel": channel,
-			},
-		},
+	payload := map[string]any{
+		"channel": channel,
+		"data":    data,
 	}
-
-	msg := core.JSONMarshalString(notification)
-
-	// Write through the shared locked writer (same one the SDK transport uses).
-	// This prevents channel notifications from interleaving with SDK messages.
-	if !s.stdioMode {
-		return
-	}
-	sharedStdout.Write([]byte(core.Concat(msg, "\n")))
+	s.SendNotificationToAllClients(ctx, mcp.LoggingLevel("info"), "channel", payload)
 }
 
 // ChannelSendToSession pushes a channel event to a specific session.
-// Falls back to stdout for stdio transport.
 //
 //	s.ChannelSendToSession(ctx, session, "agent.progress", progressData)
 func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerSession, channel string, data any) {
-	// For now, channel events go to all sessions via stdout
-	s.ChannelSend(ctx, channel, data)
+	if session == nil {
+		return
+	}
+
+	payload := map[string]any{
+		"channel": channel,
+		"data":    data,
+	}
+	if err := session.Log(ctx, &mcp.LoggingMessageParams{
+		Level:  mcp.LoggingLevel("info"),
+		Logger: "channel",
+		Data:   payload,
+	}); err != nil {
+		s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
+	}
 }
 
 // Sessions returns an iterator over all connected MCP sessions.
@@ -128,6 +109,9 @@ func channelCapability() map[string]any {
 				"agent.status",
 				"build.complete",
 				"build.failed",
+				"brain.list.complete",
+				"brain.forget.complete",
+				"brain.remember.complete",
 				"brain.recall.complete",
 				"inbox.message",
 				"process.exit",

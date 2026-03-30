@@ -6,10 +6,17 @@ import (
 	"context"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
 	"dappco.re/go/mcp/pkg/mcp/ide"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// emitChannel pushes a brain event through the shared notifier.
+func (s *Subsystem) emitChannel(ctx context.Context, channel string, data any) {
+	if s.notifier != nil {
+		s.notifier.ChannelSend(ctx, channel, data)
+	}
+}
 
 // -- Input/Output types -------------------------------------------------------
 
@@ -33,17 +40,17 @@ type RememberOutput struct {
 
 // RecallInput is the input for brain_recall.
 type RecallInput struct {
-	Query string       `json:"query"`
-	TopK  int          `json:"top_k,omitempty"`
+	Query  string       `json:"query"`
+	TopK   int          `json:"top_k,omitempty"`
 	Filter RecallFilter `json:"filter,omitempty"`
 }
 
 // RecallFilter holds optional filter criteria for brain_recall.
 type RecallFilter struct {
-	Project       string   `json:"project,omitempty"`
-	Type          any      `json:"type,omitempty"`
-	AgentID       string   `json:"agent_id,omitempty"`
-	MinConfidence float64  `json:"min_confidence,omitempty"`
+	Project       string  `json:"project,omitempty"`
+	Type          any     `json:"type,omitempty"`
+	AgentID       string  `json:"agent_id,omitempty"`
+	MinConfidence float64 `json:"min_confidence,omitempty"`
 }
 
 // RecallOutput is the output for brain_recall.
@@ -122,7 +129,7 @@ func (s *Subsystem) registerBrainTools(server *mcp.Server) {
 
 // -- Tool handlers ------------------------------------------------------------
 
-func (s *Subsystem) brainRemember(_ context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
+func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
 	if s.bridge == nil {
 		return nil, RememberOutput{}, errBridgeNotAvailable
 	}
@@ -143,13 +150,18 @@ func (s *Subsystem) brainRemember(_ context.Context, _ *mcp.CallToolRequest, inp
 		return nil, RememberOutput{}, coreerr.E("brain.remember", "failed to send brain_remember", err)
 	}
 
+	s.emitChannel(ctx, "brain.remember.complete", map[string]any{
+		"type":    input.Type,
+		"project": input.Project,
+	})
+
 	return nil, RememberOutput{
 		Success:   true,
 		Timestamp: time.Now(),
 	}, nil
 }
 
-func (s *Subsystem) brainRecall(_ context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
+func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
 	if s.bridge == nil {
 		return nil, RecallOutput{}, errBridgeNotAvailable
 	}
@@ -166,13 +178,18 @@ func (s *Subsystem) brainRecall(_ context.Context, _ *mcp.CallToolRequest, input
 		return nil, RecallOutput{}, coreerr.E("brain.recall", "failed to send brain_recall", err)
 	}
 
+	s.emitChannel(ctx, "brain.recall.complete", map[string]any{
+		"query": input.Query,
+		"count": 0,
+	})
+
 	return nil, RecallOutput{
 		Success:  true,
 		Memories: []Memory{},
 	}, nil
 }
 
-func (s *Subsystem) brainForget(_ context.Context, _ *mcp.CallToolRequest, input ForgetInput) (*mcp.CallToolResult, ForgetOutput, error) {
+func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (*mcp.CallToolResult, ForgetOutput, error) {
 	if s.bridge == nil {
 		return nil, ForgetOutput{}, errBridgeNotAvailable
 	}
@@ -188,6 +205,10 @@ func (s *Subsystem) brainForget(_ context.Context, _ *mcp.CallToolRequest, input
 		return nil, ForgetOutput{}, coreerr.E("brain.forget", "failed to send brain_forget", err)
 	}
 
+	s.emitChannel(ctx, "brain.forget.complete", map[string]any{
+		"id": input.ID,
+	})
+
 	return nil, ForgetOutput{
 		Success:   true,
 		Forgotten: input.ID,
@@ -195,7 +216,7 @@ func (s *Subsystem) brainForget(_ context.Context, _ *mcp.CallToolRequest, input
 	}, nil
 }
 
-func (s *Subsystem) brainList(_ context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
 	if s.bridge == nil {
 		return nil, ListOutput{}, errBridgeNotAvailable
 	}
@@ -216,6 +237,13 @@ func (s *Subsystem) brainList(_ context.Context, _ *mcp.CallToolRequest, input L
 	if err != nil {
 		return nil, ListOutput{}, coreerr.E("brain.list", "failed to send brain_list", err)
 	}
+
+	s.emitChannel(ctx, "brain.list.complete", map[string]any{
+		"project": input.Project,
+		"type":    input.Type,
+		"agent":   input.AgentID,
+		"limit":   limit,
+	})
 
 	return nil, ListOutput{
 		Success:  true,
