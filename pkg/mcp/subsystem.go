@@ -38,6 +38,8 @@ type Notifier interface {
 	ChannelSend(ctx context.Context, channel string, data any)
 }
 
+var _ Notifier = (*Service)(nil)
+
 // ChannelPush is a Core IPC message that any service can send to push
 // a channel event to connected Claude Code sessions.
 // The MCP service catches this in HandleIPCEvents and calls ChannelSend.
