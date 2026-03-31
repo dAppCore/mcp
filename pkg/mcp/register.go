@@ -6,7 +6,6 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-log"
 )
 
 // Register is the service factory for core.WithService.
@@ -68,7 +67,7 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 	c.Command("serve", core.Command{
 		Description: "Start as a persistent HTTP daemon",
 		Action: func(opts core.Options) core.Result {
-			log.Default().Info("MCP HTTP server starting")
+			s.logger.Info("MCP HTTP server starting")
 			if err := s.Run(ctx); err != nil {
 				return core.Result{Value: err, OK: false}
 			}

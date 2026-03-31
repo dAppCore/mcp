@@ -39,7 +39,6 @@ type Service struct {
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
 	wsAddr         string           // WebSocket server address
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
-	stdioMode      bool             // True when running via stdio transport
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
 }
 
@@ -668,11 +667,7 @@ func (s *Service) Run(ctx context.Context) error {
 	if addr := core.Env("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
 	}
-	s.stdioMode = true
-	return s.server.Run(ctx, &mcp.IOTransport{
-		Reader: os.Stdin,
-		Writer: sharedStdout,
-	})
+	return s.ServeStdio(ctx)
 }
 
 // countOccurrences counts non-overlapping instances of substr in s.
