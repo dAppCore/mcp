@@ -9,6 +9,7 @@ import (
 	"iter"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 
@@ -93,10 +94,18 @@ func New(opts Options) (*Service, error) {
 	} else {
 		root := opts.WorkspaceRoot
 		if root == "" {
-			root = core.Env("DIR_CWD")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, core.E("mcp.New", "failed to get working directory", err)
+			}
+			root = cwd
 		}
-		s.workspaceRoot = root
-		m, merr := io.NewSandboxed(root)
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return nil, core.E("mcp.New", "failed to resolve workspace root", err)
+		}
+		s.workspaceRoot = abs
+		m, merr := io.NewSandboxed(abs)
 		if merr != nil {
 			return nil, core.E("mcp.New", "failed to create workspace medium", merr)
 		}
@@ -176,7 +185,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	}
 	return nil
 }
-
 
 // WSHub returns the WebSocket hub, or nil if not configured.
 //
@@ -423,8 +431,8 @@ type LanguageInfo struct {
 //	}
 type EditDiffInput struct {
 	Path       string `json:"path"`                  // e.g. "main.go"
-	OldString  string `json:"old_string"`             // text to find
-	NewString  string `json:"new_string"`             // replacement text
+	OldString  string `json:"old_string"`            // text to find
+	NewString  string `json:"new_string"`            // replacement text
 	ReplaceAll bool   `json:"replace_all,omitempty"` // replace all occurrences (default: first only)
 }
 
@@ -667,7 +675,6 @@ func (s *Service) Run(ctx context.Context) error {
 		Writer: sharedStdout,
 	})
 }
-
 
 // countOccurrences counts non-overlapping instances of substr in s.
 func countOccurrences(s, substr string) int {

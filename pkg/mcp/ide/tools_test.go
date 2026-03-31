@@ -15,7 +15,7 @@ import (
 
 // newNilBridgeSubsystem returns a Subsystem with no hub/bridge (headless mode).
 func newNilBridgeSubsystem() *Subsystem {
-	return New(nil)
+	return New(nil, Config{})
 }
 
 // newConnectedSubsystem returns a Subsystem with a connected bridge and a
@@ -42,10 +42,10 @@ func newConnectedSubsystem(t *testing.T) (*Subsystem, context.CancelFunc, *httpt
 	ctx, cancel := context.WithCancel(context.Background())
 	go hub.Run(ctx)
 
-	sub := New(hub,
-		WithLaravelURL(wsURL(ts)),
-		WithReconnectInterval(50*time.Millisecond),
-	)
+	sub := New(hub, Config{
+		LaravelWSURL:      wsURL(ts),
+		ReconnectInterval: 50 * time.Millisecond,
+	})
 	sub.StartBridge(ctx)
 
 	waitConnected(t, sub.Bridge(), 2*time.Second)
@@ -690,7 +690,7 @@ func TestSubsystem_Good_RegisterTools(t *testing.T) {
 	// RegisterTools requires a real mcp.Server which is complex to construct
 	// in isolation. This test verifies the Subsystem can be created and
 	// the Bridge/Shutdown path works end-to-end.
-	sub := New(nil)
+	sub := New(nil, Config{})
 	if sub.Bridge() != nil {
 		t.Error("expected nil bridge with nil hub")
 	}
@@ -701,20 +701,20 @@ func TestSubsystem_Good_RegisterTools(t *testing.T) {
 
 // TestSubsystem_Good_StartBridgeNilHub verifies StartBridge is a no-op with nil hub.
 func TestSubsystem_Good_StartBridgeNilHub(t *testing.T) {
-	sub := New(nil)
+	sub := New(nil, Config{})
 	// Should not panic
 	sub.StartBridge(context.Background())
 }
 
-// TestSubsystem_Good_WithOptions verifies all config options apply correctly.
-func TestSubsystem_Good_WithOptions(t *testing.T) {
+// TestSubsystem_Good_WithConfig verifies the Config DTO applies correctly.
+func TestSubsystem_Good_WithConfig(t *testing.T) {
 	hub := ws.NewHub()
-	sub := New(hub,
-		WithLaravelURL("ws://custom:1234/ws"),
-		WithWorkspaceRoot("/tmp/test"),
-		WithReconnectInterval(5*time.Second),
-		WithToken("secret-123"),
-	)
+	sub := New(hub, Config{
+		LaravelWSURL:      "ws://custom:1234/ws",
+		WorkspaceRoot:     "/tmp/test",
+		ReconnectInterval: 5 * time.Second,
+		Token:             "secret-123",
+	})
 
 	if sub.cfg.LaravelWSURL != "ws://custom:1234/ws" {
 		t.Errorf("expected custom URL, got %q", sub.cfg.LaravelWSURL)
@@ -761,7 +761,10 @@ func TestChatSend_Good_BridgeMessageType(t *testing.T) {
 	ctx := t.Context()
 	go hub.Run(ctx)
 
-	sub := New(hub, WithLaravelURL(wsURL(ts)), WithReconnectInterval(50*time.Millisecond))
+	sub := New(hub, Config{
+		LaravelWSURL:      wsURL(ts),
+		ReconnectInterval: 50 * time.Millisecond,
+	})
 	sub.StartBridge(ctx)
 	waitConnected(t, sub.Bridge(), 2*time.Second)
 

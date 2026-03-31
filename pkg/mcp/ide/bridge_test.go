@@ -412,11 +412,10 @@ func TestBridge_Good_NoAuthHeaderWhenTokenEmpty(t *testing.T) {
 	}
 }
 
-func TestBridge_Good_WithTokenOption(t *testing.T) {
-	// Verify the WithToken option function works.
+func TestBridge_Good_ConfigToken(t *testing.T) {
+	// Verify the Config DTO carries token settings through unchanged.
 	cfg := DefaultConfig()
-	opt := WithToken("my-token")
-	opt(&cfg)
+	cfg.Token = "my-token"
 
 	if cfg.Token != "my-token" {
 		t.Errorf("expected token 'my-token', got %q", cfg.Token)
@@ -424,14 +423,14 @@ func TestBridge_Good_WithTokenOption(t *testing.T) {
 }
 
 func TestSubsystem_Good_Name(t *testing.T) {
-	sub := New(nil)
+	sub := New(nil, Config{})
 	if sub.Name() != "ide" {
 		t.Errorf("expected name 'ide', got %q", sub.Name())
 	}
 }
 
 func TestSubsystem_Good_NilHub(t *testing.T) {
-	sub := New(nil)
+	sub := New(nil, Config{})
 	if sub.Bridge() != nil {
 		t.Error("expected nil bridge when hub is nil")
 	}

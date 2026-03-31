@@ -19,13 +19,12 @@ type Subsystem struct {
 	hub    *ws.Hub
 }
 
-// New creates an IDE subsystem. The ws.Hub is used for real-time forwarding;
-// pass nil if headless (tools still work but real-time streaming is disabled).
-func New(hub *ws.Hub, opts ...Option) *Subsystem {
-	cfg := DefaultConfig()
-	for _, opt := range opts {
-		opt(&cfg)
-	}
+// New creates an IDE subsystem from a Config DTO.
+//
+// The ws.Hub is used for real-time forwarding; pass nil if headless
+// (tools still work but real-time streaming is disabled).
+func New(hub *ws.Hub, cfg Config) *Subsystem {
+	cfg = cfg.WithDefaults()
 	var bridge *Bridge
 	if hub != nil {
 		bridge = NewBridge(hub, cfg)

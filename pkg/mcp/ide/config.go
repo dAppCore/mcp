@@ -25,33 +25,22 @@ type Config struct {
 
 // DefaultConfig returns sensible defaults for local development.
 func DefaultConfig() Config {
-	return Config{
-		LaravelWSURL:         "ws://localhost:9876/ws",
-		WorkspaceRoot:        ".",
-		ReconnectInterval:    2 * time.Second,
-		MaxReconnectInterval: 30 * time.Second,
+	return Config{}.WithDefaults()
+}
+
+// WithDefaults fills unset fields with the default development values.
+func (c Config) WithDefaults() Config {
+	if c.LaravelWSURL == "" {
+		c.LaravelWSURL = "ws://localhost:9876/ws"
 	}
-}
-
-// Option configures the IDE subsystem.
-type Option func(*Config)
-
-// WithLaravelURL sets the Laravel WebSocket endpoint.
-func WithLaravelURL(url string) Option {
-	return func(c *Config) { c.LaravelWSURL = url }
-}
-
-// WithWorkspaceRoot sets the workspace root directory.
-func WithWorkspaceRoot(root string) Option {
-	return func(c *Config) { c.WorkspaceRoot = root }
-}
-
-// WithReconnectInterval sets the base reconnect interval.
-func WithReconnectInterval(d time.Duration) Option {
-	return func(c *Config) { c.ReconnectInterval = d }
-}
-
-// WithToken sets the Bearer token for WebSocket authentication.
-func WithToken(token string) Option {
-	return func(c *Config) { c.Token = token }
+	if c.WorkspaceRoot == "" {
+		c.WorkspaceRoot = "."
+	}
+	if c.ReconnectInterval == 0 {
+		c.ReconnectInterval = 2 * time.Second
+	}
+	if c.MaxReconnectInterval == 0 {
+		c.MaxReconnectInterval = 30 * time.Second
+	}
+	return c
 }
