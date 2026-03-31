@@ -114,6 +114,7 @@ func channelCapability() map[string]any {
 				"brain.remember.complete",
 				"brain.recall.complete",
 				"inbox.message",
+				"process.start",
 				"process.exit",
 				"harvest.complete",
 				"test.result",

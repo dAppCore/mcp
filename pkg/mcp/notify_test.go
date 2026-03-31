@@ -64,4 +64,15 @@ func TestChannelCapability_Good(t *testing.T) {
 	if len(channels) == 0 {
 		t.Fatal("expected at least one channel in capability definition")
 	}
+
+	foundProcessStart := false
+	for _, channel := range channels {
+		if channel == "process.start" {
+			foundProcessStart = true
+			break
+		}
+	}
+	if !foundProcessStart {
+		t.Fatal("expected process.start to be advertised in capability definition")
+	}
 }
