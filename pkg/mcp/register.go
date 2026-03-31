@@ -40,7 +40,6 @@ func Register(c *core.Core) core.Result {
 	}
 
 	svc.ServiceRuntime = core.NewServiceRuntime(c, McpOptions{})
-	svc.coreRef = c // kept until all methods migrate to s.Core()
 
 	return core.Result{Value: svc, OK: true}
 }

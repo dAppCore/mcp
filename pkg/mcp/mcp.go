@@ -41,7 +41,6 @@ type Service struct {
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
 	stdioMode      bool             // True when running via stdio transport
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
-	coreRef        any              // Deprecated: use s.Core() via ServiceRuntime
 }
 
 // McpOptions configures the MCP service runtime.
