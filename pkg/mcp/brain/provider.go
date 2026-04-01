@@ -48,6 +48,7 @@ func (p *BrainProvider) Channels() []string {
 		"brain.remember.complete",
 		"brain.recall.complete",
 		"brain.forget.complete",
+		"brain.list.complete",
 	}
 }
 
@@ -294,19 +295,31 @@ func (p *BrainProvider) list(c *gin.Context) {
 		return
 	}
 
+	project := c.Query("project")
+	typ := c.Query("type")
+	agentID := c.Query("agent_id")
+	limit := c.Query("limit")
+
 	err := p.bridge.Send(ide.BridgeMessage{
 		Type: "brain_list",
 		Data: map[string]any{
-			"project":  c.Query("project"),
-			"type":     c.Query("type"),
-			"agent_id": c.Query("agent_id"),
-			"limit":    c.Query("limit"),
+			"project":  project,
+			"type":     typ,
+			"agent_id": agentID,
+			"limit":    limit,
 		},
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("bridge_error", err.Error()))
 		return
 	}
+
+	p.emitEvent("brain.list.complete", map[string]any{
+		"project": project,
+		"type":    typ,
+		"agent":   agentID,
+		"limit":   limit,
+	})
 
 	c.JSON(http.StatusOK, api.OK(ListOutput{
 		Success:  true,
