@@ -140,6 +140,75 @@ List all database tables in the application.
 
 ---
 
+### describe_table
+
+Describe a database table, including its columns and indexes.
+
+**Description:** Describe a database table, including columns and indexes
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `table` | string | Yes | Database table name to inspect |
+
+**Example Request:**
+
+```json
+{
+    "tool": "describe_table",
+    "arguments": {
+        "table": "users"
+    }
+}
+```
+
+**Success Response:**
+
+```json
+{
+    "table": "users",
+    "columns": [
+        {
+            "field": "id",
+            "type": "bigint unsigned",
+            "collation": null,
+            "null": "NO",
+            "key": "PRI",
+            "default": null,
+            "extra": "auto_increment",
+            "privileges": "select,insert,update,references",
+            "comment": "Primary key"
+        }
+    ],
+    "indexes": [
+        {
+            "name": "PRIMARY",
+            "unique": true,
+            "type": "BTREE",
+            "columns": [
+                {
+                    "name": "id",
+                    "order": 1,
+                    "collation": "A",
+                    "cardinality": 1,
+                    "sub_part": null,
+                    "nullable": "",
+                    "comment": ""
+                }
+            ]
+        }
+    ]
+}
+```
+
+**Security Notes:**
+- Table names are validated to allow only letters, numbers, and underscores
+- System tables are blocked
+- Table access may be filtered based on configuration
+
+---
+
 ## Commerce Tools
 
 ### get_billing_status
@@ -690,6 +759,7 @@ curl -X POST https://api.example.com/mcp/tools/call \
 ### Query Tools
 - `query_database` - Execute SQL queries
 - `list_tables` - List database tables
+- `describe_table` - Inspect table columns and indexes
 
 ### Commerce Tools
 - `get_billing_status` - Get subscription status
