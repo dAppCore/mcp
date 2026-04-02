@@ -24,6 +24,10 @@ const maxBodySize = 10 << 20 // 10 MB
 //	mcp.BridgeToAPI(svc, bridge)
 //	bridge.Mount(router, "/v1/tools")
 func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
+	if svc == nil || bridge == nil {
+		return
+	}
+
 	for rec := range svc.ToolsSeq() {
 		desc := api.ToolDescriptor{
 			Name:         rec.Name,
