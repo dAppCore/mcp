@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

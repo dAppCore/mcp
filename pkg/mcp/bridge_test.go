@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-package mcp
+package mcp_test
 
 import (
 	"encoding/json"
@@ -13,8 +13,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	mcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
+	"dappco.re/go/mcp/pkg/mcp/ide"
 	api "forge.lthn.ai/core/api"
 )
 
@@ -23,11 +25,12 @@ func init() {
 }
 
 func TestBridgeToAPI_Good_AllTools(t *testing.T) {
-	svc, err := New(Options{
+	svc, err := mcp.New(mcp.Options{
 		WorkspaceRoot: t.TempDir(),
-		Subsystems: []Subsystem{
+		Subsystems: []mcp.Subsystem{
 			brain.New(nil),
 			agentic.NewPrep(),
+			ide.New(nil, ide.Config{}),
 		},
 	})
 	if err != nil {
@@ -35,7 +38,7 @@ func TestBridgeToAPI_Good_AllTools(t *testing.T) {
 	}
 
 	bridge := api.NewToolBridge("/tools")
-	BridgeToAPI(svc, bridge)
+	mcp.BridgeToAPI(svc, bridge)
 
 	svcCount := len(svc.Tools())
 	bridgeCount := len(bridge.Tools())
@@ -66,13 +69,13 @@ func TestBridgeToAPI_Good_AllTools(t *testing.T) {
 }
 
 func TestBridgeToAPI_Good_DescribableGroup(t *testing.T) {
-	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	svc, err := mcp.New(mcp.Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	bridge := api.NewToolBridge("/tools")
-	BridgeToAPI(svc, bridge)
+	mcp.BridgeToAPI(svc, bridge)
 
 	// ToolBridge implements DescribableGroup.
 	var dg api.DescribableGroup = bridge
@@ -104,13 +107,13 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc, err := New(Options{WorkspaceRoot: tmpDir})
+	svc, err := mcp.New(mcp.Options{WorkspaceRoot: tmpDir})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	bridge := api.NewToolBridge("/tools")
-	BridgeToAPI(svc, bridge)
+	mcp.BridgeToAPI(svc, bridge)
 
 	// Register with a Gin engine and make a request.
 	engine := gin.New()
@@ -128,7 +131,7 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 	}
 
 	// Parse the response envelope.
-	var resp api.Response[ReadFileOutput]
+	var resp api.Response[mcp.ReadFileOutput]
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
@@ -144,13 +147,13 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 }
 
 func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
-	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	svc, err := mcp.New(mcp.Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	bridge := api.NewToolBridge("/tools")
-	BridgeToAPI(svc, bridge)
+	mcp.BridgeToAPI(svc, bridge)
 
 	engine := gin.New()
 	rg := engine.Group(bridge.BasePath())
@@ -184,19 +187,19 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 }
 
 func TestBridgeToAPI_Bad_OversizedBody(t *testing.T) {
-	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	svc, err := mcp.New(mcp.Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	bridge := api.NewToolBridge("/tools")
-	BridgeToAPI(svc, bridge)
+	mcp.BridgeToAPI(svc, bridge)
 
 	engine := gin.New()
 	rg := engine.Group(bridge.BasePath())
 	bridge.RegisterRoutes(rg)
 
-	body := strings.Repeat("a", maxBodySize+1)
+	body := strings.Repeat("a", 10<<20+1)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -219,13 +222,13 @@ func TestBridgeToAPI_Bad_OversizedBody(t *testing.T) {
 }
 
 func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
-	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	svc, err := mcp.New(mcp.Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	bridge := api.NewToolBridge("/tools")
-	BridgeToAPI(svc, bridge)
+	mcp.BridgeToAPI(svc, bridge)
 
 	// Create an api.Engine with the bridge registered and Swagger enabled.
 	e, err := api.New(
@@ -261,7 +264,7 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 		t.Fatalf("expected 200 for /tools/lang_list, got %d", resp2.StatusCode)
 	}
 
-	var langResp api.Response[GetSupportedLanguagesOutput]
+	var langResp api.Response[mcp.GetSupportedLanguagesOutput]
 	if err := json.NewDecoder(resp2.Body).Decode(&langResp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
