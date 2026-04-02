@@ -119,3 +119,31 @@ func TestSetNotifier_Good_EmitsChannelEvents(t *testing.T) {
 		t.Fatalf("expected payload to include running status, got %#v", notifier.data)
 	}
 }
+
+func TestEmitHarvestComplete_Good_EmitsChannelEvents(t *testing.T) {
+	s := NewPrep()
+	notifier := &recordingNotifier{}
+	s.SetNotifier(notifier)
+
+	s.emitHarvestComplete(context.Background(), "go-io-123", "go-io", 4, true)
+
+	if notifier.channel != "harvest.complete" {
+		t.Fatalf("expected harvest.complete channel, got %q", notifier.channel)
+	}
+	payload, ok := notifier.data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload object, got %#v", notifier.data)
+	}
+	if payload["workspace"] != "go-io-123" {
+		t.Fatalf("expected workspace go-io-123, got %#v", payload["workspace"])
+	}
+	if payload["repo"] != "go-io" {
+		t.Fatalf("expected repo go-io, got %#v", payload["repo"])
+	}
+	if payload["findings"] != 4 {
+		t.Fatalf("expected findings 4, got %#v", payload["findings"])
+	}
+	if payload["issue_created"] != true {
+		t.Fatalf("expected issue_created true, got %#v", payload["issue_created"])
+	}
+}

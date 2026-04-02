@@ -132,25 +132,15 @@ func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, me
 		return err
 	}
 
-	value := reflect.ValueOf(conn)
-	call := value.MethodByName("Notify")
-	if !call.IsValid() {
+	notifier, ok := conn.(interface {
+		Notify(context.Context, string, any) error
+	})
+	if !ok {
 		return coreNotifyError("connection Notify method unavailable")
 	}
 
-	results := call.Call([]reflect.Value{
-		reflect.ValueOf(ctx),
-		reflect.ValueOf(method),
-		reflect.ValueOf(payload),
-	})
-	if len(results) != 1 {
-		return coreNotifyError("unexpected Notify result shape")
-	}
-	if !results[0].IsNil() {
-		if err, ok := results[0].Interface().(error); ok {
-			return err
-		}
-		return coreNotifyError("Notify returned non-error result")
+	if err := notifier.Notify(ctx, method, payload); err != nil {
+		return err
 	}
 	return nil
 }
