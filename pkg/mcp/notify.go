@@ -157,6 +157,14 @@ func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.Se
 	s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 }
 
+// SendNotificationToClient sends a log-level notification to one connected
+// MCP client.
+//
+//	s.SendNotificationToClient(ctx, client, "info", "monitor", data)
+func (s *Service) SendNotificationToClient(ctx context.Context, client *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
+	s.SendNotificationToSession(ctx, client, level, logger, data)
+}
+
 func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
 	if s == nil || s.server == nil || session == nil {
 		return
@@ -204,6 +212,13 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 	if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
 		s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 	}
+}
+
+// ChannelSendToClient pushes a channel event to one connected MCP client.
+//
+//	s.ChannelSendToClient(ctx, client, "agent.progress", progressData)
+func (s *Service) ChannelSendToClient(ctx context.Context, client *mcp.ServerSession, channel string, data any) {
+	s.ChannelSendToSession(ctx, client, channel, data)
 }
 
 // Sessions returns an iterator over all connected MCP sessions.

@@ -306,6 +306,102 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 	}
 }
 
+func TestChannelSendToClient_Good_CustomNotification(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
+	if err != nil {
+		t.Fatalf("Connect() failed: %v", err)
+	}
+	defer session.Close()
+
+	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
+		return msg["method"] == channelNotificationMethod
+	})
+
+	sent := make(chan struct{})
+	go func() {
+		svc.ChannelSendToClient(ctx, session, ChannelBuildComplete, map[string]any{
+			"repo": "go-io",
+		})
+		close(sent)
+	}()
+
+	select {
+	case <-sent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for notification send to complete")
+	}
+
+	res := <-read
+	if res.err != nil {
+		t.Fatalf("failed to read custom notification: %v", res.err)
+	}
+	msg := res.msg
+	if msg["method"] != channelNotificationMethod {
+		t.Fatalf("expected method %q, got %v", channelNotificationMethod, msg["method"])
+	}
+}
+
+func TestSendNotificationToClient_Good_CustomNotification(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
+	if err != nil {
+		t.Fatalf("Connect() failed: %v", err)
+	}
+	defer session.Close()
+
+	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
+		return msg["method"] == loggingNotificationMethod
+	})
+
+	sent := make(chan struct{})
+	go func() {
+		svc.SendNotificationToClient(ctx, session, "info", "test", map[string]any{
+			"event": ChannelBuildComplete,
+		})
+		close(sent)
+	}()
+
+	select {
+	case <-sent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for notification send to complete")
+	}
+
+	res := <-read
+	if res.err != nil {
+		t.Fatalf("failed to read notification: %v", res.err)
+	}
+	msg := res.msg
+	if msg["method"] != loggingNotificationMethod {
+		t.Fatalf("expected method %q, got %v", loggingNotificationMethod, msg["method"])
+	}
+}
+
 func TestChannelCapability_Good(t *testing.T) {
 	caps := channelCapability()
 	raw, ok := caps["claude/channel"]
