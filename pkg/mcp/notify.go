@@ -203,11 +203,21 @@ func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, me
 	}
 	ctx = normalizeNotificationContext(ctx)
 
-	conn, err := sessionConnection(session)
+	if conn, err := sessionMCPConnection(session); err == nil {
+		if notifier, ok := conn.(interface {
+			Notify(context.Context, string, any) error
+		}); ok {
+			if err := notifier.Notify(ctx, method, payload); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	conn, err := sessionJSONRPCConnection(session)
 	if err != nil {
 		return err
 	}
-
 	notifier, ok := conn.(interface {
 		Notify(context.Context, string, any) error
 	})
@@ -221,7 +231,21 @@ func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, me
 	return nil
 }
 
-func sessionConnection(session *mcp.ServerSession) (any, error) {
+func sessionMCPConnection(session *mcp.ServerSession) (any, error) {
+	value := reflect.ValueOf(session)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return nil, coreNotifyError("invalid session")
+	}
+
+	field := value.Elem().FieldByName("mcpConn")
+	if !field.IsValid() {
+		return nil, coreNotifyError("session mcp connection field unavailable")
+	}
+
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface(), nil
+}
+
+func sessionJSONRPCConnection(session *mcp.ServerSession) (any, error) {
 	value := reflect.ValueOf(session)
 	if value.Kind() != reflect.Ptr || value.IsNil() {
 		return nil, coreNotifyError("invalid session")
