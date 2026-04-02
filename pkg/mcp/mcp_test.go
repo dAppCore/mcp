@@ -95,6 +95,74 @@ func TestNew_Good_RegistersBuiltInTools(t *testing.T) {
 	}
 }
 
+func TestGetSupportedLanguages_Good_IncludesAllDetectedLanguages(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	_, out, err := s.getSupportedLanguages(nil, nil, GetSupportedLanguagesInput{})
+	if err != nil {
+		t.Fatalf("getSupportedLanguages failed: %v", err)
+	}
+
+	if got, want := len(out.Languages), 23; got != want {
+		t.Fatalf("expected %d supported languages, got %d", want, got)
+	}
+
+	got := map[string]bool{}
+	for _, lang := range out.Languages {
+		got[lang.ID] = true
+	}
+
+	for _, want := range []string{
+		"typescript",
+		"javascript",
+		"go",
+		"python",
+		"rust",
+		"ruby",
+		"java",
+		"php",
+		"c",
+		"cpp",
+		"csharp",
+		"html",
+		"css",
+		"scss",
+		"json",
+		"yaml",
+		"xml",
+		"markdown",
+		"sql",
+		"shell",
+		"swift",
+		"kotlin",
+		"dockerfile",
+	} {
+		if !got[want] {
+			t.Fatalf("expected language %q to be listed", want)
+		}
+	}
+}
+
+func TestDetectLanguageFromPath_Good_KnownExtensions(t *testing.T) {
+	cases := map[string]string{
+		"main.go":           "go",
+		"index.tsx":         "typescript",
+		"style.scss":        "scss",
+		"Program.cs":        "csharp",
+		"module.kt":         "kotlin",
+		"docker/Dockerfile": "dockerfile",
+	}
+
+	for path, want := range cases {
+		if got := detectLanguageFromPath(path); got != want {
+			t.Fatalf("detectLanguageFromPath(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
 func TestMedium_Good_ReadWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})

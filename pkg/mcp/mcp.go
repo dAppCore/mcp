@@ -438,7 +438,7 @@ type GetSupportedLanguagesInput struct{}
 
 // GetSupportedLanguagesOutput contains the list of supported languages.
 //
-//	// len(out.Languages) == 15
+//	// len(out.Languages) == 23
 //	// out.Languages[0].ID == "typescript"
 type GetSupportedLanguagesOutput struct {
 	Languages []LanguageInfo `json:"languages"` // all recognised languages
@@ -568,24 +568,7 @@ func (s *Service) detectLanguage(ctx context.Context, req *mcp.CallToolRequest, 
 }
 
 func (s *Service) getSupportedLanguages(ctx context.Context, req *mcp.CallToolRequest, input GetSupportedLanguagesInput) (*mcp.CallToolResult, GetSupportedLanguagesOutput, error) {
-	languages := []LanguageInfo{
-		{ID: "typescript", Name: "TypeScript", Extensions: []string{".ts", ".tsx"}},
-		{ID: "javascript", Name: "JavaScript", Extensions: []string{".js", ".jsx"}},
-		{ID: "go", Name: "Go", Extensions: []string{".go"}},
-		{ID: "python", Name: "Python", Extensions: []string{".py"}},
-		{ID: "rust", Name: "Rust", Extensions: []string{".rs"}},
-		{ID: "java", Name: "Java", Extensions: []string{".java"}},
-		{ID: "php", Name: "PHP", Extensions: []string{".php"}},
-		{ID: "ruby", Name: "Ruby", Extensions: []string{".rb"}},
-		{ID: "html", Name: "HTML", Extensions: []string{".html", ".htm"}},
-		{ID: "css", Name: "CSS", Extensions: []string{".css"}},
-		{ID: "json", Name: "JSON", Extensions: []string{".json"}},
-		{ID: "yaml", Name: "YAML", Extensions: []string{".yaml", ".yml"}},
-		{ID: "markdown", Name: "Markdown", Extensions: []string{".md", ".markdown"}},
-		{ID: "sql", Name: "SQL", Extensions: []string{".sql"}},
-		{ID: "shell", Name: "Shell", Extensions: []string{".sh", ".bash"}},
-	}
-	return nil, GetSupportedLanguagesOutput{Languages: languages}, nil
+	return nil, GetSupportedLanguagesOutput{Languages: supportedLanguages()}, nil
 }
 
 func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input EditDiffInput) (*mcp.CallToolResult, EditDiffOutput, error) {
@@ -627,57 +610,78 @@ func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input 
 
 // detectLanguageFromPath maps file extensions to language IDs.
 func detectLanguageFromPath(path string) string {
+	if core.PathBase(path) == "Dockerfile" {
+		return "dockerfile"
+	}
+
 	ext := core.PathExt(path)
-	switch ext {
-	case ".ts", ".tsx":
-		return "typescript"
-	case ".js", ".jsx":
-		return "javascript"
-	case ".go":
-		return "go"
-	case ".py":
-		return "python"
-	case ".rs":
-		return "rust"
-	case ".rb":
-		return "ruby"
-	case ".java":
-		return "java"
-	case ".php":
-		return "php"
-	case ".c", ".h":
-		return "c"
-	case ".cpp", ".hpp", ".cc", ".cxx":
-		return "cpp"
-	case ".cs":
-		return "csharp"
-	case ".html", ".htm":
-		return "html"
-	case ".css":
-		return "css"
-	case ".scss":
-		return "scss"
-	case ".json":
-		return "json"
-	case ".yaml", ".yml":
-		return "yaml"
-	case ".xml":
-		return "xml"
-	case ".md", ".markdown":
-		return "markdown"
-	case ".sql":
-		return "sql"
-	case ".sh", ".bash":
-		return "shell"
-	case ".swift":
-		return "swift"
-	case ".kt", ".kts":
-		return "kotlin"
-	default:
-		if core.PathBase(path) == "Dockerfile" {
-			return "dockerfile"
-		}
-		return "plaintext"
+	if lang, ok := languageByExtension[ext]; ok {
+		return lang
+	}
+	return "plaintext"
+}
+
+var languageByExtension = map[string]string{
+	".ts":       "typescript",
+	".tsx":      "typescript",
+	".js":       "javascript",
+	".jsx":      "javascript",
+	".go":       "go",
+	".py":       "python",
+	".rs":       "rust",
+	".rb":       "ruby",
+	".java":     "java",
+	".php":      "php",
+	".c":        "c",
+	".h":        "c",
+	".cpp":      "cpp",
+	".hpp":      "cpp",
+	".cc":       "cpp",
+	".cxx":      "cpp",
+	".cs":       "csharp",
+	".html":     "html",
+	".htm":      "html",
+	".css":      "css",
+	".scss":     "scss",
+	".json":     "json",
+	".yaml":     "yaml",
+	".yml":      "yaml",
+	".xml":      "xml",
+	".md":       "markdown",
+	".markdown": "markdown",
+	".sql":      "sql",
+	".sh":       "shell",
+	".bash":     "shell",
+	".swift":    "swift",
+	".kt":       "kotlin",
+	".kts":      "kotlin",
+}
+
+func supportedLanguages() []LanguageInfo {
+	return []LanguageInfo{
+		{ID: "typescript", Name: "TypeScript", Extensions: []string{".ts", ".tsx"}},
+		{ID: "javascript", Name: "JavaScript", Extensions: []string{".js", ".jsx"}},
+		{ID: "go", Name: "Go", Extensions: []string{".go"}},
+		{ID: "python", Name: "Python", Extensions: []string{".py"}},
+		{ID: "rust", Name: "Rust", Extensions: []string{".rs"}},
+		{ID: "ruby", Name: "Ruby", Extensions: []string{".rb"}},
+		{ID: "java", Name: "Java", Extensions: []string{".java"}},
+		{ID: "php", Name: "PHP", Extensions: []string{".php"}},
+		{ID: "c", Name: "C", Extensions: []string{".c", ".h"}},
+		{ID: "cpp", Name: "C++", Extensions: []string{".cpp", ".hpp", ".cc", ".cxx"}},
+		{ID: "csharp", Name: "C#", Extensions: []string{".cs"}},
+		{ID: "html", Name: "HTML", Extensions: []string{".html", ".htm"}},
+		{ID: "css", Name: "CSS", Extensions: []string{".css"}},
+		{ID: "scss", Name: "SCSS", Extensions: []string{".scss"}},
+		{ID: "json", Name: "JSON", Extensions: []string{".json"}},
+		{ID: "yaml", Name: "YAML", Extensions: []string{".yaml", ".yml"}},
+		{ID: "xml", Name: "XML", Extensions: []string{".xml"}},
+		{ID: "markdown", Name: "Markdown", Extensions: []string{".md", ".markdown"}},
+		{ID: "sql", Name: "SQL", Extensions: []string{".sql"}},
+		{ID: "shell", Name: "Shell", Extensions: []string{".sh", ".bash"}},
+		{ID: "swift", Name: "Swift", Extensions: []string{".swift"}},
+		{ID: "kotlin", Name: "Kotlin", Extensions: []string{".kt", ".kts"}},
+		{ID: "dockerfile", Name: "Dockerfile", Extensions: []string{}},
 	}
 }
 
