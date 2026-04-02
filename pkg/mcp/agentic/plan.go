@@ -483,7 +483,7 @@ func writePlan(dir string, plan *Plan) (string, error) {
 		return "", err
 	}
 
-	return path, coreio.Local.Write(path, string(data))
+	return path, writeAtomic(path, string(data))
 }
 
 func validPlanStatus(status string) bool {

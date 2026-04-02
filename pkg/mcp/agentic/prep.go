@@ -278,20 +278,20 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
 	if data, err := coreio.Local.Read(claudeMdPath); err == nil {
-		coreio.Local.Write(filepath.Join(wsDir, "src", "CLAUDE.md"), data)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "CLAUDE.md"), data)
 		out.ClaudeMd = true
 	}
 	// Copy GEMINI.md from core/agent (ethics framework for all agents)
 	agentGeminiMd := filepath.Join(s.codePath, "core", "agent", "GEMINI.md")
 	if data, err := coreio.Local.Read(agentGeminiMd); err == nil {
-		coreio.Local.Write(filepath.Join(wsDir, "src", "GEMINI.md"), data)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "GEMINI.md"), data)
 	}
 
 	// Copy persona if specified
 	if persona != "" {
 		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
-			coreio.Local.Write(filepath.Join(wsDir, "src", "PERSONA.md"), data)
+			_ = writeAtomic(filepath.Join(wsDir, "src", "PERSONA.md"), data)
 		}
 	}
 
@@ -301,7 +301,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	} else if input.Task != "" {
 		todo := fmt.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		coreio.Local.Write(filepath.Join(wsDir, "src", "TODO.md"), todo)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "TODO.md"), todo)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -434,7 +434,7 @@ Do NOT push. Commit only — a reviewer will verify and push.
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "PROMPT.md"), prompt)
+	_ = writeAtomic(filepath.Join(wsDir, "src", "PROMPT.md"), prompt)
 }
 
 // --- Plan template rendering ---
@@ -512,7 +512,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
 	}
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "PLAN.md"), plan.String())
+	_ = writeAtomic(filepath.Join(wsDir, "src", "PLAN.md"), plan.String())
 }
 
 // --- Helpers (unchanged) ---
@@ -579,7 +579,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 			return '-'
 		}, page.Title) + ".md"
 
-		coreio.Local.Write(filepath.Join(wsDir, "src", "kb", filename), string(content))
+		_ = writeAtomic(filepath.Join(wsDir, "src", "kb", filename), string(content))
 		count++
 	}
 
@@ -593,7 +593,7 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	for _, file := range specFiles {
 		src := filepath.Join(s.specsPath, file)
 		if data, err := coreio.Local.Read(src); err == nil {
-			coreio.Local.Write(filepath.Join(wsDir, "src", "specs", file), data)
+			_ = writeAtomic(filepath.Join(wsDir, "src", "specs", file), data)
 			count++
 		}
 	}
@@ -645,7 +645,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		content.WriteString(fmt.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "CONTEXT.md"), content.String())
+	_ = writeAtomic(filepath.Join(wsDir, "src", "CONTEXT.md"), content.String())
 	return len(result.Memories)
 }
 
@@ -682,7 +682,7 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += fmt.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		coreio.Local.Write(filepath.Join(wsDir, "src", "CONSUMERS.md"), content)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "CONSUMERS.md"), content)
 	}
 
 	return len(consumers)
@@ -699,7 +699,7 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		coreio.Local.Write(filepath.Join(wsDir, "src", "RECENT.md"), content)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "RECENT.md"), content)
 	}
 
 	return len(lines)
@@ -735,5 +735,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += fmt.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "TODO.md"), content)
+	_ = writeAtomic(filepath.Join(wsDir, "src", "TODO.md"), content)
 }

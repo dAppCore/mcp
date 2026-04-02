@@ -236,7 +236,7 @@ func (s *PrepSubsystem) storeReviewOutput(repoDir, repo, reviewer, output string
 	}
 
 	name := fmt.Sprintf("%s-%s-%d.json", repo, reviewer, time.Now().Unix())
-	_ = coreio.Local.Write(filepath.Join(dataDir, name), string(data))
+	_ = writeAtomic(filepath.Join(dataDir, name), string(data))
 }
 
 func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
@@ -246,7 +246,7 @@ func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
 	if err != nil {
 		return
 	}
-	_ = coreio.Local.Write(path, string(data))
+	_ = writeAtomic(path, string(data))
 }
 
 func (s *PrepSubsystem) loadRateLimitState() *RateLimitInfo {

@@ -80,7 +80,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	if input.Answer != "" {
 		answerPath := filepath.Join(srcDir, "ANSWER.md")
 		content := fmt.Sprintf("# Answer\n\n%s\n", input.Answer)
-		if err := coreio.Local.Write(answerPath, content); err != nil {
+		if err := writeAtomic(answerPath, content); err != nil {
 			return nil, ResumeOutput{}, coreerr.E("resume", "failed to write ANSWER.md", err)
 		}
 	}

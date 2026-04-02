@@ -56,7 +56,7 @@ func writeStatus(wsDir string, status *WorkspaceStatus) error {
 	if err != nil {
 		return err
 	}
-	return coreio.Local.Write(filepath.Join(wsDir, "status.json"), string(data))
+	return writeAtomic(filepath.Join(wsDir, "status.json"), string(data))
 }
 
 func readStatus(wsDir string) (*WorkspaceStatus, error) {
