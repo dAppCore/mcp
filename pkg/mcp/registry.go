@@ -4,8 +4,6 @@ package mcp
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -24,7 +22,36 @@ import (
 type RESTHandler func(ctx context.Context, body []byte) (any, error)
 
 // errInvalidRESTInput marks malformed JSON bodies for the REST bridge.
-var errInvalidRESTInput = errors.New("invalid REST input")
+var errInvalidRESTInput = &restInputError{}
+
+// restInputError preserves invalid-REST-input identity without stdlib
+// error constructors so bridge.go can keep using errors.Is.
+type restInputError struct {
+	cause error
+}
+
+func (e *restInputError) Error() string {
+	if e == nil || e.cause == nil {
+		return "invalid REST input"
+	}
+	return "invalid REST input: " + e.cause.Error()
+}
+
+func (e *restInputError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+func (e *restInputError) Is(target error) bool {
+	_, ok := target.(*restInputError)
+	return ok
+}
+
+func invalidRESTInputError(cause error) error {
+	return &restInputError{cause: cause}
+}
 
 // ToolRecord captures metadata about a registered MCP tool.
 //
@@ -58,9 +85,9 @@ func AddToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 		if len(body) > 0 {
 			if r := core.JSONUnmarshal(body, &input); !r.OK {
 				if err, ok := r.Value.(error); ok {
-					return nil, fmt.Errorf("%w: %v", errInvalidRESTInput, err)
+					return nil, invalidRESTInputError(err)
 				}
-				return nil, fmt.Errorf("%w", errInvalidRESTInput)
+				return nil, invalidRESTInputError(nil)
 			}
 		}
 		// nil: REST callers have no MCP request context.

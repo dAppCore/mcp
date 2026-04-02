@@ -3,6 +3,8 @@
 package mcp
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"forge.lthn.ai/core/go-process"
@@ -252,5 +254,31 @@ func TestToolRegistry_Good_TimeSchemas(t *testing.T) {
 	}
 	if got := startedAt["format"]; got != "date-time" {
 		t.Fatalf("expected process_start startedAt format date-time, got %#v", got)
+	}
+}
+
+func TestToolRegistry_Bad_InvalidRESTInputIsClassified(t *testing.T) {
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var record ToolRecord
+	for _, tr := range svc.Tools() {
+		if tr.Name == "file_read" {
+			record = tr
+			break
+		}
+	}
+	if record.Name == "" {
+		t.Fatal("file_read not found in registry")
+	}
+
+	_, err = record.RESTHandler(context.Background(), []byte("{bad json"))
+	if err == nil {
+		t.Fatal("expected REST handler error for malformed JSON")
+	}
+	if !errors.Is(err, errInvalidRESTInput) {
+		t.Fatalf("expected invalid REST input error, got %v", err)
 	}
 }
