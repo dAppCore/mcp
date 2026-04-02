@@ -68,8 +68,12 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 
 	tools := svc.Tools()
 	// Built-in tools: file_read, file_write, file_delete, file_rename,
-	// file_exists, file_edit, dir_list, dir_create, lang_detect, lang_list
-	const expectedCount = 10
+	// file_exists, file_edit, dir_list, dir_create, lang_detect, lang_list,
+	// metrics_record, metrics_query, rag_query, rag_ingest, rag_collections,
+	// webview_connect, webview_disconnect, webview_navigate, webview_click,
+	// webview_type, webview_query, webview_console, webview_eval,
+	// webview_screenshot, webview_wait
+	const expectedCount = 25
 	if len(tools) != expectedCount {
 		t.Errorf("expected %d tools, got %d", expectedCount, len(tools))
 		for _, tr := range tools {
@@ -86,6 +90,9 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 
 	fileTools := []string{"file_read", "file_write", "file_delete", "file_rename", "file_exists", "file_edit", "dir_list", "dir_create"}
 	langTools := []string{"lang_detect", "lang_list"}
+	metricsTools := []string{"metrics_record", "metrics_query"}
+	ragTools := []string{"rag_query", "rag_ingest", "rag_collections"}
+	webviewTools := []string{"webview_connect", "webview_disconnect", "webview_navigate", "webview_click", "webview_type", "webview_query", "webview_console", "webview_eval", "webview_screenshot", "webview_wait"}
 
 	byName := make(map[string]ToolRecord)
 	for _, tr := range svc.Tools() {
@@ -111,6 +118,39 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 		}
 		if tr.Group != "language" {
 			t.Errorf("tool %s: expected group 'language', got %q", name, tr.Group)
+		}
+	}
+
+	for _, name := range metricsTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "metrics" {
+			t.Errorf("tool %s: expected group 'metrics', got %q", name, tr.Group)
+		}
+	}
+
+	for _, name := range ragTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "rag" {
+			t.Errorf("tool %s: expected group 'rag', got %q", name, tr.Group)
+		}
+	}
+
+	for _, name := range webviewTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "webview" {
+			t.Errorf("tool %s: expected group 'webview', got %q", name, tr.Group)
 		}
 	}
 }

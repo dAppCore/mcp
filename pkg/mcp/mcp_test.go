@@ -55,6 +55,46 @@ func TestNew_Good_NoRestriction(t *testing.T) {
 	}
 }
 
+func TestNew_Good_RegistersBuiltInTools(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	tools := map[string]bool{}
+	for _, rec := range s.Tools() {
+		tools[rec.Name] = true
+	}
+
+	for _, name := range []string{
+		"metrics_record",
+		"metrics_query",
+		"rag_query",
+		"rag_ingest",
+		"rag_collections",
+		"webview_connect",
+		"webview_disconnect",
+		"webview_navigate",
+		"webview_click",
+		"webview_type",
+		"webview_query",
+		"webview_console",
+		"webview_eval",
+		"webview_screenshot",
+		"webview_wait",
+	} {
+		if !tools[name] {
+			t.Fatalf("expected tool %q to be registered", name)
+		}
+	}
+
+	for _, name := range []string{"process_start", "ws_start"} {
+		if tools[name] {
+			t.Fatalf("did not expect tool %q to be registered without dependencies", name)
+		}
+	}
+}
+
 func TestMedium_Good_ReadWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})

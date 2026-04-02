@@ -99,17 +99,17 @@ type RAGCollectionsOutput struct {
 
 // registerRAGTools adds RAG tools to the MCP server.
 func (s *Service) registerRAGTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_query",
 		Description: "Query the RAG vector database for relevant documentation. Returns semantically similar content based on the query.",
 	}, s.ragQuery)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_ingest",
 		Description: "Ingest documents into the RAG vector database. Supports both single files and directories.",
 	}, s.ragIngest)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_collections",
 		Description: "List all available collections in the RAG vector database.",
 	}, s.ragCollections)

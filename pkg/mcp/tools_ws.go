@@ -47,12 +47,12 @@ func (s *Service) registerWSTools(server *mcp.Server) bool {
 		return false
 	}
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "ws", &mcp.Tool{
 		Name:        "ws_start",
 		Description: "Start the WebSocket server for real-time process output streaming.",
 	}, s.wsStart)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "ws", &mcp.Tool{
 		Name:        "ws_info",
 		Description: "Get WebSocket hub statistics (connected clients and active channels).",
 	}, s.wsInfo)

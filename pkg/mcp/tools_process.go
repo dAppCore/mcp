@@ -139,32 +139,32 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 		return false
 	}
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_start",
 		Description: "Start a new external process. Returns process ID for tracking.",
 	}, s.processStart)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_stop",
 		Description: "Gracefully stop a running process by ID.",
 	}, s.processStop)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_kill",
 		Description: "Force kill a process by ID. Use when process_stop doesn't work.",
 	}, s.processKill)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_list",
 		Description: "List all managed processes. Use running_only=true for only active processes.",
 	}, s.processList)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_output",
 		Description: "Get the captured output of a process by ID.",
 	}, s.processOutput)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_input",
 		Description: "Send input to a running process stdin.",
 	}, s.processInput)

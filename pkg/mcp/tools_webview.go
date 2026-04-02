@@ -201,52 +201,52 @@ type WebviewDisconnectOutput struct {
 
 // registerWebviewTools adds webview tools to the MCP server.
 func (s *Service) registerWebviewTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_connect",
 		Description: "Connect to Chrome DevTools Protocol. Start Chrome with --remote-debugging-port=9222 first.",
 	}, s.webviewConnect)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_disconnect",
 		Description: "Disconnect from Chrome DevTools.",
 	}, s.webviewDisconnect)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_navigate",
 		Description: "Navigate the browser to a URL.",
 	}, s.webviewNavigate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_click",
 		Description: "Click on an element by CSS selector.",
 	}, s.webviewClick)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_type",
 		Description: "Type text into an element by CSS selector.",
 	}, s.webviewType)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_query",
 		Description: "Query DOM elements by CSS selector.",
 	}, s.webviewQuery)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_console",
 		Description: "Get browser console output.",
 	}, s.webviewConsole)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_eval",
 		Description: "Evaluate JavaScript in the browser context.",
 	}, s.webviewEval)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_screenshot",
 		Description: "Capture a screenshot of the browser window.",
 	}, s.webviewScreenshot)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_wait",
 		Description: "Wait for an element to appear by CSS selector.",
 	}, s.webviewWait)
