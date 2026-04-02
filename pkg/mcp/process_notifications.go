@@ -100,6 +100,9 @@ func (s *Service) emitTestResult(ctx context.Context, processID string, exitCode
 		"status":  status,
 		"passed":  status == "passed",
 	}
+	if meta.Dir != "" {
+		payload["dir"] = meta.Dir
+	}
 	if !meta.StartedAt.IsZero() {
 		payload["startedAt"] = meta.StartedAt
 	}

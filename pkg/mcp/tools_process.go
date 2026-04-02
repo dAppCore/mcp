@@ -208,7 +208,12 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 		StartedAt: output.StartedAt,
 	})
 	s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
-		"id": output.ID, "pid": output.PID, "command": output.Command,
+		"id":        output.ID,
+		"pid":       output.PID,
+		"command":   output.Command,
+		"args":      output.Args,
+		"dir":       info.Dir,
+		"startedAt": output.StartedAt,
 	})
 	return nil, output, nil
 }
@@ -234,7 +239,15 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessStopOutput{}, log.E("processStop", "failed to stop process", err)
 	}
 
-	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{"id": input.ID, "signal": "stop"})
+	info := proc.Info()
+	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
+		"id":        input.ID,
+		"signal":    "stop",
+		"command":   info.Command,
+		"args":      info.Args,
+		"dir":       info.Dir,
+		"startedAt": info.StartedAt,
+	})
 	s.emitTestResult(ctx, input.ID, 0, 0, "stop", "")
 	return nil, ProcessStopOutput{
 		ID:      input.ID,
@@ -251,12 +264,26 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessKillOutput{}, errIDEmpty
 	}
 
+	proc, err := s.processService.Get(input.ID)
+	if err != nil {
+		log.Error("mcp: process kill failed", "id", input.ID, "err", err)
+		return nil, ProcessKillOutput{}, log.E("processKill", "process not found", err)
+	}
+
 	if err := s.processService.Kill(input.ID); err != nil {
 		log.Error("mcp: process kill failed", "id", input.ID, "err", err)
 		return nil, ProcessKillOutput{}, log.E("processKill", "failed to kill process", err)
 	}
 
-	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{"id": input.ID, "signal": "kill"})
+	info := proc.Info()
+	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
+		"id":        input.ID,
+		"signal":    "kill",
+		"command":   info.Command,
+		"args":      info.Args,
+		"dir":       info.Dir,
+		"startedAt": info.StartedAt,
+	})
 	s.emitTestResult(ctx, input.ID, 0, 0, "kill", "")
 	return nil, ProcessKillOutput{
 		ID:      input.ID,

@@ -135,6 +135,15 @@ func TestHandleIPCEvents_Good_ForwardsProcessActions(t *testing.T) {
 			if payload["id"] != "proc-1" || payload["command"] != "go" {
 				t.Fatalf("unexpected payload: %#v", payload)
 			}
+			if payload["dir"] != "/workspace" {
+				t.Fatalf("expected dir /workspace, got %#v", payload["dir"])
+			}
+			if payload["pid"] != float64(1234) {
+				t.Fatalf("expected pid 1234, got %#v", payload["pid"])
+			}
+			if payload["args"] == nil {
+				t.Fatalf("expected args in payload, got %#v", payload)
+			}
 			return
 		case <-deadline.C:
 			t.Fatal("timed out waiting for process start notification")
@@ -310,6 +319,9 @@ func TestHandleIPCEvents_Good_ForwardsTestResult(t *testing.T) {
 			}
 			if payload["id"] != "proc-test" || payload["command"] != "go" {
 				t.Fatalf("unexpected payload: %#v", payload)
+			}
+			if payload["dir"] != nil {
+				t.Fatalf("expected dir to be absent when not recorded, got %#v", payload["dir"])
 			}
 			if payload["status"] != "passed" || payload["passed"] != true {
 				t.Fatalf("expected passed test result, got %#v", payload)

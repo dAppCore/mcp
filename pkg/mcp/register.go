@@ -109,18 +109,20 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	case ChannelPush:
 		s.ChannelSend(ctx, ev.Channel, ev.Data)
 	case process.ActionProcessStarted:
+		startedAt := time.Now()
 		s.recordProcessRuntime(ev.ID, processRuntime{
 			Command:   ev.Command,
 			Args:      ev.Args,
 			Dir:       ev.Dir,
-			StartedAt: time.Now(),
+			StartedAt: startedAt,
 		})
 		s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
-			"id":      ev.ID,
-			"command": ev.Command,
-			"args":    ev.Args,
-			"dir":     ev.Dir,
-			"pid":     ev.PID,
+			"id":        ev.ID,
+			"command":   ev.Command,
+			"args":      ev.Args,
+			"dir":       ev.Dir,
+			"pid":       ev.PID,
+			"startedAt": startedAt,
 		})
 	case process.ActionProcessOutput:
 		s.ChannelSend(ctx, ChannelProcessOutput, map[string]any{
@@ -129,10 +131,19 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 			"stream": ev.Stream,
 		})
 	case process.ActionProcessExited:
+		meta, ok := s.processRuntimeFor(ev.ID)
 		payload := map[string]any{
 			"id":       ev.ID,
 			"exitCode": ev.ExitCode,
 			"duration": ev.Duration,
+		}
+		if ok {
+			payload["command"] = meta.Command
+			payload["args"] = meta.Args
+			payload["dir"] = meta.Dir
+			if !meta.StartedAt.IsZero() {
+				payload["startedAt"] = meta.StartedAt
+			}
 		}
 		if ev.Error != nil {
 			payload["error"] = ev.Error.Error()
@@ -144,10 +155,20 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 		}
 		s.emitTestResult(ctx, ev.ID, ev.ExitCode, ev.Duration, "", errText)
 	case process.ActionProcessKilled:
-		s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
+		meta, ok := s.processRuntimeFor(ev.ID)
+		payload := map[string]any{
 			"id":     ev.ID,
 			"signal": ev.Signal,
-		})
+		}
+		if ok {
+			payload["command"] = meta.Command
+			payload["args"] = meta.Args
+			payload["dir"] = meta.Dir
+			if !meta.StartedAt.IsZero() {
+				payload["startedAt"] = meta.StartedAt
+			}
+		}
+		s.ChannelSend(ctx, ChannelProcessExit, payload)
 		s.emitTestResult(ctx, ev.ID, 0, 0, ev.Signal, "")
 	}
 	return core.Result{OK: true}
