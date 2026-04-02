@@ -147,6 +147,12 @@ func (s *PrepSubsystem) registerPlanTools(server *mcp.Server) {
 		Description: "Read an implementation plan by ID. Returns the full plan with all phases, criteria, and status.",
 	}, s.planRead)
 
+	// agentic_plan_status is kept as a user-facing alias for the read tool.
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "agentic_plan_status",
+		Description: "Get the current status of an implementation plan by ID. Returns the full plan with all phases, criteria, and status.",
+	}, s.planRead)
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "agentic_plan_update",
 		Description: "Update an implementation plan. Supports partial updates — only provided fields are changed. Use this to advance status, update phases, or add notes.",

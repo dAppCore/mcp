@@ -82,12 +82,6 @@ func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input
 	build := BuildInfo{ID: input.BuildID, Status: "unknown"}
 	if cached, ok := s.buildSnapshot(input.BuildID); ok {
 		build = cached
-	} else if input.BuildID != "" {
-		s.addBuild(build)
-	}
-
-	if input.BuildID != "" {
-		s.appendBuildLog(input.BuildID, "build status requested")
 	}
 
 	return nil, BuildStatusOutput{Build: build}, nil

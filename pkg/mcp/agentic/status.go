@@ -12,7 +12,6 @@ import (
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -97,9 +96,6 @@ func (s *PrepSubsystem) registerStatusTool(server *mcp.Server) {
 
 func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, input StatusInput) (*mcp.CallToolResult, StatusOutput, error) {
 	wsDirs := s.listWorkspaceDirs()
-	if len(wsDirs) == 0 {
-		return nil, StatusOutput{}, coreerr.E("status", "no workspaces found", nil)
-	}
 
 	var workspaces []WorkspaceInfo
 
