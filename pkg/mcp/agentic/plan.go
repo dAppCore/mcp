@@ -20,7 +20,7 @@ import (
 type Plan struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
-	Status    string    `json:"status"`            // draft, ready, in_progress, needs_verification, verified, approved
+	Status    string    `json:"status"` // draft, ready, in_progress, needs_verification, verified, approved
 	Repo      string    `json:"repo,omitempty"`
 	Org       string    `json:"org,omitempty"`
 	Objective string    `json:"objective"`
@@ -33,12 +33,20 @@ type Plan struct {
 
 // Phase represents a phase within an implementation plan.
 type Phase struct {
-	Number   int      `json:"number"`
-	Name     string   `json:"name"`
-	Status   string   `json:"status"`             // pending, in_progress, done
-	Criteria []string `json:"criteria,omitempty"`
-	Tests    int      `json:"tests,omitempty"`
-	Notes    string   `json:"notes,omitempty"`
+	Number      int          `json:"number"`
+	Name        string       `json:"name"`
+	Status      string       `json:"status"` // pending, in_progress, done
+	Criteria    []string     `json:"criteria,omitempty"`
+	Tests       int          `json:"tests,omitempty"`
+	Notes       string       `json:"notes,omitempty"`
+	Checkpoints []Checkpoint `json:"checkpoints,omitempty"`
+}
+
+// Checkpoint records phase progress or completion details.
+type Checkpoint struct {
+	Notes     string    `json:"notes,omitempty"`
+	Done      bool      `json:"done,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // --- Input/Output types ---
@@ -112,6 +120,20 @@ type PlanListOutput struct {
 	Plans   []Plan `json:"plans"`
 }
 
+// PlanCheckpointInput is the input for agentic_plan_checkpoint.
+type PlanCheckpointInput struct {
+	ID    string `json:"id"`
+	Phase int    `json:"phase"`
+	Notes string `json:"notes,omitempty"`
+	Done  bool   `json:"done,omitempty"`
+}
+
+// PlanCheckpointOutput is the output for agentic_plan_checkpoint.
+type PlanCheckpointOutput struct {
+	Success bool `json:"success"`
+	Plan    Plan `json:"plan"`
+}
+
 // --- Registration ---
 
 func (s *PrepSubsystem) registerPlanTools(server *mcp.Server) {
@@ -139,6 +161,11 @@ func (s *PrepSubsystem) registerPlanTools(server *mcp.Server) {
 		Name:        "agentic_plan_list",
 		Description: "List implementation plans. Supports filtering by status (draft, ready, in_progress, etc.) and repo.",
 	}, s.planList)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "agentic_plan_checkpoint",
+		Description: "Record a checkpoint for a plan phase and optionally mark the phase done.",
+	}, s.planCheckpoint)
 }
 
 // --- Handlers ---
@@ -306,6 +333,48 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 		Success: true,
 		Count:   len(plans),
 		Plans:   plans,
+	}, nil
+}
+
+func (s *PrepSubsystem) planCheckpoint(_ context.Context, _ *mcp.CallToolRequest, input PlanCheckpointInput) (*mcp.CallToolResult, PlanCheckpointOutput, error) {
+	if input.ID == "" {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "id is required", nil)
+	}
+	if input.Phase <= 0 {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "phase must be greater than zero", nil)
+	}
+	if input.Notes == "" && !input.Done {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "notes or done is required", nil)
+	}
+
+	plan, err := readPlan(s.plansDir(), input.ID)
+	if err != nil {
+		return nil, PlanCheckpointOutput{}, err
+	}
+
+	phaseIndex := input.Phase - 1
+	if phaseIndex >= len(plan.Phases) {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "phase not found", nil)
+	}
+
+	phase := &plan.Phases[phaseIndex]
+	phase.Checkpoints = append(phase.Checkpoints, Checkpoint{
+		Notes:     input.Notes,
+		Done:      input.Done,
+		CreatedAt: time.Now(),
+	})
+	if input.Done {
+		phase.Status = "done"
+	}
+
+	plan.UpdatedAt = time.Now()
+	if _, err := writePlan(s.plansDir(), plan); err != nil {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "failed to write plan", err)
+	}
+
+	return nil, PlanCheckpointOutput{
+		Success: true,
+		Plan:    *plan,
 	}, nil
 }
 
