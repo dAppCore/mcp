@@ -115,6 +115,7 @@ func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
 	}, s.prepWorkspace)
 
 	s.registerDispatchTool(server)
+	s.registerIssueTools(server)
 	s.registerStatusTool(server)
 	s.registerResumeTool(server)
 	s.registerCreatePRTool(server)
@@ -145,6 +146,7 @@ type PrepInput struct {
 	Org          string            `json:"org,omitempty"`           // default "core"
 	Issue        int               `json:"issue,omitempty"`         // Forge issue number
 	Task         string            `json:"task,omitempty"`          // Task description (if no issue)
+	Branch       string            `json:"branch,omitempty"`        // Override branch name
 	Template     string            `json:"template,omitempty"`      // Prompt template: conventions, security, coding (default: coding)
 	PlanTemplate string            `json:"plan_template,omitempty"` // Plan template slug: bug-fix, code-review, new-feature, refactor, feature-port
 	Variables    map[string]string `json:"variables,omitempty"`     // Template variable substitution
@@ -155,6 +157,7 @@ type PrepInput struct {
 type PrepOutput struct {
 	Success      bool   `json:"success"`
 	WorkspaceDir string `json:"workspace_dir"`
+	Branch       string `json:"branch,omitempty"`
 	WikiPages    int    `json:"wiki_pages"`
 	SpecFiles    int    `json:"spec_files"`
 	Memories     int    `json:"memories"`
@@ -197,6 +200,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	// Workspace root: .core/workspace/{repo}-{timestamp}/
 	wsRoot := s.workspaceRoot()
+	coreio.Local.EnsureDir(wsRoot)
 	wsName := fmt.Sprintf("%s-%d", input.Repo, time.Now().Unix())
 	wsDir := filepath.Join(wsRoot, wsName)
 
@@ -215,27 +219,27 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
 	}
 
-	// Create feature branch
-	taskSlug := strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
-			return r
+	// Create feature branch.
+	branchName := input.Branch
+	if branchName == "" {
+		taskSlug := branchSlug(input.Task)
+		if input.Issue > 0 {
+			issueSlug := branchSlug(input.Task)
+			branchName = fmt.Sprintf("agent/issue-%d", input.Issue)
+			if issueSlug != "" {
+				branchName += "-" + issueSlug
+			}
+		} else if taskSlug != "" {
+			branchName = fmt.Sprintf("agent/%s", taskSlug)
 		}
-		if r >= 'A' && r <= 'Z' {
-			return r + 32 // lowercase
-		}
-		return '-'
-	}, input.Task)
-	if len(taskSlug) > 40 {
-		taskSlug = taskSlug[:40]
 	}
-	taskSlug = strings.Trim(taskSlug, "-")
-	if taskSlug != "" {
-		branchName := fmt.Sprintf("agent/%s", taskSlug)
+	if branchName != "" {
 		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
 		branchCmd.Dir = srcDir
 		if err := branchCmd.Run(); err != nil {
 			return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to create branch", err)
 		}
+		out.Branch = branchName
 	}
 
 	// Create context dirs inside src/
@@ -299,6 +303,42 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	out.Success = true
 	return nil, out, nil
+}
+
+// branchSlug converts a free-form string into a git-friendly branch suffix.
+func branchSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.Grow(len(value))
+	lastDash := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_' || r == '.' || r == ' ':
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		default:
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+
+	slug := strings.Trim(b.String(), "-")
+	if len(slug) > 40 {
+		slug = slug[:40]
+		slug = strings.Trim(slug, "-")
+	}
+	return slug
 }
 
 // --- Prompt templates ---

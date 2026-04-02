@@ -143,6 +143,8 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			Repo:      input.Repo,
 			Org:       input.Org,
 			Task:      input.Task,
+			Issue:     input.Issue,
+			Branch:    prepOut.Branch,
 			StartedAt: time.Now(),
 			Runs:      0,
 		})
@@ -163,6 +165,8 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Repo:      input.Repo,
 		Org:       input.Org,
 		Task:      input.Task,
+		Issue:     input.Issue,
+		Branch:    prepOut.Branch,
 		StartedAt: time.Now(),
 		Runs:      1,
 	})
@@ -209,6 +213,8 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			Agent:  input.Agent,
 			Repo:   input.Repo,
 			Task:   input.Task,
+			Issue:  input.Issue,
+			Branch: prepOut.Branch,
 		})
 		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to spawn "+input.Agent, err)
 	}
@@ -222,6 +228,8 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		Repo:      input.Repo,
 		Org:       input.Org,
 		Task:      input.Task,
+		Issue:     input.Issue,
+		Branch:    prepOut.Branch,
 		PID:       pid,
 		StartedAt: time.Now(),
 		Runs:      1,
@@ -256,4 +264,3 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		OutputFile:   outputFile,
 	}, nil
 }
-
