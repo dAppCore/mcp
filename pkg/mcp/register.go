@@ -6,11 +6,14 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
+	"forge.lthn.ai/core/go-process"
+	"forge.lthn.ai/core/go-ws"
 )
 
 // Register is the service factory for core.WithService.
 // Creates the MCP service, discovers subsystems from other Core services,
-// and wires notifiers.
+// and wires optional process and WebSocket dependencies when they are
+// already registered in Core.
 //
 //	core.New(
 //	    core.WithService(agentic.Register),
@@ -21,6 +24,8 @@ import (
 func Register(c *core.Core) core.Result {
 	// Collect subsystems from registered services
 	var subsystems []Subsystem
+	var processService *process.Service
+	var wsHub *ws.Hub
 	for _, name := range c.Services() {
 		r := c.Service(name)
 		if !r.OK {
@@ -28,11 +33,20 @@ func Register(c *core.Core) core.Result {
 		}
 		if sub, ok := r.Value.(Subsystem); ok {
 			subsystems = append(subsystems, sub)
+			continue
+		}
+		switch v := r.Value.(type) {
+		case *process.Service:
+			processService = v
+		case *ws.Hub:
+			wsHub = v
 		}
 	}
 
 	svc, err := New(Options{
-		Subsystems: subsystems,
+		ProcessService: processService,
+		WSHub:          wsHub,
+		Subsystems:     subsystems,
 	})
 	if err != nil {
 		return core.Result{Value: err, OK: false}
