@@ -28,6 +28,12 @@ import (
 //   running → failed        (agent crashed / non-zero exit)
 
 // WorkspaceStatus represents the current state of an agent workspace.
+//
+//	status := WorkspaceStatus{
+//	    Status: "blocked",
+//	    Agent:  "claude",
+//	    Repo:   "go-mcp",
+//	}
 type WorkspaceStatus struct {
 	Status    string    `json:"status"`             // running, completed, blocked, failed
 	Agent     string    `json:"agent"`              // gemini, claude, codex
@@ -67,15 +73,24 @@ func readStatus(wsDir string) (*WorkspaceStatus, error) {
 
 // --- agentic_status tool ---
 
+// StatusInput is the input for agentic_status.
+//
+//	input := StatusInput{Workspace: "go-mcp-1700000000"}
 type StatusInput struct {
 	Workspace string `json:"workspace,omitempty"` // specific workspace name, or empty for all
 }
 
+// StatusOutput is the output for agentic_status.
+//
+//	// out.Count == 2, len(out.Workspaces) == 2
 type StatusOutput struct {
 	Workspaces []WorkspaceInfo `json:"workspaces"`
 	Count      int             `json:"count"`
 }
 
+// WorkspaceInfo summarizes a tracked workspace.
+//
+//	// ws.Name == "go-mcp-1700000000", ws.Status == "running"
 type WorkspaceInfo struct {
 	Name     string `json:"name"`
 	Status   string `json:"status"`

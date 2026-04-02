@@ -17,6 +17,11 @@ import (
 )
 
 // Plan represents an implementation plan for agent work.
+//
+//	plan := Plan{
+//	    Title:  "Add notifications",
+//	    Status: "draft",
+//	}
 type Plan struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
@@ -32,6 +37,8 @@ type Plan struct {
 }
 
 // Phase represents a phase within an implementation plan.
+//
+//	phase := Phase{Name: "Implementation", Status: "pending"}
 type Phase struct {
 	Number      int          `json:"number"`
 	Name        string       `json:"name"`
@@ -43,6 +50,8 @@ type Phase struct {
 }
 
 // Checkpoint records phase progress or completion details.
+//
+//	cp := Checkpoint{Notes: "Implemented transport hooks", Done: true}
 type Checkpoint struct {
 	Notes     string    `json:"notes,omitempty"`
 	Done      bool      `json:"done,omitempty"`
@@ -52,6 +61,8 @@ type Checkpoint struct {
 // --- Input/Output types ---
 
 // PlanCreateInput is the input for agentic_plan_create.
+//
+//	input := PlanCreateInput{Title: "Add notifications", Objective: "Broadcast MCP events"}
 type PlanCreateInput struct {
 	Title     string  `json:"title"`
 	Objective string  `json:"objective"`
@@ -62,6 +73,8 @@ type PlanCreateInput struct {
 }
 
 // PlanCreateOutput is the output for agentic_plan_create.
+//
+//	// out.Success == true, out.ID != ""
 type PlanCreateOutput struct {
 	Success bool   `json:"success"`
 	ID      string `json:"id"`
@@ -69,17 +82,23 @@ type PlanCreateOutput struct {
 }
 
 // PlanReadInput is the input for agentic_plan_read.
+//
+//	input := PlanReadInput{ID: "add-notifications"}
 type PlanReadInput struct {
 	ID string `json:"id"`
 }
 
 // PlanReadOutput is the output for agentic_plan_read.
+//
+//	// out.Plan.Title == "Add notifications"
 type PlanReadOutput struct {
 	Success bool `json:"success"`
 	Plan    Plan `json:"plan"`
 }
 
 // PlanUpdateInput is the input for agentic_plan_update.
+//
+//	input := PlanUpdateInput{ID: "add-notifications", Status: "ready"}
 type PlanUpdateInput struct {
 	ID        string  `json:"id"`
 	Status    string  `json:"status,omitempty"`
@@ -91,29 +110,39 @@ type PlanUpdateInput struct {
 }
 
 // PlanUpdateOutput is the output for agentic_plan_update.
+//
+//	// out.Plan.Status == "ready"
 type PlanUpdateOutput struct {
 	Success bool `json:"success"`
 	Plan    Plan `json:"plan"`
 }
 
 // PlanDeleteInput is the input for agentic_plan_delete.
+//
+//	input := PlanDeleteInput{ID: "add-notifications"}
 type PlanDeleteInput struct {
 	ID string `json:"id"`
 }
 
 // PlanDeleteOutput is the output for agentic_plan_delete.
+//
+//	// out.Deleted == "add-notifications"
 type PlanDeleteOutput struct {
 	Success bool   `json:"success"`
 	Deleted string `json:"deleted"`
 }
 
 // PlanListInput is the input for agentic_plan_list.
+//
+//	input := PlanListInput{Status: "draft"}
 type PlanListInput struct {
 	Status string `json:"status,omitempty"`
 	Repo   string `json:"repo,omitempty"`
 }
 
 // PlanListOutput is the output for agentic_plan_list.
+//
+//	// len(out.Plans) >= 1
 type PlanListOutput struct {
 	Success bool   `json:"success"`
 	Count   int    `json:"count"`
@@ -121,6 +150,8 @@ type PlanListOutput struct {
 }
 
 // PlanCheckpointInput is the input for agentic_plan_checkpoint.
+//
+//	input := PlanCheckpointInput{ID: "add-notifications", Phase: 1, Done: true}
 type PlanCheckpointInput struct {
 	ID    string `json:"id"`
 	Phase int    `json:"phase"`
@@ -129,6 +160,8 @@ type PlanCheckpointInput struct {
 }
 
 // PlanCheckpointOutput is the output for agentic_plan_checkpoint.
+//
+//	// out.Plan.Phases[0].Status == "done"
 type PlanCheckpointOutput struct {
 	Success bool `json:"success"`
 	Plan    Plan `json:"plan"`

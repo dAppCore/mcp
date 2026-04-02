@@ -18,6 +18,8 @@ import (
 )
 
 // ResumeInput is the input for agentic_resume.
+//
+//	input := ResumeInput{Workspace: "go-mcp-1700000000", Answer: "Use the shared notifier"}
 type ResumeInput struct {
 	Workspace string `json:"workspace"`         // workspace name (e.g. "go-scm-1773581173")
 	Answer    string `json:"answer,omitempty"`  // answer to the blocked question (written to ANSWER.md)
@@ -26,6 +28,8 @@ type ResumeInput struct {
 }
 
 // ResumeOutput is the output for agentic_resume.
+//
+//	// out.Success == true, out.PID > 0
 type ResumeOutput struct {
 	Success    bool   `json:"success"`
 	Workspace  string `json:"workspace"`

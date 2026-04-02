@@ -33,7 +33,7 @@ type Service struct {
 	*core.ServiceRuntime[struct{}] // Core access via s.Core()
 
 	server         *mcp.Server
-	workspaceRoot  string           // Root directory for file operations (empty = unrestricted)
+	workspaceRoot  string           // Root directory for file operations (empty = cwd unless Unrestricted)
 	medium         io.Medium        // Filesystem medium for sandboxed operations
 	subsystems     []Subsystem      // Additional subsystems registered via Options.Subsystems
 	logger         *log.Logger      // Logger for tool execution auditing
