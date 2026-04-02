@@ -716,6 +716,10 @@ func supportedLanguages() []LanguageInfo {
 //	os.Setenv("MCP_ADDR", "127.0.0.1:9100")
 //	svc.Run(ctx)
 //
+//	// Unix socket (set MCP_UNIX_SOCKET):
+//	os.Setenv("MCP_UNIX_SOCKET", "/tmp/core-mcp.sock")
+//	svc.Run(ctx)
+//
 //	// HTTP (set MCP_HTTP_ADDR):
 //	os.Setenv("MCP_HTTP_ADDR", "127.0.0.1:9101")
 //	svc.Run(ctx)
@@ -725,6 +729,9 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 	if addr := core.Env("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
+	}
+	if socketPath := core.Env("MCP_UNIX_SOCKET"); socketPath != "" {
+		return s.ServeUnix(ctx, socketPath)
 	}
 	return s.ServeStdio(ctx)
 }

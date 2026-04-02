@@ -10,10 +10,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"forge.lthn.ai/core/cli/pkg/cli"
 	"dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
+	"forge.lthn.ai/core/cli/pkg/cli"
 )
 
 var workspaceFlag string
@@ -27,13 +27,18 @@ var mcpCmd = &cli.Command{
 var serveCmd = &cli.Command{
 	Use:   "serve",
 	Short: "Start the MCP server",
-	Long: `Start the MCP server on stdio (default) or TCP.
+	Long: `Start the MCP server on stdio (default), TCP, Unix socket, or HTTP.
 
 The server provides file operations, RAG tools, and metrics tools for AI assistants.
 
 Environment variables:
   MCP_ADDR    TCP address to listen on (e.g., "localhost:9999")
-              If not set, uses stdio transport.
+  MCP_UNIX_SOCKET
+              Unix socket path to listen on (e.g., "/tmp/core-mcp.sock")
+              Selected after MCP_ADDR and before stdio.
+  MCP_HTTP_ADDR
+              HTTP address to listen on (e.g., "127.0.0.1:9101")
+              Selected before MCP_ADDR and stdio.
 
 Examples:
   # Start with stdio transport (for Claude Code integration)
