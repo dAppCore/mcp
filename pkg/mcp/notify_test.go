@@ -45,6 +45,18 @@ func TestChannelSendToSession_Good_GuardNilSession(t *testing.T) {
 	})
 }
 
+func TestSendNotificationToSession_Good_GuardNilSession(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	ctx := context.Background()
+	svc.SendNotificationToSession(ctx, nil, "info", "test", map[string]any{
+		"ok": true,
+	})
+}
+
 func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {

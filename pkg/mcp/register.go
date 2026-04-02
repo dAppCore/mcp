@@ -97,9 +97,16 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 //
 //	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: statusMap})
 func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
+	ctx := context.Background()
+	if c != nil {
+		if coreCtx := c.Context(); coreCtx != nil {
+			ctx = coreCtx
+		}
+	}
+
 	switch ev := msg.(type) {
 	case ChannelPush:
-		s.ChannelSend(context.Background(), ev.Channel, ev.Data)
+		s.ChannelSend(ctx, ev.Channel, ev.Data)
 	}
 	return core.Result{OK: true}
 }

@@ -54,13 +54,25 @@ type ChannelNotification struct {
 //	s.SendNotificationToAllClients(ctx, "info", "monitor", map[string]any{"event": "build complete"})
 func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.LoggingLevel, logger string, data any) {
 	for session := range s.server.Sessions() {
-		if err := session.Log(ctx, &mcp.LoggingMessageParams{
-			Level:  level,
-			Logger: logger,
-			Data:   data,
-		}); err != nil {
-			s.logger.Debug("notify: failed to send to session", "session", session.ID(), "error", err)
-		}
+		s.SendNotificationToSession(ctx, session, level, logger, data)
+	}
+}
+
+// SendNotificationToSession sends a log-level notification to one connected
+// MCP session.
+//
+//	s.SendNotificationToSession(ctx, session, "info", "monitor", data)
+func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
+	if session == nil {
+		return
+	}
+
+	if err := session.Log(ctx, &mcp.LoggingMessageParams{
+		Level:  level,
+		Logger: logger,
+		Data:   data,
+	}); err != nil {
+		s.logger.Debug("notify: failed to send to session", "session", session.ID(), "error", err)
 	}
 }
 
