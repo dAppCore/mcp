@@ -64,6 +64,10 @@ func (s *Service) registerWSTools(server *mcp.Server) bool {
 
 // wsStart handles the ws_start tool call.
 func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input WSStartInput) (*mcp.CallToolResult, WSStartOutput, error) {
+	if s.wsHub == nil {
+		return nil, WSStartOutput{}, log.E("wsStart", "websocket hub unavailable", nil)
+	}
+
 	addr := input.Addr
 	if addr == "" {
 		addr = ":8080"
@@ -119,6 +123,10 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 
 // wsInfo handles the ws_info tool call.
 func (s *Service) wsInfo(ctx context.Context, req *mcp.CallToolRequest, input WSInfoInput) (*mcp.CallToolResult, WSInfoOutput, error) {
+	if s.wsHub == nil {
+		return nil, WSInfoOutput{}, log.E("wsInfo", "websocket hub unavailable", nil)
+	}
+
 	s.logger.Info("MCP tool execution", "tool", "ws_info", "user", log.Username())
 
 	stats := s.wsHub.Stats()

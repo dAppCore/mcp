@@ -6,6 +6,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"net/http"
 	"os"
@@ -506,6 +507,10 @@ type EditDiffOutput struct {
 // Tool handlers
 
 func (s *Service) readFile(ctx context.Context, req *mcp.CallToolRequest, input ReadFileInput) (*mcp.CallToolResult, ReadFileOutput, error) {
+	if s.medium == nil {
+		return nil, ReadFileOutput{}, log.E("mcp.readFile", "workspace medium unavailable", nil)
+	}
+
 	content, err := s.medium.Read(input.Path)
 	if err != nil {
 		return nil, ReadFileOutput{}, log.E("mcp.readFile", "failed to read file", err)
@@ -518,6 +523,10 @@ func (s *Service) readFile(ctx context.Context, req *mcp.CallToolRequest, input 
 }
 
 func (s *Service) writeFile(ctx context.Context, req *mcp.CallToolRequest, input WriteFileInput) (*mcp.CallToolResult, WriteFileOutput, error) {
+	if s.medium == nil {
+		return nil, WriteFileOutput{}, log.E("mcp.writeFile", "workspace medium unavailable", nil)
+	}
+
 	// Medium.Write creates parent directories automatically
 	if err := s.medium.Write(input.Path, input.Content); err != nil {
 		return nil, WriteFileOutput{}, log.E("mcp.writeFile", "failed to write file", err)
@@ -526,6 +535,10 @@ func (s *Service) writeFile(ctx context.Context, req *mcp.CallToolRequest, input
 }
 
 func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, input ListDirectoryInput) (*mcp.CallToolResult, ListDirectoryOutput, error) {
+	if s.medium == nil {
+		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "workspace medium unavailable", nil)
+	}
+
 	entries, err := s.medium.List(input.Path)
 	if err != nil {
 		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
@@ -563,6 +576,10 @@ func directoryEntryPath(dir, name string) string {
 }
 
 func (s *Service) createDirectory(ctx context.Context, req *mcp.CallToolRequest, input CreateDirectoryInput) (*mcp.CallToolResult, CreateDirectoryOutput, error) {
+	if s.medium == nil {
+		return nil, CreateDirectoryOutput{}, log.E("mcp.createDirectory", "workspace medium unavailable", nil)
+	}
+
 	if err := s.medium.EnsureDir(input.Path); err != nil {
 		return nil, CreateDirectoryOutput{}, log.E("mcp.createDirectory", "failed to create directory", err)
 	}
@@ -570,6 +587,10 @@ func (s *Service) createDirectory(ctx context.Context, req *mcp.CallToolRequest,
 }
 
 func (s *Service) deleteFile(ctx context.Context, req *mcp.CallToolRequest, input DeleteFileInput) (*mcp.CallToolResult, DeleteFileOutput, error) {
+	if s.medium == nil {
+		return nil, DeleteFileOutput{}, log.E("mcp.deleteFile", "workspace medium unavailable", nil)
+	}
+
 	if err := s.medium.Delete(input.Path); err != nil {
 		return nil, DeleteFileOutput{}, log.E("mcp.deleteFile", "failed to delete file", err)
 	}
@@ -577,6 +598,10 @@ func (s *Service) deleteFile(ctx context.Context, req *mcp.CallToolRequest, inpu
 }
 
 func (s *Service) renameFile(ctx context.Context, req *mcp.CallToolRequest, input RenameFileInput) (*mcp.CallToolResult, RenameFileOutput, error) {
+	if s.medium == nil {
+		return nil, RenameFileOutput{}, log.E("mcp.renameFile", "workspace medium unavailable", nil)
+	}
+
 	if err := s.medium.Rename(input.OldPath, input.NewPath); err != nil {
 		return nil, RenameFileOutput{}, log.E("mcp.renameFile", "failed to rename file", err)
 	}
@@ -584,9 +609,16 @@ func (s *Service) renameFile(ctx context.Context, req *mcp.CallToolRequest, inpu
 }
 
 func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, input FileExistsInput) (*mcp.CallToolResult, FileExistsOutput, error) {
+	if s.medium == nil {
+		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "workspace medium unavailable", nil)
+	}
+
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
+		}
+		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "failed to stat path", err)
 	}
 	return nil, FileExistsOutput{
 		Exists: true,
@@ -605,6 +637,10 @@ func (s *Service) getSupportedLanguages(ctx context.Context, req *mcp.CallToolRe
 }
 
 func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input EditDiffInput) (*mcp.CallToolResult, EditDiffOutput, error) {
+	if s.medium == nil {
+		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "workspace medium unavailable", nil)
+	}
+
 	if input.OldString == "" {
 		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string cannot be empty", nil)
 	}

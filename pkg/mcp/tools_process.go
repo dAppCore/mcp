@@ -176,6 +176,10 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 
 // processStart handles the process_start tool call.
 func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, input ProcessStartInput) (*mcp.CallToolResult, ProcessStartOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessStartOutput{}, log.E("processStart", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_start", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
 
 	if input.Command == "" {
@@ -222,6 +226,10 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 
 // processStop handles the process_stop tool call.
 func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, input ProcessStopInput) (*mcp.CallToolResult, ProcessStopOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessStopOutput{}, log.E("processStop", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_stop", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
@@ -260,6 +268,10 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // processKill handles the process_kill tool call.
 func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, input ProcessKillInput) (*mcp.CallToolResult, ProcessKillOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessKillOutput{}, log.E("processKill", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_kill", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
@@ -296,6 +308,10 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // processList handles the process_list tool call.
 func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, input ProcessListInput) (*mcp.CallToolResult, ProcessListOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessListOutput{}, log.E("processList", "process service unavailable", nil)
+	}
+
 	s.logger.Info("MCP tool execution", "tool", "process_list", "running_only", input.RunningOnly, "user", log.Username())
 
 	var procs []*process.Process
@@ -329,6 +345,10 @@ func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // processOutput handles the process_output tool call.
 func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, input ProcessOutputInput) (*mcp.CallToolResult, ProcessOutputOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessOutputOutput{}, log.E("processOutput", "process service unavailable", nil)
+	}
+
 	s.logger.Info("MCP tool execution", "tool", "process_output", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
@@ -349,6 +369,10 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 
 // processInput handles the process_input tool call.
 func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, input ProcessInputInput) (*mcp.CallToolResult, ProcessInputOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessInputOutput{}, log.E("processInput", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_input", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
