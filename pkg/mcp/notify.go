@@ -47,8 +47,11 @@ func (lw *lockedWriter) Close() error { return nil }
 // Created once when the MCP service enters stdio mode.
 var sharedStdout = &lockedWriter{w: os.Stdout}
 
-const channelNotificationMethod = "notifications/claude/channel"
-const loggingNotificationMethod = "notifications/message"
+// Notification method names used by the MCP server.
+const (
+	ChannelNotificationMethod = "notifications/claude/channel"
+	LoggingNotificationMethod = "notifications/message"
+)
 
 // Shared channel names. Keeping them central avoids drift between emitters
 // and the advertised claude/channel capability.
@@ -171,7 +174,7 @@ func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session 
 	}
 	ctx = normalizeNotificationContext(ctx)
 
-	if err := sendSessionNotification(ctx, session, loggingNotificationMethod, &mcp.LoggingMessageParams{
+	if err := sendSessionNotification(ctx, session, LoggingNotificationMethod, &mcp.LoggingMessageParams{
 		Level:  level,
 		Logger: logger,
 		Data:   data,
@@ -209,7 +212,7 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 	}
 	ctx = normalizeNotificationContext(ctx)
 	payload := ChannelNotification{Channel: channel, Data: data}
-	if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
+	if err := sendSessionNotification(ctx, session, ChannelNotificationMethod, payload); err != nil {
 		s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 	}
 }
@@ -239,7 +242,7 @@ func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, paylo
 	}
 	ctx = normalizeNotificationContext(ctx)
 	for session := range s.server.Sessions() {
-		if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
+		if err := sendSessionNotification(ctx, session, ChannelNotificationMethod, payload); err != nil {
 			s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 		}
 	}

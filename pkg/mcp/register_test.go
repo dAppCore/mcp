@@ -116,7 +116,7 @@ func TestHandleIPCEvents_Good_ForwardsProcessActions(t *testing.T) {
 			if !ok {
 				t.Fatal("notification stream closed before expected message arrived")
 			}
-			if msg["method"] != channelNotificationMethod {
+			if msg["method"] != ChannelNotificationMethod {
 				continue
 			}
 
@@ -210,7 +210,7 @@ func TestHandleIPCEvents_Good_ForwardsProcessOutput(t *testing.T) {
 			if !ok {
 				t.Fatal("notification stream closed before expected message arrived")
 			}
-			if msg["method"] != channelNotificationMethod {
+			if msg["method"] != ChannelNotificationMethod {
 				continue
 			}
 
@@ -301,7 +301,7 @@ func TestHandleIPCEvents_Good_ForwardsTestResult(t *testing.T) {
 			if !ok {
 				t.Fatal("notification stream closed before expected message arrived")
 			}
-			if msg["method"] != channelNotificationMethod {
+			if msg["method"] != ChannelNotificationMethod {
 				continue
 			}
 

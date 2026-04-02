@@ -162,7 +162,7 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
-		return msg["method"] == loggingNotificationMethod
+		return msg["method"] == LoggingNotificationMethod
 	})
 
 	sent := make(chan struct{})
@@ -184,8 +184,8 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 		t.Fatalf("failed to read notification: %v", res.err)
 	}
 	msg := res.msg
-	if msg["method"] != loggingNotificationMethod {
-		t.Fatalf("expected method %q, got %v", loggingNotificationMethod, msg["method"])
+	if msg["method"] != LoggingNotificationMethod {
+		t.Fatalf("expected method %q, got %v", LoggingNotificationMethod, msg["method"])
 	}
 
 	params, ok := msg["params"].(map[string]any)
@@ -264,7 +264,7 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
-		return msg["method"] == channelNotificationMethod
+		return msg["method"] == ChannelNotificationMethod
 	})
 
 	sent := make(chan struct{})
@@ -286,8 +286,8 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 		t.Fatalf("failed to read custom notification: %v", res.err)
 	}
 	msg := res.msg
-	if msg["method"] != channelNotificationMethod {
-		t.Fatalf("expected method %q, got %v", channelNotificationMethod, msg["method"])
+	if msg["method"] != ChannelNotificationMethod {
+		t.Fatalf("expected method %q, got %v", ChannelNotificationMethod, msg["method"])
 	}
 
 	params, ok := msg["params"].(map[string]any)
@@ -327,7 +327,7 @@ func TestChannelSendToClient_Good_CustomNotification(t *testing.T) {
 	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
-		return msg["method"] == channelNotificationMethod
+		return msg["method"] == ChannelNotificationMethod
 	})
 
 	sent := make(chan struct{})
@@ -349,8 +349,8 @@ func TestChannelSendToClient_Good_CustomNotification(t *testing.T) {
 		t.Fatalf("failed to read custom notification: %v", res.err)
 	}
 	msg := res.msg
-	if msg["method"] != channelNotificationMethod {
-		t.Fatalf("expected method %q, got %v", channelNotificationMethod, msg["method"])
+	if msg["method"] != ChannelNotificationMethod {
+		t.Fatalf("expected method %q, got %v", ChannelNotificationMethod, msg["method"])
 	}
 }
 
@@ -375,7 +375,7 @@ func TestSendNotificationToClient_Good_CustomNotification(t *testing.T) {
 	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
-		return msg["method"] == loggingNotificationMethod
+		return msg["method"] == LoggingNotificationMethod
 	})
 
 	sent := make(chan struct{})
@@ -397,8 +397,8 @@ func TestSendNotificationToClient_Good_CustomNotification(t *testing.T) {
 		t.Fatalf("failed to read notification: %v", res.err)
 	}
 	msg := res.msg
-	if msg["method"] != loggingNotificationMethod {
-		t.Fatalf("expected method %q, got %v", loggingNotificationMethod, msg["method"])
+	if msg["method"] != LoggingNotificationMethod {
+		t.Fatalf("expected method %q, got %v", LoggingNotificationMethod, msg["method"])
 	}
 }
 
@@ -512,8 +512,8 @@ func TestSendNotificationToAllClients_Good_BroadcastsToMultipleSessions(t *testi
 	}
 
 	for idx, res := range []notificationReadResult{res1, res2} {
-		if res.msg["method"] != loggingNotificationMethod {
-			t.Fatalf("session %d: expected method %q, got %v", idx+1, loggingNotificationMethod, res.msg["method"])
+		if res.msg["method"] != LoggingNotificationMethod {
+			t.Fatalf("session %d: expected method %q, got %v", idx+1, LoggingNotificationMethod, res.msg["method"])
 		}
 
 		params, ok := res.msg["params"].(map[string]any)
