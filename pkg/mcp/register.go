@@ -80,9 +80,9 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 	})
 
 	c.Command("serve", core.Command{
-		Description: "Start as a persistent HTTP daemon",
+		Description: "Start the MCP server with auto-selected transport",
 		Action: func(opts core.Options) core.Result {
-			s.logger.Info("MCP HTTP server starting")
+			s.logger.Info("MCP server starting")
 			if err := s.Run(ctx); err != nil {
 				return core.Result{Value: err, OK: false}
 			}

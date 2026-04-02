@@ -23,7 +23,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Service provides a lightweight MCP server with file operations only.
+// Service provides a lightweight MCP server with file operations and
+// optional subsystems.
 // For full GUI features, use the core-gui package.
 //
 //	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "/home/user/project"})
@@ -61,7 +62,7 @@ type Options struct {
 	Subsystems     []Subsystem      // Additional tool groups registered at startup
 }
 
-// New creates a new MCP service with file operations.
+// New creates a new MCP service with file operations and optional subsystems.
 //
 //	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "."})
 func New(opts Options) (*Service, error) {
@@ -253,7 +254,7 @@ func (s *Service) resolveWorkspacePath(path string) string {
 	return filepath.Join(s.workspaceRoot, clean)
 }
 
-// registerTools adds file operation tools to the MCP server.
+// registerTools adds the built-in tool groups to the MCP server.
 func (s *Service) registerTools(server *mcp.Server) {
 	// File operations
 	addToolRecorded(s, server, "files", &mcp.Tool{

@@ -29,7 +29,8 @@ var serveCmd = &cli.Command{
 	Short: "Start the MCP server",
 	Long: `Start the MCP server on stdio (default), TCP, Unix socket, or HTTP.
 
-The server provides file operations, RAG tools, and metrics tools for AI assistants.
+The server provides file operations plus the brain and agentic subsystems
+registered by this command.
 
 Environment variables:
   MCP_ADDR    TCP address to listen on (e.g., "localhost:9999")

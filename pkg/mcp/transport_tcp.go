@@ -95,7 +95,7 @@ func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 	if addr == "" {
 		addr = t.listener.Addr().String()
 	}
-	diagPrintf("MCP TCP server listening on %s\n", addr)
+	diagPrintf("MCP TCP server listening on %s\n", t.listener.Addr().String())
 
 	for {
 		conn, err := t.listener.Accept()
