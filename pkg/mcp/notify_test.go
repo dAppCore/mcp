@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -262,5 +263,19 @@ func TestChannelCapability_Good(t *testing.T) {
 		if !slices.Contains(channels, channel) {
 			t.Fatalf("expected channel %q to be advertised in capability definition", channel)
 		}
+	}
+}
+
+func TestChannelCapability_Good_PublicHelpers(t *testing.T) {
+	got := ChannelCapability()
+	want := channelCapability()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected public capability helper to match internal definition")
+	}
+
+	gotChannels := ChannelCapabilityChannels()
+	wantChannels := channelCapabilityChannels()
+	if !slices.Equal(gotChannels, wantChannels) {
+		t.Fatalf("expected public channel list to match internal definition: got %v want %v", gotChannels, wantChannels)
 	}
 }

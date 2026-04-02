@@ -13,6 +13,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -147,6 +148,9 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 	if s == nil || s.server == nil {
 		return
 	}
+	if strings.TrimSpace(channel) == "" {
+		return
+	}
 	ctx = normalizeNotificationContext(ctx)
 	payload := ChannelNotification{Channel: channel, Data: data}
 	s.sendChannelNotificationToAllClients(ctx, payload)
@@ -157,6 +161,9 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 //	s.ChannelSendToSession(ctx, session, "agent.progress", progressData)
 func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerSession, channel string, data any) {
 	if s == nil || s.server == nil || session == nil {
+		return
+	}
+	if strings.TrimSpace(channel) == "" {
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
@@ -252,8 +259,20 @@ func channelCapability() map[string]any {
 	}
 }
 
+// ChannelCapability returns the experimental capability descriptor registered
+// during New(). Callers can reuse it when exposing server metadata.
+func ChannelCapability() map[string]any {
+	return channelCapability()
+}
+
 // channelCapabilityChannels lists the named channel events advertised by the
 // experimental capability.
 func channelCapabilityChannels() []string {
 	return slices.Clone(channelCapabilityList)
+}
+
+// ChannelCapabilityChannels returns the named channel events advertised by the
+// experimental capability.
+func ChannelCapabilityChannels() []string {
+	return channelCapabilityChannels()
 }
