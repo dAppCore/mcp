@@ -82,12 +82,11 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 }
 
 // withAuth wraps an http.Handler with Bearer token authentication.
-// If token is empty, requests are rejected.
+// If token is empty, authentication is disabled for local development.
 func withAuth(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(token) == "" {
-			w.Header().Set("WWW-Authenticate", `Bearer`)
-			http.Error(w, `{"error":"authentication not configured"}`, http.StatusUnauthorized)
+			next.ServeHTTP(w, r)
 			return
 		}
 
