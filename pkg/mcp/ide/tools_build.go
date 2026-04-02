@@ -10,11 +10,15 @@ import (
 // Build tool input/output types.
 
 // BuildStatusInput is the input for ide_build_status.
+//
+//	input := BuildStatusInput{BuildID: "build-123"}
 type BuildStatusInput struct {
 	BuildID string `json:"buildId"`
 }
 
 // BuildInfo represents a single build.
+//
+//	info := BuildInfo{ID: "build-123", Repo: "go-io", Status: "running"}
 type BuildInfo struct {
 	ID        string    `json:"id"`
 	Repo      string    `json:"repo"`
@@ -25,28 +29,38 @@ type BuildInfo struct {
 }
 
 // BuildStatusOutput is the output for ide_build_status.
+//
+//	// out.Build.Status == "running"
 type BuildStatusOutput struct {
 	Build BuildInfo `json:"build"`
 }
 
 // BuildListInput is the input for ide_build_list.
+//
+//	input := BuildListInput{Repo: "go-io", Limit: 20}
 type BuildListInput struct {
 	Repo  string `json:"repo,omitempty"`
 	Limit int    `json:"limit,omitempty"`
 }
 
 // BuildListOutput is the output for ide_build_list.
+//
+//	// out.Builds holds the local build snapshot
 type BuildListOutput struct {
 	Builds []BuildInfo `json:"builds"`
 }
 
 // BuildLogsInput is the input for ide_build_logs.
+//
+//	input := BuildLogsInput{BuildID: "build-123", Tail: 200}
 type BuildLogsInput struct {
 	BuildID string `json:"buildId"`
 	Tail    int    `json:"tail,omitempty"`
 }
 
 // BuildLogsOutput is the output for ide_build_logs.
+//
+//	// out.Lines contains the captured build log lines
 type BuildLogsOutput struct {
 	BuildID string   `json:"buildId"`
 	Lines   []string `json:"lines"`

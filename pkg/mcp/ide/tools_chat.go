@@ -11,12 +11,16 @@ import (
 // Chat tool input/output types.
 
 // ChatSendInput is the input for ide_chat_send.
+//
+//	input := ChatSendInput{SessionID: "sess-42", Message: "hello"}
 type ChatSendInput struct {
 	SessionID string `json:"sessionId"`
 	Message   string `json:"message"`
 }
 
 // ChatSendOutput is the output for ide_chat_send.
+//
+//	// out.Sent == true, out.SessionID == "sess-42"
 type ChatSendOutput struct {
 	Sent      bool      `json:"sent"`
 	SessionID string    `json:"sessionId"`
@@ -24,12 +28,16 @@ type ChatSendOutput struct {
 }
 
 // ChatHistoryInput is the input for ide_chat_history.
+//
+//	input := ChatHistoryInput{SessionID: "sess-42", Limit: 50}
 type ChatHistoryInput struct {
 	SessionID string `json:"sessionId"`
 	Limit     int    `json:"limit,omitempty"`
 }
 
 // ChatMessage represents a single message in history.
+//
+//	msg := ChatMessage{Role: "user", Content: "hello"}
 type ChatMessage struct {
 	Role      string    `json:"role"`
 	Content   string    `json:"content"`
@@ -37,15 +45,21 @@ type ChatMessage struct {
 }
 
 // ChatHistoryOutput is the output for ide_chat_history.
+//
+//	// out.Messages contains the stored chat transcript
 type ChatHistoryOutput struct {
 	SessionID string        `json:"sessionId"`
 	Messages  []ChatMessage `json:"messages"`
 }
 
 // SessionListInput is the input for ide_session_list.
+//
+//	input := SessionListInput{}
 type SessionListInput struct{}
 
 // Session represents an agent session.
+//
+//	session := Session{ID: "sess-42", Name: "draft", Status: "running"}
 type Session struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -54,32 +68,44 @@ type Session struct {
 }
 
 // SessionListOutput is the output for ide_session_list.
+//
+//	// out.Sessions contains every locally tracked session
 type SessionListOutput struct {
 	Sessions []Session `json:"sessions"`
 }
 
 // SessionCreateInput is the input for ide_session_create.
+//
+//	input := SessionCreateInput{Name: "draft"}
 type SessionCreateInput struct {
 	Name string `json:"name"`
 }
 
 // SessionCreateOutput is the output for ide_session_create.
+//
+//	// out.Session.ID is assigned by the backend or local store
 type SessionCreateOutput struct {
 	Session Session `json:"session"`
 }
 
 // PlanStatusInput is the input for ide_plan_status.
+//
+//	input := PlanStatusInput{SessionID: "sess-42"}
 type PlanStatusInput struct {
 	SessionID string `json:"sessionId"`
 }
 
 // PlanStep is a single step in an agent plan.
+//
+//	step := PlanStep{Name: "prep", Status: "done"}
 type PlanStep struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 }
 
 // PlanStatusOutput is the output for ide_plan_status.
+//
+//	// out.Steps contains the current plan breakdown
 type PlanStatusOutput struct {
 	SessionID string     `json:"sessionId"`
 	Status    string     `json:"status"`

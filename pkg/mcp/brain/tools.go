@@ -22,6 +22,8 @@ func (s *Subsystem) emitChannel(ctx context.Context, channel string, data any) {
 // -- Input/Output types -------------------------------------------------------
 
 // RememberInput is the input for brain_remember.
+//
+//	input := RememberInput{Content: "Use Qdrant for vector search", Type: "decision"}
 type RememberInput struct {
 	Content    string   `json:"content"`
 	Type       string   `json:"type"`
@@ -33,6 +35,8 @@ type RememberInput struct {
 }
 
 // RememberOutput is the output for brain_remember.
+//
+//	// out.Success == true
 type RememberOutput struct {
 	Success   bool      `json:"success"`
 	MemoryID  string    `json:"memoryId,omitempty"`
@@ -40,6 +44,8 @@ type RememberOutput struct {
 }
 
 // RecallInput is the input for brain_recall.
+//
+//	input := RecallInput{Query: "vector search", TopK: 5}
 type RecallInput struct {
 	Query  string       `json:"query"`
 	TopK   int          `json:"top_k,omitempty"`
@@ -47,6 +53,8 @@ type RecallInput struct {
 }
 
 // RecallFilter holds optional filter criteria for brain_recall.
+//
+//	filter := RecallFilter{Project: "core/mcp", MinConfidence: 0.5}
 type RecallFilter struct {
 	Project       string  `json:"project,omitempty"`
 	Type          any     `json:"type,omitempty"`
@@ -55,6 +63,8 @@ type RecallFilter struct {
 }
 
 // RecallOutput is the output for brain_recall.
+//
+//	// out.Memories contains ranked matches
 type RecallOutput struct {
 	Success  bool     `json:"success"`
 	Count    int      `json:"count"`
@@ -62,6 +72,8 @@ type RecallOutput struct {
 }
 
 // Memory is a single memory entry returned by recall or list.
+//
+//	mem := Memory{ID: "m1", Type: "bug", Content: "Fix timeout handling"}
 type Memory struct {
 	ID           string   `json:"id"`
 	AgentID      string   `json:"agent_id"`
@@ -77,12 +89,16 @@ type Memory struct {
 }
 
 // ForgetInput is the input for brain_forget.
+//
+//	input := ForgetInput{ID: "m1"}
 type ForgetInput struct {
 	ID     string `json:"id"`
 	Reason string `json:"reason,omitempty"`
 }
 
 // ForgetOutput is the output for brain_forget.
+//
+//	// out.Forgotten contains the deleted memory ID
 type ForgetOutput struct {
 	Success   bool      `json:"success"`
 	Forgotten string    `json:"forgotten"`
@@ -90,6 +106,8 @@ type ForgetOutput struct {
 }
 
 // ListInput is the input for brain_list.
+//
+//	input := ListInput{Project: "core/mcp", Limit: 50}
 type ListInput struct {
 	Project string `json:"project,omitempty"`
 	Type    string `json:"type,omitempty"`
@@ -98,6 +116,8 @@ type ListInput struct {
 }
 
 // ListOutput is the output for brain_list.
+//
+//	// out.Count reports how many memories were returned
 type ListOutput struct {
 	Success  bool     `json:"success"`
 	Count    int      `json:"count"`

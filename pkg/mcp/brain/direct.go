@@ -21,6 +21,8 @@ import (
 )
 
 // channelSender is the callback for pushing channel events.
+//
+//	fn := func(ctx context.Context, channel string, data any) { ... }
 type channelSender func(ctx context.Context, channel string, data any)
 
 // DirectSubsystem implements mcp.Subsystem for OpenBrain via direct HTTP calls.

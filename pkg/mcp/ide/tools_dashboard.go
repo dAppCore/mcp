@@ -10,9 +10,13 @@ import (
 // Dashboard tool input/output types.
 
 // DashboardOverviewInput is the input for ide_dashboard_overview.
+//
+//	input := DashboardOverviewInput{}
 type DashboardOverviewInput struct{}
 
 // DashboardOverview contains high-level platform stats.
+//
+//	overview := DashboardOverview{Repos: 12, ActiveSessions: 3}
 type DashboardOverview struct {
 	Repos          int  `json:"repos"`
 	Services       int  `json:"services"`
@@ -22,16 +26,22 @@ type DashboardOverview struct {
 }
 
 // DashboardOverviewOutput is the output for ide_dashboard_overview.
+//
+//	// out.Overview.BridgeOnline reports bridge connectivity
 type DashboardOverviewOutput struct {
 	Overview DashboardOverview `json:"overview"`
 }
 
 // DashboardActivityInput is the input for ide_dashboard_activity.
+//
+//	input := DashboardActivityInput{Limit: 25}
 type DashboardActivityInput struct {
 	Limit int `json:"limit,omitempty"`
 }
 
 // ActivityEvent represents a single activity feed item.
+//
+//	event := ActivityEvent{Type: "build", Message: "build finished"}
 type ActivityEvent struct {
 	Type      string    `json:"type"`
 	Message   string    `json:"message"`
@@ -39,16 +49,22 @@ type ActivityEvent struct {
 }
 
 // DashboardActivityOutput is the output for ide_dashboard_activity.
+//
+//	// out.Events contains the recent activity feed
 type DashboardActivityOutput struct {
 	Events []ActivityEvent `json:"events"`
 }
 
 // DashboardMetricsInput is the input for ide_dashboard_metrics.
+//
+//	input := DashboardMetricsInput{Period: "24h"}
 type DashboardMetricsInput struct {
 	Period string `json:"period,omitempty"` // "1h", "24h", "7d"
 }
 
 // DashboardMetrics contains aggregate metrics.
+//
+//	metrics := DashboardMetrics{BuildsTotal: 42, SuccessRate: 0.95}
 type DashboardMetrics struct {
 	BuildsTotal   int     `json:"buildsTotal"`
 	BuildsSuccess int     `json:"buildsSuccess"`
@@ -60,6 +76,8 @@ type DashboardMetrics struct {
 }
 
 // DashboardMetricsOutput is the output for ide_dashboard_metrics.
+//
+//	// out.Metrics summarises the selected time window
 type DashboardMetricsOutput struct {
 	Period  string           `json:"period"`
 	Metrics DashboardMetrics `json:"metrics"`
