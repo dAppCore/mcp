@@ -5,6 +5,7 @@ package mcp
 import (
 	"context"
 	"reflect"
+	"time"
 
 	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -80,52 +81,7 @@ func structSchema(v any) map[string]any {
 	if t.Kind() != reflect.Struct {
 		return nil
 	}
-	if t.NumField() == 0 {
-		return map[string]any{"type": "object", "properties": map[string]any{}}
-	}
-
-	properties := make(map[string]any)
-	required := make([]string, 0)
-
-	for f := range t.Fields() {
-		f := f
-		if !f.IsExported() {
-			continue
-		}
-		jsonTag := f.Tag.Get("json")
-		if jsonTag == "-" {
-			continue
-		}
-		name := f.Name
-		isOptional := false
-		if jsonTag != "" {
-			parts := splitTag(jsonTag)
-			name = parts[0]
-			for _, p := range parts[1:] {
-				if p == "omitempty" {
-					isOptional = true
-				}
-			}
-		}
-
-		prop := map[string]any{
-			"type": goTypeToJSONType(f.Type),
-		}
-		properties[name] = prop
-
-		if !isOptional {
-			required = append(required, name)
-		}
-	}
-
-	schema := map[string]any{
-		"type":       "object",
-		"properties": properties,
-	}
-	if len(required) > 0 {
-		schema["required"] = required
-	}
-	return schema
+	return schemaForType(t, map[reflect.Type]bool{})
 }
 
 // splitTag splits a struct tag value by commas.
@@ -152,4 +108,121 @@ func goTypeToJSONType(t reflect.Type) string {
 	default:
 		return "string"
 	}
+}
+
+func schemaForType(t reflect.Type, seen map[reflect.Type]bool) map[string]any {
+	if t == nil {
+		return nil
+	}
+
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+		if t == nil {
+			return nil
+		}
+	}
+
+	if isTimeType(t) {
+		return map[string]any{
+			"type":   "string",
+			"format": "date-time",
+		}
+	}
+
+	switch t.Kind() {
+	case reflect.Interface:
+		return map[string]any{}
+
+	case reflect.Struct:
+		if seen[t] {
+			return map[string]any{"type": "object"}
+		}
+		seen[t] = true
+
+		properties := make(map[string]any)
+		required := make([]string, 0, t.NumField())
+
+		for f := range t.Fields() {
+			f := f
+			if !f.IsExported() {
+				continue
+			}
+
+			jsonTag := f.Tag.Get("json")
+			if jsonTag == "-" {
+				continue
+			}
+
+			name := f.Name
+			isOptional := false
+			if jsonTag != "" {
+				parts := splitTag(jsonTag)
+				name = parts[0]
+				for _, p := range parts[1:] {
+					if p == "omitempty" {
+						isOptional = true
+					}
+				}
+			}
+
+			prop := schemaForType(f.Type, cloneSeenSet(seen))
+			if prop == nil {
+				prop = map[string]any{"type": goTypeToJSONType(f.Type)}
+			}
+			properties[name] = prop
+
+			if !isOptional {
+				required = append(required, name)
+			}
+		}
+
+		schema := map[string]any{
+			"type":       "object",
+			"properties": properties,
+		}
+		if len(required) > 0 {
+			schema["required"] = required
+		}
+		return schema
+
+	case reflect.Slice, reflect.Array:
+		schema := map[string]any{
+			"type":  "array",
+			"items": schemaForType(t.Elem(), cloneSeenSet(seen)),
+		}
+		return schema
+
+	case reflect.Map:
+		schema := map[string]any{
+			"type": "object",
+		}
+		if t.Key().Kind() == reflect.String {
+			if valueSchema := schemaForType(t.Elem(), cloneSeenSet(seen)); valueSchema != nil {
+				schema["additionalProperties"] = valueSchema
+			}
+		}
+		return schema
+
+	default:
+		if typeName := goTypeToJSONType(t); typeName != "" {
+			return map[string]any{"type": typeName}
+		}
+	}
+
+	return nil
+}
+
+func cloneSeenSet(seen map[reflect.Type]bool) map[reflect.Type]bool {
+	if len(seen) == 0 {
+		return map[reflect.Type]bool{}
+	}
+	clone := make(map[reflect.Type]bool, len(seen))
+	for t := range seen {
+		clone[t] = true
+	}
+	return clone
+}
+
+func isTimeType(t reflect.Type) bool {
+	return t == reflect.TypeOf(time.Time{})
 }

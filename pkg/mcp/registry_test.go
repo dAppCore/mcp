@@ -4,6 +4,8 @@ package mcp
 
 import (
 	"testing"
+
+	"forge.lthn.ai/core/go-process"
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {
@@ -186,5 +188,69 @@ func TestToolRegistry_Good_ToolRecordFields(t *testing.T) {
 	}
 	if record.OutputSchema == nil {
 		t.Error("expected non-nil OutputSchema")
+	}
+}
+
+func TestToolRegistry_Good_TimeSchemas(t *testing.T) {
+	svc, err := New(Options{
+		WorkspaceRoot:  t.TempDir(),
+		ProcessService: &process.Service{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	byName := make(map[string]ToolRecord)
+	for _, tr := range svc.Tools() {
+		byName[tr.Name] = tr
+	}
+
+	metrics, ok := byName["metrics_record"]
+	if !ok {
+		t.Fatal("metrics_record not found in registry")
+	}
+	inputProps, ok := metrics.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected metrics_record input properties map")
+	}
+	dataSchema, ok := inputProps["data"].(map[string]any)
+	if !ok {
+		t.Fatal("expected data schema for metrics_record input")
+	}
+	if got := dataSchema["type"]; got != "object" {
+		t.Fatalf("expected metrics_record data type object, got %#v", got)
+	}
+	props, ok := metrics.OutputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected metrics_record output properties map")
+	}
+	timestamp, ok := props["timestamp"].(map[string]any)
+	if !ok {
+		t.Fatal("expected timestamp schema for metrics_record output")
+	}
+	if got := timestamp["type"]; got != "string" {
+		t.Fatalf("expected metrics_record timestamp type string, got %#v", got)
+	}
+	if got := timestamp["format"]; got != "date-time" {
+		t.Fatalf("expected metrics_record timestamp format date-time, got %#v", got)
+	}
+
+	processStart, ok := byName["process_start"]
+	if !ok {
+		t.Fatal("process_start not found in registry")
+	}
+	props, ok = processStart.OutputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected process_start output properties map")
+	}
+	startedAt, ok := props["startedAt"].(map[string]any)
+	if !ok {
+		t.Fatal("expected startedAt schema for process_start output")
+	}
+	if got := startedAt["type"]; got != "string" {
+		t.Fatalf("expected process_start startedAt type string, got %#v", got)
+	}
+	if got := startedAt["format"]; got != "date-time" {
+		t.Fatalf("expected process_start startedAt format date-time, got %#v", got)
 	}
 }
