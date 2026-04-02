@@ -491,6 +491,24 @@ func TestChannelCapability_Good_PublicHelpers(t *testing.T) {
 	}
 }
 
+func TestChannelCapabilitySpec_Map_Good_ClonesChannels(t *testing.T) {
+	spec := ClaudeChannelCapability()
+	mapped := spec.Map()
+
+	channels, ok := mapped["channels"].([]string)
+	if !ok {
+		t.Fatalf("expected channels to be []string, got %T", mapped["channels"])
+	}
+	if len(channels) == 0 {
+		t.Fatal("expected non-empty channels slice")
+	}
+
+	spec.Channels[0] = "mutated.channel"
+	if channels[0] == "mutated.channel" {
+		t.Fatal("expected Map() to clone the channels slice")
+	}
+}
+
 func TestSendNotificationToAllClients_Good_BroadcastsToMultipleSessions(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {

@@ -107,9 +107,9 @@ var channelCapabilityList = []string{
 // ChannelCapabilitySpec describes the experimental claude/channel capability.
 //
 //	spec := ChannelCapabilitySpec{
-//	    Version: "1",
+//	    Version:     "1",
 //	    Description: "Push events into client sessions via named channels",
-//	    Channels: ChannelCapabilityChannels(),
+//	    Channels:    ChannelCapabilityChannels(),
 //	}
 type ChannelCapabilitySpec struct {
 	Version     string   `json:"version"`     // e.g. "1"
@@ -120,9 +120,9 @@ type ChannelCapabilitySpec struct {
 // Map converts the typed capability into the wire-format map expected by the SDK.
 //
 //	caps := ChannelCapabilitySpec{
-//	    Version: "1",
+//	    Version:     "1",
 //	    Description: "Push events into client sessions via named channels",
-//	    Channels: ChannelCapabilityChannels(),
+//	    Channels:    ChannelCapabilityChannels(),
 //	}.Map()
 func (c ChannelCapabilitySpec) Map() map[string]any {
 	return map[string]any{
@@ -379,6 +379,7 @@ func channelCapability() map[string]any {
 // ClaudeChannelCapability returns the typed experimental capability descriptor.
 //
 //	cap := ClaudeChannelCapability()
+//	caps := cap.Map()
 func ClaudeChannelCapability() ChannelCapabilitySpec {
 	return ChannelCapabilitySpec{
 		Version:     "1",
