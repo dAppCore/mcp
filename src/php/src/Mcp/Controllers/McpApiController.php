@@ -6,6 +6,9 @@ namespace Core\Mcp\Controllers;
 
 use Core\Front\Controller;
 use Core\Mcp\Services\McpQuotaService;
+use Core\Mod\Agentic\Models\AgentPlan;
+use Core\Mod\Agentic\Models\AgentSession;
+use Core\Mod\Content\Models\ContentItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -13,6 +16,7 @@ use Core\Api\Models\ApiKey;
 use Core\Mcp\Models\McpApiRequest;
 use Core\Mcp\Models\McpToolCall;
 use Core\Mcp\Services\McpWebhookDispatcher;
+use Core\Tenant\Models\Workspace;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -175,8 +179,6 @@ class McpApiController extends Controller
      * Read a resource from an MCP server.
      *
      * GET /api/v1/mcp/resources/{uri}
-     *
-     * NOTE: Resource reading is not yet implemented. Returns 501 Not Implemented.
      */
     public function resource(Request $request, string $uri): JsonResponse
     {
@@ -185,19 +187,289 @@ class McpApiController extends Controller
             return response()->json(['error' => 'Invalid resource URI format'], 400);
         }
 
-        $serverId = $matches[1];
-
-        $server = $this->loadServerFull($serverId);
-        if (! $server) {
-            return response()->json(['error' => 'Server not found'], 404);
+        $scheme = $matches[1];
+        $content = $this->readResourceContent($scheme, $uri);
+        if ($content === null) {
+            return response()->json([
+                'error' => 'not_found',
+                'message' => 'Resource not found',
+                'uri' => $uri,
+            ], 404);
         }
 
-        // Resource reading not yet implemented
         return response()->json([
-            'error' => 'not_implemented',
-            'message' => 'MCP resource reading is not yet implemented. Use tool calls instead.',
             'uri' => $uri,
-        ], 501);
+            'content' => $content,
+        ]);
+    }
+
+    /**
+     * Resolve a supported MCP resource URI into response content.
+     */
+    protected function readResourceContent(string $scheme, string $uri): ?array
+    {
+        if (str_starts_with($uri, 'plans://')) {
+            return [
+                'mimeType' => 'text/markdown',
+                'text' => $this->resourcePlanContent($uri),
+            ];
+        }
+
+        if (str_starts_with($uri, 'sessions://')) {
+            return [
+                'mimeType' => 'text/markdown',
+                'text' => $this->resourceSessionContent($uri),
+            ];
+        }
+
+        if (str_starts_with($uri, 'content://')) {
+            return [
+                'mimeType' => 'text/markdown',
+                'text' => $this->resourceContentItem($uri),
+            ];
+        }
+
+        return $this->resourceServerContent($scheme, $uri);
+    }
+
+    /**
+     * Render plan resources.
+     */
+    protected function resourcePlanContent(string $uri): string
+    {
+        if ($uri === 'plans://all') {
+            $plans = AgentPlan::with('agentPhases')->notArchived()->orderBy('updated_at', 'desc')->get();
+
+            $md = "# Work Plans\n\n";
+            $md .= '**Total:** '.$plans->count()." plan(s)\n\n";
+
+            foreach ($plans->groupBy('status') as $status => $group) {
+                $md .= '## '.ucfirst($status).' ('.$group->count().")\n\n";
+
+                foreach ($group as $plan) {
+                    $progress = $plan->getProgress();
+                    $md .= "- **[{$plan->slug}]** {$plan->title} - {$progress['percentage']}%\n";
+                }
+                $md .= "\n";
+            }
+
+            return $md;
+        }
+
+        $path = substr($uri, 9); // Remove "plans://"
+        $parts = explode('/', $path);
+        $slug = $parts[0];
+
+        $plan = AgentPlan::with('agentPhases')->where('slug', $slug)->first();
+        if (! $plan) {
+            return "Plan not found: {$slug}";
+        }
+
+        if (count($parts) === 3 && $parts[1] === 'phases') {
+            $phase = $plan->agentPhases()->where('order', (int) $parts[2])->first();
+            if (! $phase) {
+                return "Phase not found: {$parts[2]}";
+            }
+
+            $md = "# Phase {$phase->order}: {$phase->name}\n\n";
+            $md .= "**Status:** {$phase->getStatusIcon()} {$phase->status}\n\n";
+
+            if ($phase->description) {
+                $md .= "{$phase->description}\n\n";
+            }
+
+            $md .= "## Tasks\n\n";
+
+            foreach ($phase->tasks ?? [] as $task) {
+                $status = is_string($task) ? 'pending' : ($task['status'] ?? 'pending');
+                $name = is_string($task) ? $task : ($task['name'] ?? 'Unknown');
+                $icon = $status === 'completed' ? '✅' : '⬜';
+                $md .= "- {$icon} {$name}\n";
+            }
+
+            return $md;
+        }
+
+        if (count($parts) === 3 && $parts[1] === 'state') {
+            $state = $plan->states()->where('key', $parts[2])->first();
+            if (! $state) {
+                return "State key not found: {$parts[2]}";
+            }
+
+            return $state->getFormattedValue();
+        }
+
+        return $plan->toMarkdown();
+    }
+
+    /**
+     * Render session resources.
+     */
+    protected function resourceSessionContent(string $uri): string
+    {
+        $path = substr($uri, 11); // Remove "sessions://"
+        $parts = explode('/', $path);
+
+        if (count($parts) !== 2 || $parts[1] !== 'context') {
+            return "Resource not found: {$uri}";
+        }
+
+        $session = AgentSession::where('session_id', $parts[0])->first();
+        if (! $session) {
+            return "Session not found: {$parts[0]}";
+        }
+
+        $md = "# Session: {$session->session_id}\n\n";
+        $md .= "**Agent:** {$session->agent_type}\n";
+        $md .= "**Status:** {$session->status}\n";
+        $md .= "**Duration:** {$session->getDurationFormatted()}\n\n";
+
+        if ($session->plan) {
+            $md .= "## Plan\n\n";
+            $md .= "**{$session->plan->title}** ({$session->plan->slug})\n\n";
+        }
+
+        $context = $session->getHandoffContext();
+        if (! empty($context['summary'])) {
+            $md .= "## Summary\n\n{$context['summary']}\n\n";
+        }
+        if (! empty($context['next_steps'])) {
+            $md .= "## Next Steps\n\n";
+            foreach ((array) $context['next_steps'] as $step) {
+                $md .= "- {$step}\n";
+            }
+            $md .= "\n";
+        }
+        if (! empty($context['blockers'])) {
+            $md .= "## Blockers\n\n";
+            foreach ((array) $context['blockers'] as $blocker) {
+                $md .= "- {$blocker}\n";
+            }
+            $md .= "\n";
+        }
+
+        return $md;
+    }
+
+    /**
+     * Render content resources.
+     */
+    protected function resourceContentItem(string $uri): string
+    {
+        if (! str_starts_with($uri, 'content://')) {
+            return "Resource not found: {$uri}";
+        }
+
+        $path = substr($uri, 10); // Remove "content://"
+        $parts = explode('/', $path, 2);
+        if (count($parts) < 2) {
+            return "Invalid URI format. Expected: content://{workspace}/{slug}";
+        }
+
+        [$workspaceSlug, $contentSlug] = $parts;
+
+        $workspace = Workspace::where('slug', $workspaceSlug)
+            ->orWhere('id', $workspaceSlug)
+            ->first();
+
+        if (! $workspace) {
+            return "Workspace not found: {$workspaceSlug}";
+        }
+
+        $item = ContentItem::forWorkspace($workspace->id)
+            ->native()
+            ->where('slug', $contentSlug)
+            ->first();
+
+        if (! $item && is_numeric($contentSlug)) {
+            $item = ContentItem::forWorkspace($workspace->id)
+                ->native()
+                ->find($contentSlug);
+        }
+
+        if (! $item) {
+            return "Content not found: {$contentSlug}";
+        }
+
+        $item->load(['author', 'taxonomies']);
+
+        $md = "---\n";
+        $md .= "title: \"{$item->title}\"\n";
+        $md .= "slug: {$item->slug}\n";
+        $md .= "workspace: {$workspace->slug}\n";
+        $md .= "type: {$item->type}\n";
+        $md .= "status: {$item->status}\n";
+
+        if ($item->author) {
+            $md .= "author: {$item->author->name}\n";
+        }
+
+        $categories = $item->categories->pluck('name')->all();
+        if (! empty($categories)) {
+            $md .= 'categories: ['.implode(', ', $categories)."]\n";
+        }
+
+        $tags = $item->tags->pluck('name')->all();
+        if (! empty($tags)) {
+            $md .= 'tags: ['.implode(', ', $tags)."]\n";
+        }
+
+        if ($item->publish_at) {
+            $md .= 'publish_at: '.$item->publish_at->toIso8601String()."\n";
+        }
+
+        $md .= 'created_at: '.$item->created_at->toIso8601String()."\n";
+        $md .= 'updated_at: '.$item->updated_at->toIso8601String()."\n";
+
+        if ($item->seo_meta) {
+            if (isset($item->seo_meta['title'])) {
+                $md .= "seo_title: \"{$item->seo_meta['title']}\"\n";
+            }
+            if (isset($item->seo_meta['description'])) {
+                $md .= "seo_description: \"{$item->seo_meta['description']}\"\n";
+            }
+        }
+
+        $md .= "---\n\n";
+
+        if ($item->excerpt) {
+            $md .= "> {$item->excerpt}\n\n";
+        }
+
+        $content = $item->content_markdown
+            ?? strip_tags($item->content_html_clean ?? $item->content_html_original ?? '');
+        $md .= $content;
+
+        return $md;
+    }
+
+    /**
+     * Render server-defined static resources when available.
+     */
+    protected function resourceServerContent(string $scheme, string $uri): ?array
+    {
+        $server = $this->loadServerFull($scheme);
+        if (! $server) {
+            return null;
+        }
+
+        foreach ($server['resources'] ?? [] as $resource) {
+            if (($resource['uri'] ?? null) !== $uri) {
+                continue;
+            }
+
+            $text = $resource['content']['text'] ?? $resource['text'] ?? null;
+            if ($text === null) {
+                return null;
+            }
+
+            return [
+                'mimeType' => $resource['mimeType'] ?? 'text/plain',
+                'text' => $text,
+            ];
+        }
+
+        return null;
     }
 
     /**
