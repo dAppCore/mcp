@@ -4,6 +4,8 @@ package mcp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -20,6 +22,9 @@ import (
 //	    return ReadFileOutput{Content: "...", Path: input.Path}, nil
 //	}
 type RESTHandler func(ctx context.Context, body []byte) (any, error)
+
+// errInvalidRESTInput marks malformed JSON bodies for the REST bridge.
+var errInvalidRESTInput = errors.New("invalid REST input")
 
 // ToolRecord captures metadata about a registered MCP tool.
 //
@@ -53,9 +58,9 @@ func AddToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 		if len(body) > 0 {
 			if r := core.JSONUnmarshal(body, &input); !r.OK {
 				if err, ok := r.Value.(error); ok {
-					return nil, err
+					return nil, fmt.Errorf("%w: %v", errInvalidRESTInput, err)
 				}
-				return nil, core.E("registry.RESTHandler", "failed to unmarshal input", nil)
+				return nil, fmt.Errorf("%w", errInvalidRESTInput)
 			}
 		}
 		// nil: REST callers have no MCP request context.

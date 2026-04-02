@@ -63,7 +63,7 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 			if err != nil {
 				// Body present + error = likely bad input (malformed JSON).
 				// No body + error = tool execution failure.
-				if len(body) > 0 && core.Contains(err.Error(), "unmarshal") {
+				if errors.Is(err, errInvalidRESTInput) {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_input", "Malformed JSON in request body"))
 					return
 				}

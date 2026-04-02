@@ -165,13 +165,8 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		// The handler unmarshals via RESTHandler which returns an error,
-		// but since it's a JSON parse error it ends up as tool_error.
-		// Check we get a non-200 with an error envelope.
-		if w.Code == http.StatusOK {
-			t.Fatalf("expected non-200 for invalid JSON, got 200")
-		}
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid JSON, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var resp api.Response[any]
