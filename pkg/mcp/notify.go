@@ -147,9 +147,9 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
-	for _, session := range snapshotSessions(s.server) {
+	s.broadcastToSessions(func(session *mcp.ServerSession) {
 		s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
-	}
+	})
 }
 
 // SendNotificationToSession sends a log-level notification to one connected
@@ -245,10 +245,19 @@ func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, paylo
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
-	for _, session := range snapshotSessions(s.server) {
+	s.broadcastToSessions(func(session *mcp.ServerSession) {
 		if err := sendSessionNotification(ctx, session, ChannelNotificationMethod, payload); err != nil {
 			s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 		}
+	})
+}
+
+func (s *Service) broadcastToSessions(fn func(*mcp.ServerSession)) {
+	if s == nil || s.server == nil || fn == nil {
+		return
+	}
+	for _, session := range snapshotSessions(s.server) {
+		fn(session)
 	}
 }
 
