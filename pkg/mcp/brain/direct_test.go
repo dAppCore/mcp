@@ -361,6 +361,50 @@ func TestDirectList_Good(t *testing.T) {
 	}
 }
 
+func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"memories": []any{}})
+	}))
+	defer srv.Close()
+
+	var gotChannel string
+	var gotPayload map[string]any
+
+	s := newTestDirect(srv.URL)
+	s.onChannel = func(_ context.Context, channel string, data any) {
+		gotChannel = channel
+		if payload, ok := data.(map[string]any); ok {
+			gotPayload = payload
+		}
+	}
+
+	_, out, err := s.list(context.Background(), nil, ListInput{
+		Project: "eaas",
+		Type:    "decision",
+		AgentID: "virgil",
+		Limit:   20,
+	})
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+	if !out.Success {
+		t.Fatal("expected list success")
+	}
+	if gotChannel != "brain.list.complete" {
+		t.Fatalf("expected brain.list.complete, got %q", gotChannel)
+	}
+	if gotPayload == nil {
+		t.Fatal("expected channel payload")
+	}
+	if gotPayload["agent_id"] != "virgil" {
+		t.Fatalf("expected agent_id=virgil, got %v", gotPayload["agent_id"])
+	}
+	if gotPayload["project"] != "eaas" {
+		t.Fatalf("expected project=eaas, got %v", gotPayload["project"])
+	}
+}
+
 func TestDirectList_Good_DefaultLimit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("limit"); got != "50" {

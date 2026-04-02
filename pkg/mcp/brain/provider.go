@@ -318,10 +318,10 @@ func (p *BrainProvider) list(c *gin.Context) {
 	}
 
 	p.emitEvent(coremcp.ChannelBrainListDone, map[string]any{
-		"project": project,
-		"type":    typ,
-		"agent":   agentID,
-		"limit":   limit,
+		"project":  project,
+		"type":     typ,
+		"agent_id": agentID,
+		"limit":    limit,
 	})
 
 	c.JSON(http.StatusOK, api.OK(ListOutput{

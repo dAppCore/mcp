@@ -235,10 +235,10 @@ func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
-		"project": input.Project,
-		"type":    input.Type,
-		"agent":   input.AgentID,
-		"limit":   limit,
+		"project":  input.Project,
+		"type":     input.Type,
+		"agent_id": input.AgentID,
+		"limit":    limit,
 	})
 
 	return nil, ListOutput{

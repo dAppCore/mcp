@@ -75,6 +75,8 @@ func isTestProcess(command string, args []string) bool {
 }
 
 func (s *Service) emitTestResult(ctx context.Context, processID string, exitCode int, duration time.Duration, signal string, errText string) {
+	defer s.forgetProcessRuntime(processID)
+
 	meta, ok := s.processRuntimeFor(processID)
 	if !ok || !isTestProcess(meta.Command, meta.Args) {
 		return
@@ -115,5 +117,4 @@ func (s *Service) emitTestResult(ctx context.Context, processID string, exitCode
 	}
 
 	s.ChannelSend(ctx, ChannelTestResult, payload)
-	s.forgetProcessRuntime(processID)
 }

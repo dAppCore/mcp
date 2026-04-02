@@ -289,10 +289,10 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
-			"project": input.Project,
-			"type":    input.Type,
-			"agent":   input.AgentID,
-			"limit":   limit,
+			"project":  input.Project,
+			"type":     input.Type,
+			"agent_id": input.AgentID,
+			"limit":    limit,
 		})
 	}
 
