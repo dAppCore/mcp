@@ -197,6 +197,7 @@ func channelCapability() map[string]any {
 // experimental capability.
 func channelCapabilityChannels() []string {
 	return []string{
+		"build.start",
 		"agent.complete",
 		"agent.blocked",
 		"agent.status",

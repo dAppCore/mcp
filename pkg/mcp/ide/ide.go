@@ -335,6 +335,8 @@ func (s *Subsystem) emitBuildLifecycle(build BuildInfo) {
 
 	channel := ""
 	switch build.Status {
+	case "running", "in_progress", "started":
+		channel = "build.start"
 	case "success", "succeeded", "completed", "passed":
 		channel = "build.complete"
 	case "failed", "error":

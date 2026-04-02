@@ -356,6 +356,34 @@ func TestBuildStatus_Good_EmitsLifecycle(t *testing.T) {
 	}
 }
 
+// TestBuildStatus_Good_EmitsStartLifecycle verifies running builds broadcast a start event.
+func TestBuildStatus_Good_EmitsStartLifecycle(t *testing.T) {
+	sub := newNilBridgeSubsystem()
+	notifier := &recordingNotifier{}
+	sub.SetNotifier(notifier)
+
+	sub.handleBridgeMessage(BridgeMessage{
+		Type: "build_status",
+		Data: map[string]any{
+			"buildId": "build-2",
+			"repo":    "core-php",
+			"branch":  "main",
+			"status":  "running",
+		},
+	})
+
+	if notifier.channel != "build.start" {
+		t.Fatalf("expected build.start channel, got %q", notifier.channel)
+	}
+	payload, ok := notifier.data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload map, got %T", notifier.data)
+	}
+	if payload["id"] != "build-2" {
+		t.Fatalf("expected build id build-2, got %v", payload["id"])
+	}
+}
+
 // TestBuildList_Good_NilBridge verifies buildList returns an empty list without a bridge.
 func TestBuildList_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
