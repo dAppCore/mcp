@@ -98,9 +98,9 @@ var channelCapabilityList = []string{
 //	    Channels: ChannelCapabilityChannels(),
 //	}
 type ChannelCapabilitySpec struct {
-	Version     string   `json:"version"`
-	Description string   `json:"description"`
-	Channels    []string `json:"channels"`
+	Version     string   `json:"version"`     // e.g. "1"
+	Description string   `json:"description"` // capability summary shown to clients
+	Channels    []string `json:"channels"`    // e.g. []string{"build.complete", "agent.status"}
 }
 
 // Map converts the typed capability into the wire-format map expected by the SDK.
@@ -126,8 +126,8 @@ func (c ChannelCapabilitySpec) Map() map[string]any {
 //	    Data:    map[string]any{"repo": "core/mcp"},
 //	}
 type ChannelNotification struct {
-	Channel string `json:"channel"`
-	Data    any    `json:"data"`
+	Channel string `json:"channel"` // e.g. "build.complete"
+	Data    any    `json:"data"`    // arbitrary payload for the named channel
 }
 
 // SendNotificationToAllClients broadcasts a log-level notification to every
@@ -168,7 +168,7 @@ func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session 
 		Logger: logger,
 		Data:   data,
 	}); err != nil {
-		s.logger.Debug("notify: failed to send to session", "session", session.ID(), "error", err)
+		s.debugNotify("notify: failed to send to session", "session", session.ID(), "error", err)
 	}
 }
 
@@ -202,7 +202,7 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 	ctx = normalizeNotificationContext(ctx)
 	payload := ChannelNotification{Channel: channel, Data: data}
 	if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
-		s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
+		s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 	}
 }
 
@@ -225,9 +225,16 @@ func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, paylo
 	ctx = normalizeNotificationContext(ctx)
 	for session := range s.server.Sessions() {
 		if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
-			s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
+			s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 		}
 	}
+}
+
+func (s *Service) debugNotify(msg string, args ...any) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	s.logger.Debug(msg, args...)
 }
 
 func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
