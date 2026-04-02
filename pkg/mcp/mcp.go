@@ -116,10 +116,10 @@ func New(opts Options) (*Service, error) {
 	s.registerTools(s.server)
 
 	for _, sub := range s.subsystems {
-		sub.RegisterTools(s.server)
 		if sn, ok := sub.(SubsystemWithNotifier); ok {
 			sn.SetNotifier(s)
 		}
+		sub.RegisterTools(s.server)
 		// Wire channel callback for subsystems that use func-based notification
 		type channelWirer interface {
 			OnChannel(func(ctx context.Context, channel string, data any))
