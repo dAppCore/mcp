@@ -188,22 +188,28 @@ func channelCapability() map[string]any {
 		"claude/channel": map[string]any{
 			"version":     "1",
 			"description": "Push events into client sessions via named channels",
-			"channels": []string{
-				"agent.complete",
-				"agent.blocked",
-				"agent.status",
-				"build.complete",
-				"build.failed",
-				"brain.list.complete",
-				"brain.forget.complete",
-				"brain.remember.complete",
-				"brain.recall.complete",
-				"inbox.message",
-				"process.start",
-				"process.exit",
-				"harvest.complete",
-				"test.result",
-			},
+			"channels":    channelCapabilityChannels(),
 		},
+	}
+}
+
+// channelCapabilityChannels lists the named channel events advertised by the
+// experimental capability.
+func channelCapabilityChannels() []string {
+	return []string{
+		"agent.complete",
+		"agent.blocked",
+		"agent.status",
+		"build.complete",
+		"build.failed",
+		"brain.forget.complete",
+		"brain.list.complete",
+		"brain.recall.complete",
+		"brain.remember.complete",
+		"harvest.complete",
+		"inbox.message",
+		"process.exit",
+		"process.start",
+		"test.result",
 	}
 }

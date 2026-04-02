@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"slices"
 	"testing"
 	"time"
 )
@@ -212,14 +213,14 @@ func TestChannelCapability_Good(t *testing.T) {
 		t.Fatal("expected at least one channel in capability definition")
 	}
 
-	foundProcessStart := false
-	for _, channel := range channels {
-		if channel == "process.start" {
-			foundProcessStart = true
-			break
-		}
+	want := channelCapabilityChannels()
+	if got, wantLen := len(channels), len(want); got != wantLen {
+		t.Fatalf("expected %d channels, got %d", wantLen, got)
 	}
-	if !foundProcessStart {
-		t.Fatal("expected process.start to be advertised in capability definition")
+
+	for _, channel := range want {
+		if !slices.Contains(channels, channel) {
+			t.Fatalf("expected channel %q to be advertised in capability definition", channel)
+		}
 	}
 }
