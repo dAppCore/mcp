@@ -8,6 +8,16 @@ import (
 	"testing"
 )
 
+type recordingNotifier struct {
+	channel string
+	data    any
+}
+
+func (r *recordingNotifier) ChannelSend(_ context.Context, channel string, data any) {
+	r.channel = channel
+	r.data = data
+}
+
 func TestSanitizeRepoPathSegment_Good(t *testing.T) {
 	t.Run("repo", func(t *testing.T) {
 		value, err := sanitizeRepoPathSegment("go-io", "repo", false)
@@ -92,5 +102,20 @@ func TestPrepWorkspace_Bad_BadPlanTemplateTraversal(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "plan_template") {
 		t.Fatalf("expected plan template error, got %q", err)
+	}
+}
+
+func TestSetNotifier_Good_EmitsChannelEvents(t *testing.T) {
+	s := NewPrep()
+	notifier := &recordingNotifier{}
+	s.SetNotifier(notifier)
+
+	s.emitChannel(context.Background(), "agent.status", map[string]any{"status": "running"})
+
+	if notifier.channel != "agent.status" {
+		t.Fatalf("expected agent.status channel, got %q", notifier.channel)
+	}
+	if payload, ok := notifier.data.(map[string]any); !ok || payload["status"] != "running" {
+		t.Fatalf("expected payload to include running status, got %#v", notifier.data)
 	}
 }

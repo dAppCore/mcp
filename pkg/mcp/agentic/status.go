@@ -29,19 +29,19 @@ import (
 
 // WorkspaceStatus represents the current state of an agent workspace.
 type WorkspaceStatus struct {
-	Status    string         `json:"status"`              // running, completed, blocked, failed
-	Agent     string         `json:"agent"`               // gemini, claude, codex
-	Repo      string         `json:"repo"`                // target repo
-	Org       string         `json:"org,omitempty"`       // forge org (e.g. "core")
-	Task      string         `json:"task"`                // task description
-	Branch    string         `json:"branch,omitempty"`    // git branch name
-	Issue     int            `json:"issue,omitempty"`     // forge issue number
-	PID       int            `json:"pid,omitempty"`       // process ID (if running)
-	StartedAt time.Time      `json:"started_at"`          // when dispatch started
-	UpdatedAt time.Time      `json:"updated_at"`          // last status change
-	Question  string         `json:"question,omitempty"`  // from BLOCKED.md
-	Runs      int            `json:"runs"`                // how many times dispatched/resumed
-	PRURL     string         `json:"pr_url,omitempty"`    // pull request URL (after PR created)
+	Status    string    `json:"status"`             // running, completed, blocked, failed
+	Agent     string    `json:"agent"`              // gemini, claude, codex
+	Repo      string    `json:"repo"`               // target repo
+	Org       string    `json:"org,omitempty"`      // forge org (e.g. "core")
+	Task      string    `json:"task"`               // task description
+	Branch    string    `json:"branch,omitempty"`   // git branch name
+	Issue     int       `json:"issue,omitempty"`    // forge issue number
+	PID       int       `json:"pid,omitempty"`      // process ID (if running)
+	StartedAt time.Time `json:"started_at"`         // when dispatch started
+	UpdatedAt time.Time `json:"updated_at"`         // last status change
+	Question  string    `json:"question,omitempty"` // from BLOCKED.md
+	Runs      int       `json:"runs"`               // how many times dispatched/resumed
+	PRURL     string    `json:"pr_url,omitempty"`   // pull request URL (after PR created)
 }
 
 func writeStatus(wsDir string, status *WorkspaceStatus) error {
@@ -77,14 +77,14 @@ type StatusOutput struct {
 }
 
 type WorkspaceInfo struct {
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	Agent     string `json:"agent"`
-	Repo      string `json:"repo"`
-	Task      string `json:"task"`
-	Age       string `json:"age"`
-	Question  string `json:"question,omitempty"`
-	Runs      int    `json:"runs"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Agent    string `json:"agent"`
+	Repo     string `json:"repo"`
+	Task     string `json:"task"`
+	Age      string `json:"age"`
+	Question string `json:"question,omitempty"`
+	Runs     int    `json:"runs"`
 }
 
 func (s *PrepSubsystem) registerStatusTool(server *mcp.Server) {
@@ -140,6 +140,16 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		if st.Status == "running" && st.PID > 0 {
 			proc, err := os.FindProcess(st.PID)
 			if err != nil || proc.Signal(nil) != nil {
+				prevStatus := st.Status
+				status := "completed"
+				channel := "agent.complete"
+				payload := map[string]any{
+					"workspace": name,
+					"agent":     st.Agent,
+					"repo":      st.Repo,
+					"branch":    st.Branch,
+				}
+
 				// Process died — check for BLOCKED.md
 				blockedPath := filepath.Join(wsDir, "src", "BLOCKED.md")
 				if data, err := coreio.Local.Read(blockedPath); err == nil {
@@ -147,11 +157,22 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 					info.Question = strings.TrimSpace(data)
 					st.Status = "blocked"
 					st.Question = info.Question
+					status = "blocked"
+					channel = "agent.blocked"
+					if st.Question != "" {
+						payload["question"] = st.Question
+					}
 				} else {
 					info.Status = "completed"
 					st.Status = "completed"
 				}
-				writeStatus(wsDir, st)
+				_ = writeStatus(wsDir, st)
+
+				if prevStatus != status {
+					payload["status"] = status
+					s.emitChannel(ctx, channel, payload)
+					s.emitChannel(ctx, "agent.status", payload)
+				}
 			}
 		}
 

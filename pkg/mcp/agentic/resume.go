@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	coreio "forge.lthn.ai/core/go-io"
@@ -17,20 +18,20 @@ import (
 
 // ResumeInput is the input for agentic_resume.
 type ResumeInput struct {
-	Workspace string `json:"workspace"`           // workspace name (e.g. "go-scm-1773581173")
-	Answer    string `json:"answer,omitempty"`     // answer to the blocked question (written to ANSWER.md)
-	Agent     string `json:"agent,omitempty"`      // override agent type (default: same as original)
-	DryRun    bool   `json:"dry_run,omitempty"`    // preview without executing
+	Workspace string `json:"workspace"`         // workspace name (e.g. "go-scm-1773581173")
+	Answer    string `json:"answer,omitempty"`  // answer to the blocked question (written to ANSWER.md)
+	Agent     string `json:"agent,omitempty"`   // override agent type (default: same as original)
+	DryRun    bool   `json:"dry_run,omitempty"` // preview without executing
 }
 
 // ResumeOutput is the output for agentic_resume.
 type ResumeOutput struct {
-	Success      bool   `json:"success"`
-	Workspace    string `json:"workspace"`
-	Agent        string `json:"agent"`
-	PID          int    `json:"pid,omitempty"`
-	OutputFile   string `json:"output_file,omitempty"`
-	Prompt       string `json:"prompt,omitempty"`
+	Success    bool   `json:"success"`
+	Workspace  string `json:"workspace"`
+	Agent      string `json:"agent"`
+	PID        int    `json:"pid,omitempty"`
+	OutputFile string `json:"output_file,omitempty"`
+	Prompt     string `json:"prompt,omitempty"`
 }
 
 func (s *PrepSubsystem) registerResumeTool(server *mcp.Server) {
@@ -136,6 +137,33 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	go func() {
 		cmd.Wait()
 		outFile.Close()
+
+		postCtx := context.WithoutCancel(ctx)
+		status := "completed"
+		channel := "agent.complete"
+		payload := map[string]any{
+			"workspace": input.Workspace,
+			"agent":     agent,
+			"repo":      st.Repo,
+			"branch":    st.Branch,
+		}
+
+		if data, err := coreio.Local.Read(filepath.Join(srcDir, "BLOCKED.md")); err == nil {
+			status = "blocked"
+			channel = "agent.blocked"
+			st.Question = strings.TrimSpace(data)
+			if st.Question != "" {
+				payload["question"] = st.Question
+			}
+		}
+
+		st.Status = status
+		st.PID = 0
+		_ = writeStatus(wsDir, st)
+
+		payload["status"] = status
+		s.emitChannel(postCtx, channel, payload)
+		s.emitChannel(postCtx, "agent.status", payload)
 	}()
 
 	return nil, ResumeOutput{

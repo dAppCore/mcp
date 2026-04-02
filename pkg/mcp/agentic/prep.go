@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,6 +33,7 @@ type PrepSubsystem struct {
 	specsPath  string
 	codePath   string
 	client     *http.Client
+	notifier   coremcp.Notifier
 }
 
 // NewPrep creates an agentic subsystem.
@@ -58,6 +60,18 @@ func NewPrep() *PrepSubsystem {
 		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
 		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
 		client:     &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// SetNotifier wires the shared MCP notifier into the agentic subsystem.
+func (s *PrepSubsystem) SetNotifier(n coremcp.Notifier) {
+	s.notifier = n
+}
+
+// emitChannel pushes an agentic event through the shared notifier.
+func (s *PrepSubsystem) emitChannel(ctx context.Context, channel string, data any) {
+	if s.notifier != nil {
+		s.notifier.ChannelSend(ctx, channel, data)
 	}
 }
 

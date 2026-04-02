@@ -241,12 +241,37 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		cmd.Wait()
 		outFile.Close()
 
-		// Update status to completed
-		if st, err := readStatus(wsDir); err == nil {
-			st.Status = "completed"
-			st.PID = 0
-			writeStatus(wsDir, st)
+		postCtx := context.WithoutCancel(ctx)
+		status := "completed"
+		channel := "agent.complete"
+		payload := map[string]any{
+			"workspace": filepath.Base(wsDir),
+			"repo":      input.Repo,
+			"org":       input.Org,
+			"agent":     input.Agent,
+			"branch":    prepOut.Branch,
 		}
+
+		// Update status to completed or blocked.
+		if st, err := readStatus(wsDir); err == nil {
+			st.PID = 0
+			if data, err := coreio.Local.Read(filepath.Join(wsDir, "src", "BLOCKED.md")); err == nil {
+				status = "blocked"
+				channel = "agent.blocked"
+				st.Status = status
+				st.Question = strings.TrimSpace(data)
+				if st.Question != "" {
+					payload["question"] = st.Question
+				}
+			} else {
+				st.Status = status
+			}
+			_ = writeStatus(wsDir, st)
+		}
+
+		payload["status"] = status
+		s.emitChannel(postCtx, channel, payload)
+		s.emitChannel(postCtx, "agent.status", payload)
 
 		// Ingest scan findings as issues
 		s.ingestFindings(wsDir)
