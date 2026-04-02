@@ -290,6 +290,48 @@ func TestDirectForget_Good(t *testing.T) {
 	}
 }
 
+func TestDirectForget_Good_EmitsChannel(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(map[string]any{"success": true})
+	}))
+	defer srv.Close()
+
+	var gotChannel string
+	var gotPayload map[string]any
+
+	s := newTestDirect(srv.URL)
+	s.onChannel = func(_ context.Context, channel string, data any) {
+		gotChannel = channel
+		if payload, ok := data.(map[string]any); ok {
+			gotPayload = payload
+		}
+	}
+
+	_, out, err := s.forget(context.Background(), nil, ForgetInput{
+		ID:     "mem-789",
+		Reason: "outdated",
+	})
+	if err != nil {
+		t.Fatalf("forget failed: %v", err)
+	}
+	if !out.Success {
+		t.Fatal("expected success=true")
+	}
+	if gotChannel != "brain.forget.complete" {
+		t.Fatalf("expected brain.forget.complete, got %q", gotChannel)
+	}
+	if gotPayload == nil {
+		t.Fatal("expected channel payload")
+	}
+	if gotPayload["id"] != "mem-789" {
+		t.Fatalf("expected id=mem-789, got %v", gotPayload["id"])
+	}
+	if gotPayload["reason"] != "outdated" {
+		t.Fatalf("expected reason=outdated, got %v", gotPayload["reason"])
+	}
+}
+
 func TestDirectForget_Bad_ApiError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)

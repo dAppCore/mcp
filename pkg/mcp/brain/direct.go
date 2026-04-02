@@ -244,6 +244,13 @@ func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, in
 		return nil, ForgetOutput{}, err
 	}
 
+	if s.onChannel != nil {
+		s.onChannel(ctx, coremcp.ChannelBrainForgetDone, map[string]any{
+			"id":     input.ID,
+			"reason": input.Reason,
+		})
+	}
+
 	return nil, ForgetOutput{
 		Success:   true,
 		Forgotten: input.ID,

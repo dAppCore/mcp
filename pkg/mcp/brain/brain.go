@@ -58,28 +58,18 @@ func (s *Subsystem) RegisterTools(svc *coremcp.Service) {
 }
 
 func (s *Subsystem) handleBridgeMessage(msg ide.BridgeMessage) {
-	if msg.Type != "brain_recall" {
-		return
+	switch msg.Type {
+	case "brain_remember":
+		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainRememberDone, bridgePayload(msg.Data, "type", "project"))
+	case "brain_recall":
+		payload := bridgePayload(msg.Data, "query", "project", "type", "agent_id")
+		payload["count"] = bridgeCount(msg.Data)
+		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainRecallDone, payload)
+	case "brain_forget":
+		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainForgetDone, bridgePayload(msg.Data, "id", "reason"))
+	case "brain_list":
+		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainListDone, bridgePayload(msg.Data, "project", "type", "agent_id", "limit"))
 	}
-
-	payload := map[string]any{}
-	if data, ok := msg.Data.(map[string]any); ok {
-		for _, key := range []string{"query", "project", "type", "agent_id"} {
-			if value, ok := data[key]; ok {
-				payload[key] = value
-			}
-		}
-		if count, ok := data["count"]; ok {
-			payload["count"] = count
-		} else if memories, ok := data["memories"].([]any); ok {
-			payload["count"] = len(memories)
-		}
-	}
-	if _, ok := payload["count"]; !ok {
-		payload["count"] = 0
-	}
-
-	s.emitChannel(context.Background(), coremcp.ChannelBrainRecallDone, payload)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
