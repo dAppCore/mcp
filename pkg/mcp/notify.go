@@ -11,7 +11,9 @@ import (
 	"io"
 	"iter"
 	"os"
+	"reflect"
 	"sync"
+	"unsafe"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -36,6 +38,15 @@ func (lw *lockedWriter) Close() error { return nil }
 // Created once when the MCP service enters stdio mode.
 var sharedStdout = &lockedWriter{w: os.Stdout}
 
+const channelNotificationMethod = "notifications/claude/channel"
+
+// ChannelNotification is the payload sent through the experimental channel
+// notification method.
+type ChannelNotification struct {
+	Channel string `json:"channel"`
+	Data    any    `json:"data"`
+}
+
 // SendNotificationToAllClients broadcasts a log-level notification to every
 // connected MCP session (stdio, HTTP, TCP, and Unix).
 // Errors on individual sessions are logged but do not stop the broadcast.
@@ -59,11 +70,8 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 //	s.ChannelSend(ctx, "agent.complete", map[string]any{"repo": "go-io", "workspace": "go-io-123"})
 //	s.ChannelSend(ctx, "build.failed", map[string]any{"repo": "core", "error": "test timeout"})
 func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
-	payload := map[string]any{
-		"channel": channel,
-		"data":    data,
-	}
-	s.SendNotificationToAllClients(ctx, mcp.LoggingLevel("info"), "channel", payload)
+	payload := ChannelNotification{Channel: channel, Data: data}
+	s.sendChannelNotificationToAllClients(ctx, payload)
 }
 
 // ChannelSendToSession pushes a channel event to a specific session.
@@ -74,15 +82,8 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 		return
 	}
 
-	payload := map[string]any{
-		"channel": channel,
-		"data":    data,
-	}
-	if err := session.Log(ctx, &mcp.LoggingMessageParams{
-		Level:  mcp.LoggingLevel("info"),
-		Logger: "channel",
-		Data:   payload,
-	}); err != nil {
+	payload := ChannelNotification{Channel: channel, Data: data}
+	if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
 		s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
 	}
 }
@@ -94,6 +95,73 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 //	}
 func (s *Service) Sessions() iter.Seq[*mcp.ServerSession] {
 	return s.server.Sessions()
+}
+
+func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, payload ChannelNotification) {
+	for session := range s.server.Sessions() {
+		if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
+			s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
+		}
+	}
+}
+
+func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
+	if session == nil {
+		return nil
+	}
+
+	conn, err := sessionConnection(session)
+	if err != nil {
+		return err
+	}
+
+	value := reflect.ValueOf(conn)
+	call := value.MethodByName("Notify")
+	if !call.IsValid() {
+		return coreNotifyError("connection Notify method unavailable")
+	}
+
+	results := call.Call([]reflect.Value{
+		reflect.ValueOf(ctx),
+		reflect.ValueOf(method),
+		reflect.ValueOf(payload),
+	})
+	if len(results) != 1 {
+		return coreNotifyError("unexpected Notify result shape")
+	}
+	if !results[0].IsNil() {
+		if err, ok := results[0].Interface().(error); ok {
+			return err
+		}
+		return coreNotifyError("Notify returned non-error result")
+	}
+	return nil
+}
+
+func sessionConnection(session *mcp.ServerSession) (any, error) {
+	value := reflect.ValueOf(session)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return nil, coreNotifyError("invalid session")
+	}
+
+	field := value.Elem().FieldByName("conn")
+	if !field.IsValid() {
+		return nil, coreNotifyError("session connection field unavailable")
+	}
+
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface(), nil
+}
+
+func coreNotifyError(message string) error {
+	return &notificationError{message: message}
+}
+
+type notificationError struct {
+	message string
+}
+
+func (e *notificationError) Error() string {
+	return e.message
 }
 
 // channelCapability returns the experimental capability descriptor
