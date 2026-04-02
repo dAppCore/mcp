@@ -129,6 +129,31 @@ func TestNotificationMethods_Good_NilServer(t *testing.T) {
 	}
 }
 
+func TestSessions_Good_ReturnsSnapshot(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	cancel, session, _ := connectNotificationSession(t, svc)
+	snapshot := svc.Sessions()
+
+	cancel()
+	session.Close()
+
+	var sessions []*mcp.ServerSession
+	for session := range snapshot {
+		sessions = append(sessions, session)
+	}
+
+	if len(sessions) != 1 {
+		t.Fatalf("expected snapshot to retain one session, got %d", len(sessions))
+	}
+	if sessions[0] == nil {
+		t.Fatal("expected snapshot session to be non-nil")
+	}
+}
+
 func TestNotificationMethods_Good_NilContext(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {

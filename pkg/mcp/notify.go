@@ -13,6 +13,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"unsafe"
@@ -143,7 +144,7 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
-	for session := range s.server.Sessions() {
+	for _, session := range snapshotSessions(s.server) {
 		s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 	}
 }
@@ -233,7 +234,7 @@ func (s *Service) Sessions() iter.Seq[*mcp.ServerSession] {
 	if s == nil || s.server == nil {
 		return func(yield func(*mcp.ServerSession) bool) {}
 	}
-	return s.server.Sessions()
+	return slices.Values(snapshotSessions(s.server))
 }
 
 func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, payload ChannelNotification) {
@@ -241,7 +242,7 @@ func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, paylo
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
-	for session := range s.server.Sessions() {
+	for _, session := range snapshotSessions(s.server) {
 		if err := sendSessionNotification(ctx, session, ChannelNotificationMethod, payload); err != nil {
 			s.debugNotify("channel: failed to send to session", "session", session.ID(), "error", err)
 		}
@@ -319,6 +320,25 @@ func sessionJSONRPCConnection(session *mcp.ServerSession) (any, error) {
 
 func coreNotifyError(message string) error {
 	return &notificationError{message: message}
+}
+
+func snapshotSessions(server *mcp.Server) []*mcp.ServerSession {
+	if server == nil {
+		return nil
+	}
+
+	sessions := make([]*mcp.ServerSession, 0)
+	for session := range server.Sessions() {
+		if session != nil {
+			sessions = append(sessions, session)
+		}
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].ID() < sessions[j].ID()
+	})
+
+	return sessions
 }
 
 type notificationError struct {
