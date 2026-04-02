@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"errors"
 	"image"
 	"image/jpeg"
 	_ "image/png"
@@ -593,7 +592,7 @@ func normalizeScreenshotData(data []byte, format string) ([]byte, string, error)
 		}
 		return buf.Bytes(), "jpeg", nil
 	default:
-		return nil, "", errors.New("unsupported screenshot format: " + format)
+		return nil, "", log.E("webviewScreenshot", "unsupported screenshot format: "+format, nil)
 	}
 }
 
