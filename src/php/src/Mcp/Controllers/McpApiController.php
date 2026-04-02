@@ -83,6 +83,26 @@ class McpApiController extends Controller
     }
 
     /**
+     * List resources for a specific server.
+     *
+     * GET /api/v1/mcp/servers/{id}/resources
+     */
+    public function resources(Request $request, string $id): JsonResponse
+    {
+        $server = $this->loadServerFull($id);
+
+        if (! $server) {
+            return response()->json(['error' => 'Server not found'], 404);
+        }
+
+        return response()->json([
+            'server' => $id,
+            'resources' => array_values($server['resources'] ?? []),
+            'count' => count($server['resources'] ?? []),
+        ]);
+    }
+
+    /**
      * Execute a tool on an MCP server.
      *
      * POST /api/v1/mcp/tools/call

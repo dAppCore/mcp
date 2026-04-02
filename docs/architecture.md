@@ -226,7 +226,7 @@ The `McpApiController` exposes five endpoints behind `mcp.auth` middleware:
 | `GET` | `/servers/{id}.json` | Server details with tool definitions |
 | `GET` | `/servers/{id}/tools` | List tools for a server |
 | `POST` | `/tools/call` | Execute a tool |
-| `GET` | `/resources/{uri}` | Read a resource (not yet implemented -- returns 501) |
+| `GET` | `/resources/{uri}` | Read a resource |
 
 `POST /tools/call` accepts:
 

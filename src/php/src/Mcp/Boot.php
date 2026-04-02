@@ -113,6 +113,8 @@ class Boot extends ServiceProvider
                     ->where('id', '[a-z0-9-]+');
                 Route::get('servers/{id}/tools', [Controllers\McpApiController::class, 'tools'])->name('servers.tools')
                     ->where('id', '[a-z0-9-]+');
+                Route::get('servers/{id}/resources', [Controllers\McpApiController::class, 'resources'])->name('servers.resources')
+                    ->where('id', '[a-z0-9-]+');
             })
         );
     }
