@@ -183,7 +183,7 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 	opts := process.RunOptions{
 		Command: input.Command,
 		Args:    input.Args,
-		Dir:     input.Dir,
+		Dir:     s.resolveWorkspacePath(input.Dir),
 		Env:     input.Env,
 	}
 

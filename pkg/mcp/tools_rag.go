@@ -183,12 +183,13 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		log.Error("mcp: rag ingest stat failed", "path", input.Path, "err", err)
 		return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to access path", err)
 	}
+	resolvedPath := s.resolveWorkspacePath(input.Path)
 
 	var message string
 	var chunks int
 	if info.IsDir() {
 		// Ingest directory
-		err = rag.IngestDirectory(ctx, input.Path, collection, input.Recreate)
+		err = rag.IngestDirectory(ctx, resolvedPath, collection, input.Recreate)
 		if err != nil {
 			log.Error("mcp: rag ingest directory failed", "path", input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest directory", err)
@@ -196,7 +197,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		message = core.Sprintf("Successfully ingested directory %s into collection %s", input.Path, collection)
 	} else {
 		// Ingest single file
-		chunks, err = rag.IngestSingleFile(ctx, input.Path, collection)
+		chunks, err = rag.IngestSingleFile(ctx, resolvedPath, collection)
 		if err != nil {
 			log.Error("mcp: rag ingest file failed", "path", input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest file", err)

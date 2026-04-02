@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -227,6 +228,29 @@ func (s *Service) WSHub() *ws.Hub {
 //	}
 func (s *Service) ProcessService() *process.Service {
 	return s.processService
+}
+
+// resolveWorkspacePath converts a tool path into the filesystem path the
+// service actually operates on.
+//
+// Sandboxed services keep paths anchored under workspaceRoot. Unrestricted
+// services preserve absolute paths and clean relative ones against the current
+// working directory.
+func (s *Service) resolveWorkspacePath(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	if s.workspaceRoot == "" {
+		return filepath.Clean(path)
+	}
+
+	clean := filepath.Clean(string(filepath.Separator) + path)
+	clean = strings.TrimPrefix(clean, string(filepath.Separator))
+	if clean == "." || clean == "" {
+		return s.workspaceRoot
+	}
+	return filepath.Join(s.workspaceRoot, clean)
 }
 
 // registerTools adds file operation tools to the MCP server.

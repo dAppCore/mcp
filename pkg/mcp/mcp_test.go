@@ -274,6 +274,40 @@ func TestMedium_Good_IsFile(t *testing.T) {
 	}
 }
 
+func TestResolveWorkspacePath_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+	s, err := New(Options{WorkspaceRoot: tmpDir})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	cases := map[string]string{
+		"docs/readme.md":     filepath.Join(tmpDir, "docs", "readme.md"),
+		"/docs/readme.md":    filepath.Join(tmpDir, "docs", "readme.md"),
+		"../escape/notes.md": filepath.Join(tmpDir, "escape", "notes.md"),
+		"":                   "",
+	}
+	for input, want := range cases {
+		if got := s.resolveWorkspacePath(input); got != want {
+			t.Fatalf("resolveWorkspacePath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestResolveWorkspacePath_Good_Unrestricted(t *testing.T) {
+	s, err := New(Options{Unrestricted: true})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	if got, want := s.resolveWorkspacePath("docs/readme.md"), filepath.Clean("docs/readme.md"); got != want {
+		t.Fatalf("resolveWorkspacePath(relative) = %q, want %q", got, want)
+	}
+	if got, want := s.resolveWorkspacePath("/tmp/readme.md"), filepath.Clean("/tmp/readme.md"); got != want {
+		t.Fatalf("resolveWorkspacePath(absolute) = %q, want %q", got, want)
+	}
+}
+
 func TestSandboxing_Traversal_Sanitized(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})
