@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -140,7 +141,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 		postCtx := context.WithoutCancel(ctx)
 		status := "completed"
-		channel := "agent.complete"
+		channel := coremcp.ChannelAgentComplete
 		payload := map[string]any{
 			"workspace": input.Workspace,
 			"agent":     agent,
@@ -150,7 +151,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 		if data, err := coreio.Local.Read(filepath.Join(srcDir, "BLOCKED.md")); err == nil {
 			status = "blocked"
-			channel = "agent.blocked"
+			channel = coremcp.ChannelAgentBlocked
 			st.Question = strings.TrimSpace(data)
 			if st.Question != "" {
 				payload["question"] = st.Question
@@ -163,7 +164,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 		payload["status"] = status
 		s.emitChannel(postCtx, channel, payload)
-		s.emitChannel(postCtx, "agent.status", payload)
+		s.emitChannel(postCtx, coremcp.ChannelAgentStatus, payload)
 	}()
 
 	return nil, ResumeOutput{

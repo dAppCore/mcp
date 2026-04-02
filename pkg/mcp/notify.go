@@ -12,6 +12,7 @@ import (
 	"iter"
 	"os"
 	"reflect"
+	"slices"
 	"sync"
 	"unsafe"
 
@@ -40,6 +41,44 @@ var sharedStdout = &lockedWriter{w: os.Stdout}
 
 const channelNotificationMethod = "notifications/claude/channel"
 const loggingNotificationMethod = "notifications/message"
+
+// Shared channel names. Keeping them central avoids drift between emitters
+// and the advertised claude/channel capability.
+const (
+	ChannelBuildStart        = "build.start"
+	ChannelBuildComplete     = "build.complete"
+	ChannelBuildFailed       = "build.failed"
+	ChannelAgentComplete     = "agent.complete"
+	ChannelAgentBlocked      = "agent.blocked"
+	ChannelAgentStatus       = "agent.status"
+	ChannelBrainForgetDone   = "brain.forget.complete"
+	ChannelBrainListDone     = "brain.list.complete"
+	ChannelBrainRecallDone   = "brain.recall.complete"
+	ChannelBrainRememberDone = "brain.remember.complete"
+	ChannelHarvestComplete   = "harvest.complete"
+	ChannelInboxMessage      = "inbox.message"
+	ChannelProcessExit       = "process.exit"
+	ChannelProcessStart      = "process.start"
+	ChannelTestResult        = "test.result"
+)
+
+var channelCapabilityList = []string{
+	ChannelBuildStart,
+	ChannelAgentComplete,
+	ChannelAgentBlocked,
+	ChannelAgentStatus,
+	ChannelBuildComplete,
+	ChannelBuildFailed,
+	ChannelBrainForgetDone,
+	ChannelBrainListDone,
+	ChannelBrainRecallDone,
+	ChannelBrainRememberDone,
+	ChannelHarvestComplete,
+	ChannelInboxMessage,
+	ChannelProcessExit,
+	ChannelProcessStart,
+	ChannelTestResult,
+}
 
 // ChannelNotification is the payload sent through the experimental channel
 // notification method.
@@ -186,21 +225,5 @@ func channelCapability() map[string]any {
 // channelCapabilityChannels lists the named channel events advertised by the
 // experimental capability.
 func channelCapabilityChannels() []string {
-	return []string{
-		"build.start",
-		"agent.complete",
-		"agent.blocked",
-		"agent.status",
-		"build.complete",
-		"build.failed",
-		"brain.forget.complete",
-		"brain.list.complete",
-		"brain.recall.complete",
-		"brain.remember.complete",
-		"harvest.complete",
-		"inbox.message",
-		"process.exit",
-		"process.start",
-		"test.result",
-	}
+	return slices.Clone(channelCapabilityList)
 }

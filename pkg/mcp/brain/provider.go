@@ -5,10 +5,11 @@ package brain
 import (
 	"net/http"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
+	"dappco.re/go/mcp/pkg/mcp/ide"
 	"forge.lthn.ai/core/api"
 	"forge.lthn.ai/core/api/pkg/provider"
 	"forge.lthn.ai/core/go-ws"
-	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"
 )
 
@@ -45,10 +46,10 @@ func (p *BrainProvider) BasePath() string { return "/api/brain" }
 // Channels implements provider.Streamable.
 func (p *BrainProvider) Channels() []string {
 	return []string{
-		"brain.remember.complete",
-		"brain.recall.complete",
-		"brain.forget.complete",
-		"brain.list.complete",
+		coremcp.ChannelBrainRememberDone,
+		coremcp.ChannelBrainRecallDone,
+		coremcp.ChannelBrainForgetDone,
+		coremcp.ChannelBrainListDone,
 	}
 }
 
@@ -212,7 +213,7 @@ func (p *BrainProvider) remember(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.remember.complete", map[string]any{
+	p.emitEvent(coremcp.ChannelBrainRememberDone, map[string]any{
 		"type":    input.Type,
 		"project": input.Project,
 	})
@@ -245,7 +246,7 @@ func (p *BrainProvider) recall(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.recall.complete", map[string]any{
+	p.emitEvent(coremcp.ChannelBrainRecallDone, map[string]any{
 		"query": input.Query,
 	})
 
@@ -279,7 +280,7 @@ func (p *BrainProvider) forget(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.forget.complete", map[string]any{
+	p.emitEvent(coremcp.ChannelBrainForgetDone, map[string]any{
 		"id": input.ID,
 	})
 
@@ -314,7 +315,7 @@ func (p *BrainProvider) list(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.list.complete", map[string]any{
+	p.emitEvent(coremcp.ChannelBrainListDone, map[string]any{
 		"project": project,
 		"type":    typ,
 		"agent":   agentID,

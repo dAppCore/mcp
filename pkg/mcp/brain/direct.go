@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -153,7 +154,7 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 
 	id, _ := result["id"].(string)
 	if s.onChannel != nil {
-		s.onChannel(ctx, "brain.remember.complete", map[string]any{
+		s.onChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
 			"id":      id,
 			"type":    input.Type,
 			"project": input.Project,
@@ -213,7 +214,7 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 	}
 
 	if s.onChannel != nil {
-		s.onChannel(ctx, "brain.recall.complete", map[string]any{
+		s.onChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
 			"query": input.Query,
 			"count": len(memories),
 		})
@@ -287,7 +288,7 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	}
 
 	if s.onChannel != nil {
-		s.onChannel(ctx, "brain.list.complete", map[string]any{
+		s.onChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
 			"project": input.Project,
 			"type":    input.Type,
 			"agent":   input.AgentID,

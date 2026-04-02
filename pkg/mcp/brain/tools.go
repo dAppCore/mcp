@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -150,7 +151,7 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 		return nil, RememberOutput{}, coreerr.E("brain.remember", "failed to send brain_remember", err)
 	}
 
-	s.emitChannel(ctx, "brain.remember.complete", map[string]any{
+	s.emitChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
 		"type":    input.Type,
 		"project": input.Project,
 	})
@@ -178,7 +179,7 @@ func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, inp
 		return nil, RecallOutput{}, coreerr.E("brain.recall", "failed to send brain_recall", err)
 	}
 
-	s.emitChannel(ctx, "brain.recall.complete", map[string]any{
+	s.emitChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
 		"query": input.Query,
 		"count": 0,
 	})
@@ -205,7 +206,7 @@ func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, inp
 		return nil, ForgetOutput{}, coreerr.E("brain.forget", "failed to send brain_forget", err)
 	}
 
-	s.emitChannel(ctx, "brain.forget.complete", map[string]any{
+	s.emitChannel(ctx, coremcp.ChannelBrainForgetDone, map[string]any{
 		"id": input.ID,
 	})
 
@@ -238,7 +239,7 @@ func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input
 		return nil, ListOutput{}, coreerr.E("brain.list", "failed to send brain_list", err)
 	}
 
-	s.emitChannel(ctx, "brain.list.complete", map[string]any{
+	s.emitChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
 		"project": input.Project,
 		"type":    input.Type,
 		"agent":   input.AgentID,

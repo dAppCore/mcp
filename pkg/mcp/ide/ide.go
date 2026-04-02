@@ -336,11 +336,11 @@ func (s *Subsystem) emitBuildLifecycle(build BuildInfo) {
 	channel := ""
 	switch build.Status {
 	case "running", "in_progress", "started":
-		channel = "build.start"
+		channel = coremcp.ChannelBuildStart
 	case "success", "succeeded", "completed", "passed":
-		channel = "build.complete"
+		channel = coremcp.ChannelBuildComplete
 	case "failed", "error":
-		channel = "build.failed"
+		channel = coremcp.ChannelBuildFailed
 	default:
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -142,7 +143,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			if err != nil || proc.Signal(nil) != nil {
 				prevStatus := st.Status
 				status := "completed"
-				channel := "agent.complete"
+				channel := coremcp.ChannelAgentComplete
 				payload := map[string]any{
 					"workspace": name,
 					"agent":     st.Agent,
@@ -158,7 +159,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 					st.Status = "blocked"
 					st.Question = info.Question
 					status = "blocked"
-					channel = "agent.blocked"
+					channel = coremcp.ChannelAgentBlocked
 					if st.Question != "" {
 						payload["question"] = st.Question
 					}
@@ -171,7 +172,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 				if prevStatus != status {
 					payload["status"] = status
 					s.emitChannel(ctx, channel, payload)
-					s.emitChannel(ctx, "agent.status", payload)
+					s.emitChannel(ctx, coremcp.ChannelAgentStatus, payload)
 				}
 			}
 		}

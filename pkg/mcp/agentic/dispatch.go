@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -243,7 +244,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 		postCtx := context.WithoutCancel(ctx)
 		status := "completed"
-		channel := "agent.complete"
+		channel := coremcp.ChannelAgentComplete
 		payload := map[string]any{
 			"workspace": filepath.Base(wsDir),
 			"repo":      input.Repo,
@@ -257,7 +258,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			st.PID = 0
 			if data, err := coreio.Local.Read(filepath.Join(wsDir, "src", "BLOCKED.md")); err == nil {
 				status = "blocked"
-				channel = "agent.blocked"
+				channel = coremcp.ChannelAgentBlocked
 				st.Status = status
 				st.Question = strings.TrimSpace(data)
 				if st.Question != "" {
@@ -271,7 +272,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 		payload["status"] = status
 		s.emitChannel(postCtx, channel, payload)
-		s.emitChannel(postCtx, "agent.status", payload)
+		s.emitChannel(postCtx, coremcp.ChannelAgentStatus, payload)
 
 		// Ingest scan findings as issues
 		s.ingestFindings(wsDir)

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 )
 
@@ -134,7 +135,7 @@ func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, p
 //	ctx := context.Background()
 //	s.emitHarvestComplete(ctx, "go-io-123", "go-io", 4, true)
 func (s *PrepSubsystem) emitHarvestComplete(ctx context.Context, workspace, repo string, findings int, issueCreated bool) {
-	s.emitChannel(ctx, "harvest.complete", map[string]any{
+	s.emitChannel(ctx, coremcp.ChannelHarvestComplete, map[string]any{
 		"workspace":     workspace,
 		"repo":          repo,
 		"findings":      findings,

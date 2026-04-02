@@ -6,6 +6,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 )
 
 type recordingNotifier struct {
@@ -110,10 +112,10 @@ func TestSetNotifier_Good_EmitsChannelEvents(t *testing.T) {
 	notifier := &recordingNotifier{}
 	s.SetNotifier(notifier)
 
-	s.emitChannel(context.Background(), "agent.status", map[string]any{"status": "running"})
+	s.emitChannel(context.Background(), coremcp.ChannelAgentStatus, map[string]any{"status": "running"})
 
-	if notifier.channel != "agent.status" {
-		t.Fatalf("expected agent.status channel, got %q", notifier.channel)
+	if notifier.channel != coremcp.ChannelAgentStatus {
+		t.Fatalf("expected %s channel, got %q", coremcp.ChannelAgentStatus, notifier.channel)
 	}
 	if payload, ok := notifier.data.(map[string]any); !ok || payload["status"] != "running" {
 		t.Fatalf("expected payload to include running status, got %#v", notifier.data)
@@ -127,8 +129,8 @@ func TestEmitHarvestComplete_Good_EmitsChannelEvents(t *testing.T) {
 
 	s.emitHarvestComplete(context.Background(), "go-io-123", "go-io", 4, true)
 
-	if notifier.channel != "harvest.complete" {
-		t.Fatalf("expected harvest.complete channel, got %q", notifier.channel)
+	if notifier.channel != coremcp.ChannelHarvestComplete {
+		t.Fatalf("expected %s channel, got %q", coremcp.ChannelHarvestComplete, notifier.channel)
 	}
 	payload, ok := notifier.data.(map[string]any)
 	if !ok {

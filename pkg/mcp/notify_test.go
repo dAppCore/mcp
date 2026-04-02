@@ -18,7 +18,7 @@ func TestSendNotificationToAllClients_Good(t *testing.T) {
 
 	ctx := context.Background()
 	svc.SendNotificationToAllClients(ctx, "info", "test", map[string]any{
-		"event": "build.complete",
+		"event": ChannelBuildComplete,
 	})
 }
 
@@ -47,7 +47,7 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	sent := make(chan struct{})
 	go func() {
 		svc.SendNotificationToAllClients(ctx, "info", "test", map[string]any{
-			"event": "build.complete",
+			"event": ChannelBuildComplete,
 		})
 		close(sent)
 	}()
@@ -84,8 +84,8 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected data object, got %T", params["data"])
 	}
-	if data["event"] != "build.complete" {
-		t.Fatalf("expected event build.complete, got %v", data["event"])
+	if data["event"] != ChannelBuildComplete {
+		t.Fatalf("expected event %s, got %v", ChannelBuildComplete, data["event"])
 	}
 }
 
@@ -96,7 +96,7 @@ func TestChannelSend_Good(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	svc.ChannelSend(ctx, "build.complete", map[string]any{
+	svc.ChannelSend(ctx, ChannelBuildComplete, map[string]any{
 		"repo": "go-io",
 	})
 }
@@ -108,7 +108,7 @@ func TestChannelSendToSession_Good_GuardNilSession(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	svc.ChannelSendToSession(ctx, nil, "agent.status", map[string]any{
+	svc.ChannelSendToSession(ctx, nil, ChannelAgentStatus, map[string]any{
 		"ok": true,
 	})
 }
@@ -149,7 +149,7 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 
 	sent := make(chan struct{})
 	go func() {
-		svc.ChannelSendToSession(ctx, session, "build.complete", map[string]any{
+		svc.ChannelSendToSession(ctx, session, ChannelBuildComplete, map[string]any{
 			"repo": "go-io",
 		})
 		close(sent)
@@ -177,8 +177,8 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected params object, got %T", msg["params"])
 	}
-	if params["channel"] != "build.complete" {
-		t.Fatalf("expected channel build.complete, got %v", params["channel"])
+	if params["channel"] != ChannelBuildComplete {
+		t.Fatalf("expected channel %s, got %v", ChannelBuildComplete, params["channel"])
 	}
 	payload, ok := params["data"].(map[string]any)
 	if !ok {

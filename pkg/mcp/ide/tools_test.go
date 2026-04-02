@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"forge.lthn.ai/core/go-ws"
 )
 
@@ -344,8 +345,8 @@ func TestBuildStatus_Good_EmitsLifecycle(t *testing.T) {
 		},
 	})
 
-	if notifier.channel != "build.complete" {
-		t.Fatalf("expected build.complete channel, got %q", notifier.channel)
+	if notifier.channel != coremcp.ChannelBuildComplete {
+		t.Fatalf("expected %s channel, got %q", coremcp.ChannelBuildComplete, notifier.channel)
 	}
 	payload, ok := notifier.data.(map[string]any)
 	if !ok {
@@ -372,8 +373,8 @@ func TestBuildStatus_Good_EmitsStartLifecycle(t *testing.T) {
 		},
 	})
 
-	if notifier.channel != "build.start" {
-		t.Fatalf("expected build.start channel, got %q", notifier.channel)
+	if notifier.channel != coremcp.ChannelBuildStart {
+		t.Fatalf("expected %s channel, got %q", coremcp.ChannelBuildStart, notifier.channel)
 	}
 	payload, ok := notifier.data.(map[string]any)
 	if !ok {
