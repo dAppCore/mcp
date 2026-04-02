@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -503,6 +504,9 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
 	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
 	result := make([]DirectoryEntry, 0, len(entries))
 	for _, e := range entries {
 		info, _ := e.Info()
@@ -545,21 +549,15 @@ func (s *Service) renameFile(ctx context.Context, req *mcp.CallToolRequest, inpu
 }
 
 func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, input FileExistsInput) (*mcp.CallToolResult, FileExistsOutput, error) {
-	exists := s.medium.IsFile(input.Path)
-	if exists {
-		return nil, FileExistsOutput{Exists: true, IsDir: false, Path: input.Path}, nil
+	info, err := s.medium.Stat(input.Path)
+	if err != nil {
+		return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
 	}
-	// Check if it's a directory by attempting to list it
-	// List might fail if it's a file too (but we checked IsFile) or if doesn't exist.
-	_, err := s.medium.List(input.Path)
-	isDir := err == nil
-
-	// If List failed, it might mean it doesn't exist OR it's a special file or permissions.
-	// Assuming if List works, it's a directory.
-
-	// Refinement: If it doesn't exist, List returns error.
-
-	return nil, FileExistsOutput{Exists: isDir, IsDir: isDir, Path: input.Path}, nil
+	return nil, FileExistsOutput{
+		Exists: true,
+		IsDir:  info.IsDir(),
+		Path:   input.Path,
+	}, nil
 }
 
 func (s *Service) detectLanguage(ctx context.Context, req *mcp.CallToolRequest, input DetectLanguageInput) (*mcp.CallToolResult, DetectLanguageOutput, error) {

@@ -216,6 +216,43 @@ func TestMedium_Good_EnsureDir(t *testing.T) {
 	}
 }
 
+func TestFileExists_Good_FileAndDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	s, err := New(Options{WorkspaceRoot: tmpDir})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	if err := s.medium.EnsureDir("nested"); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+	if err := s.medium.Write("nested/file.txt", "content"); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	_, fileOut, err := s.fileExists(nil, nil, FileExistsInput{Path: "nested/file.txt"})
+	if err != nil {
+		t.Fatalf("fileExists(file) failed: %v", err)
+	}
+	if !fileOut.Exists {
+		t.Fatal("expected file to exist")
+	}
+	if fileOut.IsDir {
+		t.Fatal("expected file to not be reported as a directory")
+	}
+
+	_, dirOut, err := s.fileExists(nil, nil, FileExistsInput{Path: "nested"})
+	if err != nil {
+		t.Fatalf("fileExists(dir) failed: %v", err)
+	}
+	if !dirOut.Exists {
+		t.Fatal("expected directory to exist")
+	}
+	if !dirOut.IsDir {
+		t.Fatal("expected directory to be reported as a directory")
+	}
+}
+
 func TestMedium_Good_IsFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})
