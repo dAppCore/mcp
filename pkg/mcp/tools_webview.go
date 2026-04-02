@@ -1,8 +1,13 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
+	"image"
+	"image/jpeg"
+	_ "image/png"
 	"strings"
 	"sync"
 	"time"
@@ -548,6 +553,7 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 	if format == "" {
 		format = "png"
 	}
+	format = strings.ToLower(format)
 
 	data, err := webviewInstance.Screenshot()
 	if err != nil {
@@ -555,11 +561,38 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 		return nil, WebviewScreenshotOutput{}, log.E("webviewScreenshot", "failed to capture screenshot", err)
 	}
 
+	encoded, outputFormat, err := normalizeScreenshotData(data, format)
+	if err != nil {
+		return nil, WebviewScreenshotOutput{}, log.E("webviewScreenshot", "failed to encode screenshot", err)
+	}
+
 	return nil, WebviewScreenshotOutput{
 		Success: true,
-		Data:    base64.StdEncoding.EncodeToString(data),
-		Format:  format,
+		Data:    base64.StdEncoding.EncodeToString(encoded),
+		Format:  outputFormat,
 	}, nil
+}
+
+// normalizeScreenshotData converts screenshot bytes into the requested format.
+// PNG is preserved as-is. JPEG requests are re-encoded so the output matches
+// the declared format in WebviewScreenshotOutput.
+func normalizeScreenshotData(data []byte, format string) ([]byte, string, error) {
+	switch format {
+	case "", "png":
+		return data, "png", nil
+	case "jpeg", "jpg":
+		img, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			return nil, "", err
+		}
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+			return nil, "", err
+		}
+		return buf.Bytes(), "jpeg", nil
+	default:
+		return nil, "", errors.New("unsupported screenshot format: " + format)
+	}
 }
 
 // webviewWait handles the webview_wait tool call.
