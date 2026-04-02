@@ -114,7 +114,8 @@ func (s *Subsystem) registerChatTools(server *mcp.Server) {
 }
 
 // chatSend forwards a chat message to the Laravel backend via bridge.
-// Stub implementation: delegates to bridge, real response arrives via WebSocket subscription.
+// The subsystem also stores the message locally so history lookups can
+// return something useful before the backend answers.
 func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input ChatSendInput) (*mcp.CallToolResult, ChatSendOutput, error) {
 	if s.bridge == nil {
 		return nil, ChatSendOutput{}, errBridgeNotAvailable
@@ -128,6 +129,10 @@ func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input Ch
 	if err != nil {
 		return nil, ChatSendOutput{}, coreerr.E("ide.chatSend", "failed to send message", err)
 	}
+
+	s.appendChatMessage(input.SessionID, "user", input.Message)
+	s.recordActivity("chat_send", "forwarded chat message for session "+input.SessionID)
+
 	return nil, ChatSendOutput{
 		Sent:      true,
 		SessionID: input.SessionID,
@@ -136,7 +141,8 @@ func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input Ch
 }
 
 // chatHistory requests message history from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty messages. Real data arrives via WebSocket.
+// The subsystem returns the local cache for the requested session while the
+// backend response is still in flight.
 func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input ChatHistoryInput) (*mcp.CallToolResult, ChatHistoryOutput, error) {
 	if s.bridge == nil {
 		return nil, ChatHistoryOutput{}, errBridgeNotAvailable
@@ -150,22 +156,24 @@ func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input
 	})
 	return nil, ChatHistoryOutput{
 		SessionID: input.SessionID,
-		Messages:  []ChatMessage{},
+		Messages:  s.chatMessages(input.SessionID),
 	}, nil
 }
 
 // sessionList requests the session list from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty sessions. Awaiting Laravel backend.
+// The local session cache is returned immediately so newly created sessions
+// are visible without waiting for backend persistence.
 func (s *Subsystem) sessionList(_ context.Context, _ *mcp.CallToolRequest, _ SessionListInput) (*mcp.CallToolResult, SessionListOutput, error) {
 	if s.bridge == nil {
 		return nil, SessionListOutput{}, errBridgeNotAvailable
 	}
 	_ = s.bridge.Send(BridgeMessage{Type: "session_list"})
-	return nil, SessionListOutput{Sessions: []Session{}}, nil
+	return nil, SessionListOutput{Sessions: s.listSessions()}, nil
 }
 
 // sessionCreate requests a new session from the Laravel backend.
-// Stub implementation: sends request via bridge, returns placeholder session. Awaiting Laravel backend.
+// A local session record is created immediately so the caller receives a
+// stable ID even before the backend finishes provisioning the session.
 func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, input SessionCreateInput) (*mcp.CallToolResult, SessionCreateOutput, error) {
 	if s.bridge == nil {
 		return nil, SessionCreateOutput{}, errBridgeNotAvailable
@@ -174,17 +182,22 @@ func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, inp
 		Type: "session_create",
 		Data: map[string]any{"name": input.Name},
 	})
+	session := Session{
+		ID:        newSessionID(),
+		Name:      input.Name,
+		Status:    "creating",
+		CreatedAt: time.Now(),
+	}
+	s.addSession(session)
+	s.recordActivity("session_create", "created session "+session.ID)
 	return nil, SessionCreateOutput{
-		Session: Session{
-			Name:      input.Name,
-			Status:    "creating",
-			CreatedAt: time.Now(),
-		},
+		Session: session,
 	}, nil
 }
 
 // planStatus requests plan status from the Laravel backend.
-// Stub implementation: sends request via bridge, returns "unknown" status. Awaiting Laravel backend.
+// When the backend has not populated plan state yet, the local session cache
+// is used as a best-effort status source.
 func (s *Subsystem) planStatus(_ context.Context, _ *mcp.CallToolRequest, input PlanStatusInput) (*mcp.CallToolResult, PlanStatusOutput, error) {
 	if s.bridge == nil {
 		return nil, PlanStatusOutput{}, errBridgeNotAvailable
@@ -193,9 +206,17 @@ func (s *Subsystem) planStatus(_ context.Context, _ *mcp.CallToolRequest, input 
 		Type:      "plan_status",
 		SessionID: input.SessionID,
 	})
+	s.stateMu.Lock()
+	session, ok := s.sessions[input.SessionID]
+	s.stateMu.Unlock()
+
+	status := "unknown"
+	if ok && session.Status != "" {
+		status = session.Status
+	}
 	return nil, PlanStatusOutput{
 		SessionID: input.SessionID,
-		Status:    "unknown",
+		Status:    status,
 		Steps:     []PlanStep{},
 	}, nil
 }

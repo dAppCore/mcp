@@ -82,10 +82,11 @@ func (s *Subsystem) registerDashboardTools(server *mcp.Server) {
 	}, s.dashboardMetrics)
 }
 
-// dashboardOverview returns a platform overview with bridge status.
-// Stub implementation: only BridgeOnline is live; other fields return zero values. Awaiting Laravel backend.
+// dashboardOverview returns a platform overview with bridge status and
+// locally tracked session counts.
 func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest, _ DashboardOverviewInput) (*mcp.CallToolResult, DashboardOverviewOutput, error) {
 	connected := s.bridge != nil && s.bridge.Connected()
+	activeSessions := len(s.listSessions())
 
 	if s.bridge != nil {
 		_ = s.bridge.Send(BridgeMessage{Type: "dashboard_overview"})
@@ -93,13 +94,15 @@ func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest,
 
 	return nil, DashboardOverviewOutput{
 		Overview: DashboardOverview{
-			BridgeOnline: connected,
+			ActiveSessions: activeSessions,
+			BridgeOnline:   connected,
 		},
 	}, nil
 }
 
 // dashboardActivity requests the activity feed from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty events. Awaiting Laravel backend.
+// The local activity log is returned so recent subsystem actions are visible
+// immediately, even if the backend has not responded yet.
 func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest, input DashboardActivityInput) (*mcp.CallToolResult, DashboardActivityOutput, error) {
 	if s.bridge == nil {
 		return nil, DashboardActivityOutput{}, errBridgeNotAvailable
@@ -108,11 +111,12 @@ func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest,
 		Type: "dashboard_activity",
 		Data: map[string]any{"limit": input.Limit},
 	})
-	return nil, DashboardActivityOutput{Events: []ActivityEvent{}}, nil
+	return nil, DashboardActivityOutput{Events: s.activityFeed(input.Limit)}, nil
 }
 
 // dashboardMetrics requests aggregate metrics from the Laravel backend.
-// Stub implementation: sends request via bridge, returns zero metrics. Awaiting Laravel backend.
+// Local session and message counts are surfaced while waiting for backend
+// analytics.
 func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, input DashboardMetricsInput) (*mcp.CallToolResult, DashboardMetricsOutput, error) {
 	if s.bridge == nil {
 		return nil, DashboardMetricsOutput{}, errBridgeNotAvailable
@@ -125,8 +129,20 @@ func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, 
 		Type: "dashboard_metrics",
 		Data: map[string]any{"period": period},
 	})
+
+	s.stateMu.Lock()
+	sessions := len(s.sessions)
+	messages := 0
+	for _, history := range s.chats {
+		messages += len(history)
+	}
+	s.stateMu.Unlock()
+
 	return nil, DashboardMetricsOutput{
-		Period:  period,
-		Metrics: DashboardMetrics{},
+		Period: period,
+		Metrics: DashboardMetrics{
+			AgentSessions: sessions,
+			MessagesTotal: messages,
+		},
 	}, nil
 }

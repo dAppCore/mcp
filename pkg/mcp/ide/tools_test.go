@@ -101,27 +101,45 @@ func TestChatHistory_Bad_NilBridge(t *testing.T) {
 	}
 }
 
-// TestChatHistory_Good_Connected verifies chatHistory succeeds and returns empty messages.
+// TestChatHistory_Good_Connected verifies chatHistory succeeds and returns stored messages.
 func TestChatHistory_Good_Connected(t *testing.T) {
 	sub, cancel, ts := newConnectedSubsystem(t)
 	defer cancel()
 	defer ts.Close()
 
+	_, _, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
+		Name: "history-test",
+	})
+	if err != nil {
+		t.Fatalf("sessionCreate failed: %v", err)
+	}
+
+	_, _, err = sub.chatSend(context.Background(), nil, ChatSendInput{
+		SessionID: sub.listSessions()[0].ID,
+		Message:   "hello history",
+	})
+	if err != nil {
+		t.Fatalf("chatSend failed: %v", err)
+	}
+
 	_, out, err := sub.chatHistory(context.Background(), nil, ChatHistoryInput{
-		SessionID: "sess-1",
+		SessionID: sub.listSessions()[0].ID,
 		Limit:     50,
 	})
 	if err != nil {
 		t.Fatalf("chatHistory failed: %v", err)
 	}
-	if out.SessionID != "sess-1" {
-		t.Errorf("expected sessionId 'sess-1', got %q", out.SessionID)
+	if out.SessionID != sub.listSessions()[0].ID {
+		t.Errorf("expected sessionId %q, got %q", sub.listSessions()[0].ID, out.SessionID)
 	}
 	if out.Messages == nil {
 		t.Error("expected non-nil messages slice")
 	}
-	if len(out.Messages) != 0 {
-		t.Errorf("expected 0 messages (stub), got %d", len(out.Messages))
+	if len(out.Messages) != 1 {
+		t.Errorf("expected 1 stored message, got %d", len(out.Messages))
+	}
+	if out.Messages[0].Content != "hello history" {
+		t.Errorf("expected stored message content %q, got %q", "hello history", out.Messages[0].Content)
 	}
 }
 
@@ -134,11 +152,18 @@ func TestSessionList_Bad_NilBridge(t *testing.T) {
 	}
 }
 
-// TestSessionList_Good_Connected verifies sessionList returns empty sessions.
+// TestSessionList_Good_Connected verifies sessionList returns stored sessions.
 func TestSessionList_Good_Connected(t *testing.T) {
 	sub, cancel, ts := newConnectedSubsystem(t)
 	defer cancel()
 	defer ts.Close()
+
+	_, _, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
+		Name: "session-list-test",
+	})
+	if err != nil {
+		t.Fatalf("sessionCreate failed: %v", err)
+	}
 
 	_, out, err := sub.sessionList(context.Background(), nil, SessionListInput{})
 	if err != nil {
@@ -147,8 +172,11 @@ func TestSessionList_Good_Connected(t *testing.T) {
 	if out.Sessions == nil {
 		t.Error("expected non-nil sessions slice")
 	}
-	if len(out.Sessions) != 0 {
-		t.Errorf("expected 0 sessions (stub), got %d", len(out.Sessions))
+	if len(out.Sessions) != 1 {
+		t.Errorf("expected 1 stored session, got %d", len(out.Sessions))
+	}
+	if out.Sessions[0].ID == "" {
+		t.Error("expected stored session to have an ID")
 	}
 }
 
@@ -163,7 +191,7 @@ func TestSessionCreate_Bad_NilBridge(t *testing.T) {
 	}
 }
 
-// TestSessionCreate_Good_Connected verifies sessionCreate returns a session stub.
+// TestSessionCreate_Good_Connected verifies sessionCreate returns a stored session.
 func TestSessionCreate_Good_Connected(t *testing.T) {
 	sub, cancel, ts := newConnectedSubsystem(t)
 	defer cancel()
@@ -184,6 +212,9 @@ func TestSessionCreate_Good_Connected(t *testing.T) {
 	if out.Session.CreatedAt.IsZero() {
 		t.Error("expected non-zero CreatedAt")
 	}
+	if out.Session.ID == "" {
+		t.Error("expected non-empty session ID")
+	}
 }
 
 // TestPlanStatus_Bad_NilBridge verifies planStatus returns error without a bridge.
@@ -197,23 +228,30 @@ func TestPlanStatus_Bad_NilBridge(t *testing.T) {
 	}
 }
 
-// TestPlanStatus_Good_Connected verifies planStatus returns a stub status.
+// TestPlanStatus_Good_Connected verifies planStatus returns a status for a known session.
 func TestPlanStatus_Good_Connected(t *testing.T) {
 	sub, cancel, ts := newConnectedSubsystem(t)
 	defer cancel()
 	defer ts.Close()
 
+	_, createOut, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
+		Name: "plan-status-test",
+	})
+	if err != nil {
+		t.Fatalf("sessionCreate failed: %v", err)
+	}
+
 	_, out, err := sub.planStatus(context.Background(), nil, PlanStatusInput{
-		SessionID: "sess-7",
+		SessionID: createOut.Session.ID,
 	})
 	if err != nil {
 		t.Fatalf("planStatus failed: %v", err)
 	}
-	if out.SessionID != "sess-7" {
-		t.Errorf("expected sessionId 'sess-7', got %q", out.SessionID)
+	if out.SessionID != createOut.Session.ID {
+		t.Errorf("expected sessionId %q, got %q", createOut.Session.ID, out.SessionID)
 	}
-	if out.Status != "unknown" {
-		t.Errorf("expected status 'unknown', got %q", out.Status)
+	if out.Status != "creating" {
+		t.Errorf("expected status 'creating', got %q", out.Status)
 	}
 	if out.Steps == nil {
 		t.Error("expected non-nil steps slice")
@@ -337,11 +375,18 @@ func TestDashboardOverview_Good_NilBridge(t *testing.T) {
 	}
 }
 
-// TestDashboardOverview_Good_Connected verifies dashboardOverview reports bridge online.
+// TestDashboardOverview_Good_Connected verifies dashboardOverview reports bridge online and local sessions.
 func TestDashboardOverview_Good_Connected(t *testing.T) {
 	sub, cancel, ts := newConnectedSubsystem(t)
 	defer cancel()
 	defer ts.Close()
+
+	_, _, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
+		Name: "dashboard-test",
+	})
+	if err != nil {
+		t.Fatalf("sessionCreate failed: %v", err)
+	}
 
 	_, out, err := sub.dashboardOverview(context.Background(), nil, DashboardOverviewInput{})
 	if err != nil {
@@ -349,6 +394,9 @@ func TestDashboardOverview_Good_Connected(t *testing.T) {
 	}
 	if !out.Overview.BridgeOnline {
 		t.Error("expected BridgeOnline=true when bridge is connected")
+	}
+	if out.Overview.ActiveSessions != 1 {
+		t.Errorf("expected 1 active session, got %d", out.Overview.ActiveSessions)
 	}
 }
 
@@ -363,11 +411,18 @@ func TestDashboardActivity_Bad_NilBridge(t *testing.T) {
 	}
 }
 
-// TestDashboardActivity_Good_Connected verifies dashboardActivity returns empty events.
+// TestDashboardActivity_Good_Connected verifies dashboardActivity returns stored events.
 func TestDashboardActivity_Good_Connected(t *testing.T) {
 	sub, cancel, ts := newConnectedSubsystem(t)
 	defer cancel()
 	defer ts.Close()
+
+	_, _, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
+		Name: "activity-test",
+	})
+	if err != nil {
+		t.Fatalf("sessionCreate failed: %v", err)
+	}
 
 	_, out, err := sub.dashboardActivity(context.Background(), nil, DashboardActivityInput{
 		Limit: 20,
@@ -378,8 +433,11 @@ func TestDashboardActivity_Good_Connected(t *testing.T) {
 	if out.Events == nil {
 		t.Error("expected non-nil events slice")
 	}
-	if len(out.Events) != 0 {
-		t.Errorf("expected 0 events (stub), got %d", len(out.Events))
+	if len(out.Events) != 1 {
+		t.Errorf("expected 1 stored event, got %d", len(out.Events))
+	}
+	if len(out.Events) > 0 && out.Events[0].Type != "session_create" {
+		t.Errorf("expected first event type 'session_create', got %q", out.Events[0].Type)
 	}
 }
 
