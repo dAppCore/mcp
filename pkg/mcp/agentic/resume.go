@@ -39,8 +39,9 @@ type ResumeOutput struct {
 	Prompt     string `json:"prompt,omitempty"`
 }
 
-func (s *PrepSubsystem) registerResumeTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerResumeTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_resume",
 		Description: "Resume a blocked agent workspace. Writes ANSWER.md if an answer is provided, then relaunches the agent with instructions to read it and continue.",
 	}, s.resume)

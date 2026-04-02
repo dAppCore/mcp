@@ -124,29 +124,30 @@ func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, er
 func (s *PrepSubsystem) Name() string { return "agentic" }
 
 // RegisterTools implements mcp.Subsystem.
-func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) RegisterTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_prep_workspace",
 		Description: "Prepare a sandboxed agent workspace with TODO.md, CLAUDE.md, CONTEXT.md, CONSUMERS.md, RECENT.md, and a git clone of the target repo in src/.",
 	}, s.prepWorkspace)
 
-	s.registerDispatchTool(server)
-	s.registerIssueTools(server)
-	s.registerStatusTool(server)
-	s.registerResumeTool(server)
-	s.registerCreatePRTool(server)
-	s.registerListPRsTool(server)
-	s.registerEpicTool(server)
-	s.registerWatchTool(server)
-	s.registerReviewQueueTool(server)
-	s.registerMirrorTool(server)
+	s.registerDispatchTool(svc)
+	s.registerIssueTools(svc)
+	s.registerStatusTool(svc)
+	s.registerResumeTool(svc)
+	s.registerCreatePRTool(svc)
+	s.registerListPRsTool(svc)
+	s.registerEpicTool(svc)
+	s.registerWatchTool(svc)
+	s.registerReviewQueueTool(svc)
+	s.registerMirrorTool(svc)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_scan",
 		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug).",
 	}, s.scan)
 
-	s.registerPlanTools(server)
+	s.registerPlanTools(svc)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.

@@ -10,7 +10,6 @@ import (
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	coreerr "forge.lthn.ai/core/go-log"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
@@ -48,8 +47,8 @@ func (s *Subsystem) SetNotifier(n coremcp.Notifier) {
 }
 
 // RegisterTools implements mcp.Subsystem.
-func (s *Subsystem) RegisterTools(server *mcp.Server) {
-	s.registerBrainTools(server)
+func (s *Subsystem) RegisterTools(svc *coremcp.Service) {
+	s.registerBrainTools(svc)
 }
 
 func (s *Subsystem) handleBridgeMessage(msg ide.BridgeMessage) {

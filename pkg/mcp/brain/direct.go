@@ -75,23 +75,24 @@ func NewDirect() *DirectSubsystem {
 func (s *DirectSubsystem) Name() string { return "brain" }
 
 // RegisterTools implements mcp.Subsystem.
-func (s *DirectSubsystem) RegisterTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *DirectSubsystem) RegisterTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_remember",
 		Description: "Store a memory in OpenBrain. Types: fact, decision, observation, plan, convention, architecture, research, documentation, service, bug, pattern, context, procedure.",
 	}, s.remember)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_recall",
 		Description: "Semantic search across OpenBrain memories. Returns memories ranked by similarity. Use agent_id 'cladius' for Cladius's memories.",
 	}, s.recall)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_forget",
 		Description: "Remove a memory from OpenBrain by ID.",
 	}, s.forget)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_list",
 		Description: "List memories in OpenBrain with optional filtering by project, type, and agent.",
 	}, s.list)

@@ -4,8 +4,6 @@ package mcp
 
 import (
 	"context"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Subsystem registers additional MCP tools at startup.
@@ -13,10 +11,10 @@ import (
 //
 //	type BrainSubsystem struct{}
 //	func (b *BrainSubsystem) Name() string { return "brain" }
-//	func (b *BrainSubsystem) RegisterTools(server *mcp.Server) { ... }
+//	func (b *BrainSubsystem) RegisterTools(svc *Service) { ... }
 type Subsystem interface {
 	Name() string
-	RegisterTools(server *mcp.Server)
+	RegisterTools(svc *Service)
 }
 
 // SubsystemWithShutdown extends Subsystem with graceful cleanup.

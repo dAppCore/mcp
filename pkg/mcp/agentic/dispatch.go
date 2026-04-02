@@ -43,8 +43,9 @@ type DispatchOutput struct {
 	OutputFile   string `json:"output_file,omitempty"`
 }
 
-func (s *PrepSubsystem) registerDispatchTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerDispatchTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_dispatch",
 		Description: "Dispatch a subagent (Gemini, Codex, or Claude) to work on a task. Preps a sandboxed workspace first, then spawns the agent inside it. Templates: conventions, security, coding.",
 	}, s.dispatch)

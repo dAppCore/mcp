@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -37,8 +38,9 @@ type MirrorSync struct {
 	Skipped      string `json:"skipped,omitempty"`
 }
 
-func (s *PrepSubsystem) registerMirrorTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerMirrorTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_mirror",
 		Description: "Mirror Forge repositories to GitHub and open a GitHub PR when there are commits ahead of the remote mirror.",
 	}, s.mirror)

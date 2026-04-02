@@ -12,7 +12,6 @@ import (
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-ws"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
@@ -67,10 +66,10 @@ func New(hub *ws.Hub, cfg Config) *Subsystem {
 func (s *Subsystem) Name() string { return "ide" }
 
 // RegisterTools implements mcp.Subsystem.
-func (s *Subsystem) RegisterTools(server *mcp.Server) {
-	s.registerChatTools(server)
-	s.registerBuildTools(server)
-	s.registerDashboardTools(server)
+func (s *Subsystem) RegisterTools(svc *coremcp.Service) {
+	s.registerChatTools(svc)
+	s.registerBuildTools(svc)
+	s.registerDashboardTools(svc)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.

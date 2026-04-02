@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -21,11 +22,11 @@ import (
 
 // CreatePRInput is the input for agentic_create_pr.
 type CreatePRInput struct {
-	Workspace string `json:"workspace"`            // workspace name (e.g. "mcp-1773581873")
-	Title     string `json:"title,omitempty"`       // PR title (default: task description)
-	Body      string `json:"body,omitempty"`        // PR body (default: auto-generated)
-	Base      string `json:"base,omitempty"`        // base branch (default: "main")
-	DryRun    bool   `json:"dry_run,omitempty"`     // preview without creating
+	Workspace string `json:"workspace"`         // workspace name (e.g. "mcp-1773581873")
+	Title     string `json:"title,omitempty"`   // PR title (default: task description)
+	Body      string `json:"body,omitempty"`    // PR body (default: auto-generated)
+	Base      string `json:"base,omitempty"`    // base branch (default: "main")
+	DryRun    bool   `json:"dry_run,omitempty"` // preview without creating
 }
 
 // CreatePROutput is the output for agentic_create_pr.
@@ -39,8 +40,9 @@ type CreatePROutput struct {
 	Pushed  bool   `json:"pushed"`
 }
 
-func (s *PrepSubsystem) registerCreatePRTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerCreatePRTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_create_pr",
 		Description: "Create a pull request from an agent workspace. Pushes the branch to Forge and opens a PR. Links to the source issue if one was tracked.",
 	}, s.createPR)
@@ -217,7 +219,7 @@ func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, is
 // ListPRsInput is the input for agentic_list_prs.
 type ListPRsInput struct {
 	Org   string `json:"org,omitempty"`   // forge org (default "core")
-	Repo  string `json:"repo,omitempty"` // specific repo, or empty for all
+	Repo  string `json:"repo,omitempty"`  // specific repo, or empty for all
 	State string `json:"state,omitempty"` // "open" (default), "closed", "all"
 	Limit int    `json:"limit,omitempty"` // max results (default 20)
 }
@@ -243,8 +245,9 @@ type PRInfo struct {
 	URL       string   `json:"url"`
 }
 
-func (s *PrepSubsystem) registerListPRsTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerListPRsTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_list_prs",
 		Description: "List pull requests across Forge repos. Filter by org, repo, and state (open/closed/all).",
 	}, s.listPRs)

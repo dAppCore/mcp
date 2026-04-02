@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -57,8 +58,9 @@ func reviewQueueHomeDir() string {
 	return home
 }
 
-func (s *PrepSubsystem) registerReviewQueueTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerReviewQueueTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_review_queue",
 		Description: "Process repositories that are ahead of the GitHub mirror and summarise review findings.",
 	}, s.reviewQueue)

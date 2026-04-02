@@ -32,13 +32,14 @@ type forgeIssue struct {
 	} `json:"assignee"`
 }
 
-func (s *PrepSubsystem) registerIssueTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerIssueTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_dispatch_issue",
 		Description: "Dispatch an agent to work on a Forge issue. Assigns the issue as a lock, prepends the issue body to TODO.md, creates an issue-specific branch, and spawns the agent.",
 	}, s.dispatchIssue)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_pr",
 		Description: "Create a pull request from an agent workspace. Pushes the branch and creates a Forge PR linked to the tracked issue, if any.",
 	}, s.createPR)

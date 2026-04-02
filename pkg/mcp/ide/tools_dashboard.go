@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -85,18 +86,19 @@ type DashboardMetricsOutput struct {
 	Metrics DashboardMetrics `json:"metrics"`
 }
 
-func (s *Subsystem) registerDashboardTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *Subsystem) registerDashboardTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_dashboard_overview",
 		Description: "Get a high-level overview of the platform (repos, services, sessions, builds)",
 	}, s.dashboardOverview)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_dashboard_activity",
 		Description: "Get the recent activity feed",
 	}, s.dashboardActivity)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_dashboard_metrics",
 		Description: "Get aggregate build and agent metrics for a time period",
 	}, s.dashboardMetrics)

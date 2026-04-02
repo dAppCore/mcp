@@ -35,11 +35,17 @@ type ToolRecord struct {
 	RESTHandler  RESTHandler    // REST-callable handler created at registration time
 }
 
-// addToolRecorded registers a tool with the MCP server AND records its metadata.
+// AddToolRecorded registers a tool with the MCP server and records its metadata.
 // This is a generic function that captures the In/Out types for schema extraction.
 // It also creates a RESTHandler closure that can unmarshal JSON to the correct
 // input type and call the handler directly, enabling the MCP-to-REST bridge.
-func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
+//
+//	svc, _ := mcp.New(mcp.Options{})
+//	mcp.AddToolRecorded(svc, svc.Server(), "files", &mcp.Tool{Name: "file_read"},
+//	    func(context.Context, *mcp.CallToolRequest, ReadFileInput) (*mcp.CallToolResult, ReadFileOutput, error) {
+//	        return nil, ReadFileOutput{Path: "src/main.go"}, nil
+//	    })
+func AddToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
 	mcp.AddTool(server, t, h)
 
 	restHandler := func(ctx context.Context, body []byte) (any, error) {
@@ -66,6 +72,10 @@ func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 		OutputSchema: structSchema(new(Out)),
 		RESTHandler:  restHandler,
 	})
+}
+
+func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
+	AddToolRecorded(s, server, group, t, h)
 }
 
 // structSchema builds a simple JSON Schema from a struct's json tags via reflection.

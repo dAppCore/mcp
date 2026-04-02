@@ -105,8 +105,9 @@ type WorkspaceInfo struct {
 	Runs     int    `json:"runs"`
 }
 
-func (s *PrepSubsystem) registerStatusTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerStatusTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_status",
 		Description: "List agent workspaces and their status (running, completed, blocked, failed). Shows blocked agents with their questions.",
 	}, s.status)

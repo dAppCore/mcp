@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -68,18 +69,19 @@ type BuildLogsOutput struct {
 	Lines   []string `json:"lines"`
 }
 
-func (s *Subsystem) registerBuildTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *Subsystem) registerBuildTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_build_status",
 		Description: "Get the status of a specific build",
 	}, s.buildStatus)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_build_list",
 		Description: "List recent builds, optionally filtered by repository",
 	}, s.buildList)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_build_logs",
 		Description: "Retrieve log output for a build",
 	}, s.buildLogs)

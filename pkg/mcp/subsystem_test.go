@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"testing"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // stubSubsystem is a minimal Subsystem for testing.
@@ -15,7 +13,7 @@ type stubSubsystem struct {
 
 func (s *stubSubsystem) Name() string { return s.name }
 
-func (s *stubSubsystem) RegisterTools(server *mcp.Server) {
+func (s *stubSubsystem) RegisterTools(svc *Service) {
 	s.toolsRegistered = true
 }
 
@@ -30,7 +28,7 @@ func (s *notifierSubsystem) SetNotifier(n Notifier) {
 	s.notifierSet = n != nil
 }
 
-func (s *notifierSubsystem) RegisterTools(server *mcp.Server) {
+func (s *notifierSubsystem) RegisterTools(svc *Service) {
 	s.sawNotifierAtRegistration = s.notifierSet
 	s.toolsRegistered = true
 }

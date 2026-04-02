@@ -130,7 +130,7 @@ func New(opts Options) (*Service, error) {
 				svc.ChannelSend(ctx, channel, data)
 			})
 		}
-		sub.RegisterTools(s.server)
+		sub.RegisterTools(s)
 	}
 
 	return s, nil

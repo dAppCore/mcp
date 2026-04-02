@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -169,39 +170,40 @@ type PlanCheckpointOutput struct {
 
 // --- Registration ---
 
-func (s *PrepSubsystem) registerPlanTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerPlanTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_create",
 		Description: "Create an implementation plan. Plans track phased work with acceptance criteria, status lifecycle (draft → ready → in_progress → needs_verification → verified → approved), and per-phase progress.",
 	}, s.planCreate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_read",
 		Description: "Read an implementation plan by ID. Returns the full plan with all phases, criteria, and status.",
 	}, s.planRead)
 
 	// agentic_plan_status is kept as a user-facing alias for the read tool.
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_status",
 		Description: "Get the current status of an implementation plan by ID. Returns the full plan with all phases, criteria, and status.",
 	}, s.planRead)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_update",
 		Description: "Update an implementation plan. Supports partial updates — only provided fields are changed. Use this to advance status, update phases, or add notes.",
 	}, s.planUpdate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_delete",
 		Description: "Delete an implementation plan by ID. Permanently removes the plan file.",
 	}, s.planDelete)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_list",
 		Description: "List implementation plans. Supports filtering by status (draft, ready, in_progress, etc.) and repo.",
 	}, s.planList)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_checkpoint",
 		Description: "Record a checkpoint for a plan phase and optionally mark the phase done.",
 	}, s.planCheckpoint)

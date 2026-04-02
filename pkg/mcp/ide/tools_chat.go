@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -114,28 +115,29 @@ type PlanStatusOutput struct {
 	Steps     []PlanStep `json:"steps"`
 }
 
-func (s *Subsystem) registerChatTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *Subsystem) registerChatTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_chat_send",
 		Description: "Send a message to an agent chat session",
 	}, s.chatSend)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_chat_history",
 		Description: "Retrieve message history for a chat session",
 	}, s.chatHistory)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_session_list",
 		Description: "List active agent sessions",
 	}, s.sessionList)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_session_create",
 		Description: "Create a new agent session",
 	}, s.sessionCreate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_plan_status",
 		Description: "Get the current plan status for a session",
 	}, s.planStatus)

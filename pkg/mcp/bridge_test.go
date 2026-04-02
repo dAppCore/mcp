@@ -13,6 +13,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"dappco.re/go/mcp/pkg/mcp/agentic"
+	"dappco.re/go/mcp/pkg/mcp/brain"
 	api "forge.lthn.ai/core/api"
 )
 
@@ -21,7 +23,13 @@ func init() {
 }
 
 func TestBridgeToAPI_Good_AllTools(t *testing.T) {
-	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	svc, err := New(Options{
+		WorkspaceRoot: t.TempDir(),
+		Subsystems: []Subsystem{
+			brain.New(nil),
+			agentic.NewPrep(),
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +55,12 @@ func TestBridgeToAPI_Good_AllTools(t *testing.T) {
 	for _, td := range bridge.Tools() {
 		if !svcNames[td.Name] {
 			t.Errorf("bridge has tool %q not found in service", td.Name)
+		}
+	}
+
+	for _, want := range []string{"brain_list", "agentic_plan_create", "ide_dashboard_overview"} {
+		if !svcNames[want] {
+			t.Fatalf("expected recorded tool %q to be present", want)
 		}
 	}
 }
