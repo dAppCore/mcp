@@ -21,6 +21,73 @@ func TestSendNotificationToAllClients_Good(t *testing.T) {
 	})
 }
 
+func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
+	if err != nil {
+		t.Fatalf("Connect() failed: %v", err)
+	}
+	defer session.Close()
+
+	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
+	scanner := bufio.NewScanner(clientConn)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+
+	sent := make(chan struct{})
+	go func() {
+		svc.SendNotificationToAllClients(ctx, "info", "test", map[string]any{
+			"event": "build.complete",
+		})
+		close(sent)
+	}()
+
+	if !scanner.Scan() {
+		t.Fatalf("failed to read notification: %v", scanner.Err())
+	}
+
+	select {
+	case <-sent:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for notification send to complete")
+	}
+
+	var msg map[string]any
+	if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
+		t.Fatalf("failed to unmarshal notification: %v", err)
+	}
+	if msg["method"] != loggingNotificationMethod {
+		t.Fatalf("expected method %q, got %v", loggingNotificationMethod, msg["method"])
+	}
+
+	params, ok := msg["params"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected params object, got %T", msg["params"])
+	}
+	if params["logger"] != "test" {
+		t.Fatalf("expected logger test, got %v", params["logger"])
+	}
+	if params["level"] != "info" {
+		t.Fatalf("expected level info, got %v", params["level"])
+	}
+	data, ok := params["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data object, got %T", params["data"])
+	}
+	if data["event"] != "build.complete" {
+		t.Fatalf("expected event build.complete, got %v", data["event"])
+	}
+}
+
 func TestChannelSend_Good(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {

@@ -39,6 +39,7 @@ func (lw *lockedWriter) Close() error { return nil }
 var sharedStdout = &lockedWriter{w: os.Stdout}
 
 const channelNotificationMethod = "notifications/claude/channel"
+const loggingNotificationMethod = "notifications/message"
 
 // ChannelNotification is the payload sent through the experimental channel
 // notification method.
@@ -54,7 +55,7 @@ type ChannelNotification struct {
 //	s.SendNotificationToAllClients(ctx, "info", "monitor", map[string]any{"event": "build complete"})
 func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.LoggingLevel, logger string, data any) {
 	for session := range s.server.Sessions() {
-		s.SendNotificationToSession(ctx, session, level, logger, data)
+		s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 	}
 }
 
@@ -63,11 +64,15 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 //
 //	s.SendNotificationToSession(ctx, session, "info", "monitor", data)
 func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
+	s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
+}
+
+func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
 	if session == nil {
 		return
 	}
 
-	if err := session.Log(ctx, &mcp.LoggingMessageParams{
+	if err := sendSessionNotification(ctx, session, loggingNotificationMethod, &mcp.LoggingMessageParams{
 		Level:  level,
 		Logger: logger,
 		Data:   data,
