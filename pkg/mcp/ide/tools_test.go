@@ -18,6 +18,16 @@ func newNilBridgeSubsystem() *Subsystem {
 	return New(nil, Config{})
 }
 
+type recordingNotifier struct {
+	channel string
+	data    any
+}
+
+func (r *recordingNotifier) ChannelSend(_ context.Context, channel string, data any) {
+	r.channel = channel
+	r.data = data
+}
+
 // newConnectedSubsystem returns a Subsystem with a connected bridge and a
 // running echo WS server. Caller must cancel ctx and close server when done.
 func newConnectedSubsystem(t *testing.T) (*Subsystem, context.CancelFunc, *httptest.Server) {
@@ -315,6 +325,34 @@ func TestBuildStatus_Good_Connected(t *testing.T) {
 	}
 	if out.Build.Status != "unknown" {
 		t.Errorf("expected status 'unknown', got %q", out.Build.Status)
+	}
+}
+
+// TestBuildStatus_Good_EmitsLifecycle verifies bridge updates broadcast build lifecycle events.
+func TestBuildStatus_Good_EmitsLifecycle(t *testing.T) {
+	sub := newNilBridgeSubsystem()
+	notifier := &recordingNotifier{}
+	sub.SetNotifier(notifier)
+
+	sub.handleBridgeMessage(BridgeMessage{
+		Type: "build_status",
+		Data: map[string]any{
+			"buildId": "build-1",
+			"repo":    "core-php",
+			"branch":  "main",
+			"status":  "success",
+		},
+	})
+
+	if notifier.channel != "build.complete" {
+		t.Fatalf("expected build.complete channel, got %q", notifier.channel)
+	}
+	payload, ok := notifier.data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload map, got %T", notifier.data)
+	}
+	if payload["id"] != "build-1" {
+		t.Fatalf("expected build id build-1, got %v", payload["id"])
 	}
 }
 

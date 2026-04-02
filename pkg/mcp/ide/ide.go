@@ -7,6 +7,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "forge.lthn.ai/core/go-log"
 	"forge.lthn.ai/core/go-ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -18,9 +19,10 @@ var errBridgeNotAvailable = coreerr.E("ide", "bridge not available", nil)
 
 // Subsystem implements mcp.Subsystem and mcp.SubsystemWithShutdown for the IDE.
 type Subsystem struct {
-	cfg    Config
-	bridge *Bridge
-	hub    *ws.Hub
+	cfg      Config
+	bridge   *Bridge
+	hub      *ws.Hub
+	notifier coremcp.Notifier
 
 	stateMu      sync.Mutex
 	sessionOrder []string
@@ -72,6 +74,11 @@ func (s *Subsystem) Shutdown(_ context.Context) error {
 		s.bridge.Shutdown()
 	}
 	return nil
+}
+
+// SetNotifier wires the shared MCP notifier into the IDE subsystem.
+func (s *Subsystem) SetNotifier(n coremcp.Notifier) {
+	s.notifier = n
 }
 
 // Bridge returns the Laravel WebSocket bridge (may be nil in headless mode).
@@ -290,6 +297,7 @@ func (s *Subsystem) handleBridgeMessage(msg BridgeMessage) {
 	case "build_status":
 		if build, ok := buildInfoFromData(msg.Data); ok {
 			s.addBuild(build)
+			s.emitBuildLifecycle(build)
 			if lines := buildLinesFromData(msg.Data); len(lines) > 0 {
 				s.setBuildLogs(build.ID, lines)
 			}
@@ -318,6 +326,34 @@ func (s *Subsystem) handleBridgeMessage(msg BridgeMessage) {
 			}
 		}
 	}
+}
+
+func (s *Subsystem) emitBuildLifecycle(build BuildInfo) {
+	if s.notifier == nil {
+		return
+	}
+
+	channel := ""
+	switch build.Status {
+	case "success", "succeeded", "completed", "passed":
+		channel = "build.complete"
+	case "failed", "error":
+		channel = "build.failed"
+	default:
+		return
+	}
+
+	payload := map[string]any{
+		"id":        build.ID,
+		"repo":      build.Repo,
+		"branch":    build.Branch,
+		"status":    build.Status,
+		"startedAt": build.StartedAt,
+	}
+	if build.Duration != "" {
+		payload["duration"] = build.Duration
+	}
+	s.notifier.ChannelSend(context.Background(), channel, payload)
 }
 
 func buildInfoFromData(data any) (BuildInfo, bool) {
