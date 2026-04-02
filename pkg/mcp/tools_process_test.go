@@ -275,7 +275,7 @@ func TestProcessInfo_Good(t *testing.T) {
 	}
 }
 
-// TestWithProcessService_Good verifies the WithProcessService option.
+// TestWithProcessService_Good verifies Options{ProcessService: ...}.
 func TestWithProcessService_Good(t *testing.T) {
 	// Note: We can't easily create a real process.Service here without Core,
 	// so we just verify the option doesn't panic with nil.

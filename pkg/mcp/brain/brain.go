@@ -21,7 +21,7 @@ var errBridgeNotAvailable = coreerr.E("brain", "bridge not available", nil)
 // It proxies brain_* tool calls to the Laravel backend via the shared IDE bridge.
 type Subsystem struct {
 	bridge   *ide.Bridge
-	notifier Notifier
+	notifier coremcp.Notifier
 }
 
 // New creates a brain subsystem that uses the given IDE bridge for Laravel communication.
@@ -42,13 +42,8 @@ func New(bridge *ide.Bridge) *Subsystem {
 // Name implements mcp.Subsystem.
 func (s *Subsystem) Name() string { return "brain" }
 
-// Notifier pushes events to MCP sessions (matches pkg/mcp.Notifier).
-type Notifier interface {
-	ChannelSend(ctx context.Context, channel string, data any)
-}
-
 // SetNotifier stores the shared notifier so this subsystem can emit channel events.
-func (s *Subsystem) SetNotifier(n Notifier) {
+func (s *Subsystem) SetNotifier(n coremcp.Notifier) {
 	s.notifier = n
 }
 

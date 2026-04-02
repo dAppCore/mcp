@@ -83,7 +83,7 @@ func TestWSInfoOutput_Good(t *testing.T) {
 	}
 }
 
-// TestWithWSHub_Good verifies the WithWSHub option.
+// TestWithWSHub_Good verifies Options{WSHub: ...}.
 func TestWithWSHub_Good(t *testing.T) {
 	hub := ws.NewHub()
 
@@ -97,7 +97,7 @@ func TestWithWSHub_Good(t *testing.T) {
 	}
 }
 
-// TestWithWSHub_Nil verifies the WithWSHub option with nil.
+// TestWithWSHub_Nil verifies Options{WSHub: nil}.
 func TestWithWSHub_Nil(t *testing.T) {
 	s, err := New(Options{WSHub: nil})
 	if err != nil {
