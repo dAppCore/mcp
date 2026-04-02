@@ -226,3 +226,97 @@ func TestHandleIPCEvents_Good_ForwardsProcessOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleIPCEvents_Good_ForwardsTestResult(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
+	if err != nil {
+		t.Fatalf("Connect() failed: %v", err)
+	}
+	defer session.Close()
+
+	svc.recordProcessRuntime("proc-test", processRuntime{
+		Command:   "go",
+		Args:      []string{"test", "./..."},
+		StartedAt: time.Now().Add(-2 * time.Second),
+	})
+
+	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
+	scanner := bufio.NewScanner(clientConn)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+	received := make(chan map[string]any, 8)
+	errCh := make(chan error, 1)
+	go func() {
+		for scanner.Scan() {
+			var msg map[string]any
+			if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
+				errCh <- err
+				return
+			}
+			received <- msg
+		}
+		if err := scanner.Err(); err != nil {
+			errCh <- err
+			return
+		}
+		close(received)
+	}()
+
+	result := svc.HandleIPCEvents(nil, process.ActionProcessExited{
+		ID:       "proc-test",
+		ExitCode: 0,
+		Duration: 2 * time.Second,
+	})
+	if !result.OK {
+		t.Fatalf("HandleIPCEvents() returned non-OK result: %#v", result.Value)
+	}
+
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case err := <-errCh:
+			t.Fatalf("failed to read notification: %v", err)
+		case msg, ok := <-received:
+			if !ok {
+				t.Fatal("notification stream closed before expected message arrived")
+			}
+			if msg["method"] != channelNotificationMethod {
+				continue
+			}
+
+			params, ok := msg["params"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected params object, got %T", msg["params"])
+			}
+			if params["channel"] != ChannelTestResult {
+				continue
+			}
+
+			payload, ok := params["data"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected data object, got %T", msg["params"])
+			}
+			if payload["id"] != "proc-test" || payload["command"] != "go" {
+				t.Fatalf("unexpected payload: %#v", payload)
+			}
+			if payload["status"] != "passed" || payload["passed"] != true {
+				t.Fatalf("expected passed test result, got %#v", payload)
+			}
+			return
+		case <-deadline.C:
+			t.Fatal("timed out waiting for test result notification")
+		}
+	}
+}

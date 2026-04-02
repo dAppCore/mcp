@@ -201,6 +201,12 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 		Args:      proc.Args,
 		StartedAt: proc.StartedAt,
 	}
+	s.recordProcessRuntime(output.ID, processRuntime{
+		Command:   output.Command,
+		Args:      output.Args,
+		Dir:       info.Dir,
+		StartedAt: output.StartedAt,
+	})
 	s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
 		"id": output.ID, "pid": output.PID, "command": output.Command,
 	})
@@ -229,6 +235,7 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 	}
 
 	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{"id": input.ID, "signal": "stop"})
+	s.emitTestResult(ctx, input.ID, 0, 0, "stop", "")
 	return nil, ProcessStopOutput{
 		ID:      input.ID,
 		Success: true,
@@ -250,6 +257,7 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 	}
 
 	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{"id": input.ID, "signal": "kill"})
+	s.emitTestResult(ctx, input.ID, 0, 0, "kill", "")
 	return nil, ProcessKillOutput{
 		ID:      input.ID,
 		Success: true,

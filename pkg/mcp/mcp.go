@@ -41,7 +41,9 @@ type Service struct {
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
 	wsAddr         string           // WebSocket server address
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
-	tools          []ToolRecord     // Parallel tool registry for REST bridge
+	processMu      sync.Mutex       // Protects processMeta
+	processMeta    map[string]processRuntime
+	tools          []ToolRecord // Parallel tool registry for REST bridge
 }
 
 // Options configures a Service.
@@ -82,6 +84,7 @@ func New(opts Options) (*Service, error) {
 		wsHub:          opts.WSHub,
 		subsystems:     opts.Subsystems,
 		logger:         log.Default(),
+		processMeta:    make(map[string]processRuntime),
 	}
 
 	// Workspace root: unrestricted, explicit root, or default to cwd

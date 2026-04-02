@@ -4,6 +4,7 @@ package mcp
 
 import (
 	"context"
+	"time"
 
 	core "dappco.re/go/core"
 	"forge.lthn.ai/core/go-process"
@@ -108,6 +109,12 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	case ChannelPush:
 		s.ChannelSend(ctx, ev.Channel, ev.Data)
 	case process.ActionProcessStarted:
+		s.recordProcessRuntime(ev.ID, processRuntime{
+			Command:   ev.Command,
+			Args:      ev.Args,
+			Dir:       ev.Dir,
+			StartedAt: time.Now(),
+		})
 		s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
 			"id":      ev.ID,
 			"command": ev.Command,
@@ -131,11 +138,17 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 			payload["error"] = ev.Error.Error()
 		}
 		s.ChannelSend(ctx, ChannelProcessExit, payload)
+		errText := ""
+		if ev.Error != nil {
+			errText = ev.Error.Error()
+		}
+		s.emitTestResult(ctx, ev.ID, ev.ExitCode, ev.Duration, "", errText)
 	case process.ActionProcessKilled:
 		s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
 			"id":     ev.ID,
 			"signal": ev.Signal,
 		})
+		s.emitTestResult(ctx, ev.ID, 0, 0, ev.Signal, "")
 	}
 	return core.Result{OK: true}
 }
