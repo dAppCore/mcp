@@ -429,7 +429,7 @@ func TestSendNotificationToClient_Good_CustomNotification(t *testing.T) {
 
 func TestChannelCapability_Good(t *testing.T) {
 	caps := channelCapability()
-	raw, ok := caps["claude/channel"]
+	raw, ok := caps[ClaudeChannelCapabilityName]
 	if !ok {
 		t.Fatal("expected claude/channel capability entry")
 	}
@@ -480,7 +480,7 @@ func TestChannelCapability_Good_PublicHelpers(t *testing.T) {
 	if !slices.Equal(spec.Channels, channelCapabilityChannels()) {
 		t.Fatalf("expected typed capability channels to match: got %v want %v", spec.Channels, channelCapabilityChannels())
 	}
-	if !reflect.DeepEqual(spec.Map(), want["claude/channel"].(map[string]any)) {
+	if !reflect.DeepEqual(spec.Map(), want[ClaudeChannelCapabilityName].(map[string]any)) {
 		t.Fatal("expected typed capability map to match wire-format descriptor")
 	}
 

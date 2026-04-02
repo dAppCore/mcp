@@ -52,6 +52,9 @@ var sharedStdout = &lockedWriter{w: os.Stdout}
 const (
 	ChannelNotificationMethod = "notifications/claude/channel"
 	LoggingNotificationMethod = "notifications/message"
+	// ClaudeChannelCapabilityName is the experimental capability key advertised
+	// by the MCP server for channel-based client notifications.
+	ClaudeChannelCapabilityName = "claude/channel"
 )
 
 // Shared channel names. Keeping them central avoids drift between emitters
@@ -353,7 +356,7 @@ func (e *notificationError) Error() string {
 // for claude/channel, registered during New().
 func channelCapability() map[string]any {
 	return map[string]any{
-		"claude/channel": ClaudeChannelCapability().Map(),
+		ClaudeChannelCapabilityName: ClaudeChannelCapability().Map(),
 	}
 }
 
