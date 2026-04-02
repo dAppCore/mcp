@@ -123,11 +123,8 @@ func New(opts Options) (*Service, error) {
 		if sn, ok := sub.(SubsystemWithNotifier); ok {
 			sn.SetNotifier(s)
 		}
-		// Wire channel callback for subsystems that use func-based notification
-		type channelWirer interface {
-			OnChannel(func(ctx context.Context, channel string, data any))
-		}
-		if cw, ok := sub.(channelWirer); ok {
+		// Wire channel callback for subsystems that use func-based notification.
+		if cw, ok := sub.(SubsystemWithChannelCallback); ok {
 			svc := s // capture for closure
 			cw.OnChannel(func(ctx context.Context, channel string, data any) {
 				svc.ChannelSend(ctx, channel, data)

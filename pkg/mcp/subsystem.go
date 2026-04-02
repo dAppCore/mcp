@@ -63,3 +63,14 @@ type SubsystemWithNotifier interface {
 	Subsystem
 	SetNotifier(n Notifier)
 }
+
+// SubsystemWithChannelCallback extends Subsystem for implementations that
+// expose an OnChannel callback instead of a Notifier interface.
+//
+//	brain.OnChannel(func(ctx context.Context, channel string, data any) {
+//	    mcpService.ChannelSend(ctx, channel, data)
+//	})
+type SubsystemWithChannelCallback interface {
+	Subsystem
+	OnChannel(func(ctx context.Context, channel string, data any))
+}
