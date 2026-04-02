@@ -115,6 +115,12 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 			"dir":     ev.Dir,
 			"pid":     ev.PID,
 		})
+	case process.ActionProcessOutput:
+		s.ChannelSend(ctx, ChannelProcessOutput, map[string]any{
+			"id":     ev.ID,
+			"line":   ev.Line,
+			"stream": ev.Stream,
+		})
 	case process.ActionProcessExited:
 		payload := map[string]any{
 			"id":       ev.ID,

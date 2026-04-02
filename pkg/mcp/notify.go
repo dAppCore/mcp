@@ -59,6 +59,7 @@ const (
 	ChannelInboxMessage      = "inbox.message"
 	ChannelProcessExit       = "process.exit"
 	ChannelProcessStart      = "process.start"
+	ChannelProcessOutput     = "process.output"
 	ChannelTestResult        = "test.result"
 )
 
@@ -77,6 +78,7 @@ var channelCapabilityList = []string{
 	ChannelInboxMessage,
 	ChannelProcessExit,
 	ChannelProcessStart,
+	ChannelProcessOutput,
 	ChannelTestResult,
 }
 
