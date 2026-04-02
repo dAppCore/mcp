@@ -139,7 +139,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	// Step 2: Check per-agent concurrency limit
 	if !s.canDispatchAgent(input.Agent) {
 		// Queue the workspace — write status as "queued" and return
-		writeStatus(wsDir, &WorkspaceStatus{
+		s.saveStatus(wsDir, &WorkspaceStatus{
 			Status:    "queued",
 			Agent:     input.Agent,
 			Repo:      input.Repo,
@@ -161,7 +161,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 	// Step 3: Write status BEFORE spawning so concurrent dispatches
 	// see this workspace as "running" during the concurrency check.
-	writeStatus(wsDir, &WorkspaceStatus{
+	s.saveStatus(wsDir, &WorkspaceStatus{
 		Status:    "running",
 		Agent:     input.Agent,
 		Repo:      input.Repo,
@@ -210,7 +210,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()
 		// Revert status so the slot is freed
-		writeStatus(wsDir, &WorkspaceStatus{
+		s.saveStatus(wsDir, &WorkspaceStatus{
 			Status: "failed",
 			Agent:  input.Agent,
 			Repo:   input.Repo,
@@ -224,7 +224,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	pid := cmd.Process.Pid
 
 	// Update status with PID now that agent is running
-	writeStatus(wsDir, &WorkspaceStatus{
+	s.saveStatus(wsDir, &WorkspaceStatus{
 		Status:    "running",
 		Agent:     input.Agent,
 		Repo:      input.Repo,
@@ -268,7 +268,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			} else {
 				st.Status = status
 			}
-			_ = writeStatus(wsDir, st)
+			s.saveStatus(wsDir, st)
 		}
 
 		payload["status"] = status

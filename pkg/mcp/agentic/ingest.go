@@ -109,15 +109,21 @@ func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, p
 	}
 	apiKey := strings.TrimSpace(apiKeyData)
 
-	payload, _ := json.Marshal(map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"title":       title,
 		"description": description,
 		"type":        issueType,
 		"priority":    priority,
 		"reporter":    "cladius",
 	})
+	if err != nil {
+		return false
+	}
 
-	req, _ := http.NewRequest("POST", s.brainURL+"/v1/issues", bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", s.brainURL+"/v1/issues", bytes.NewReader(payload))
+	if err != nil {
+		return false
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)

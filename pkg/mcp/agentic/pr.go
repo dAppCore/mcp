@@ -136,7 +136,7 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 
 	// Update status with PR URL
 	st.PRURL = prURL
-	writeStatus(wsDir, st)
+	s.saveStatus(wsDir, st)
 
 	// Comment on issue if tracked
 	if st.Issue > 0 {
@@ -172,15 +172,21 @@ func (s *PrepSubsystem) buildPRBody(st *WorkspaceStatus) string {
 }
 
 func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base, title, body string) (string, int, error) {
-	payload, _ := json.Marshal(map[string]any{
+	payload, err := json.Marshal(map[string]any{
 		"title": title,
 		"body":  body,
 		"head":  head,
 		"base":  base,
 	})
+	if err != nil {
+		return "", 0, coreerr.E("forgeCreatePR", "failed to marshal PR payload", err)
+	}
 
 	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls", s.forgeURL, org, repo)
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	if err != nil {
+		return "", 0, coreerr.E("forgeCreatePR", "failed to build PR request", err)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -192,7 +198,9 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 
 	if resp.StatusCode != 201 {
 		var errBody map[string]any
-		json.NewDecoder(resp.Body).Decode(&errBody)
+		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
+			return "", 0, coreerr.E("forgeCreatePR", fmt.Sprintf("HTTP %d with unreadable error body", resp.StatusCode), err)
+		}
 		msg, _ := errBody["message"].(string)
 		return "", 0, coreerr.E("forgeCreatePR", fmt.Sprintf("HTTP %d: %s", resp.StatusCode, msg), nil)
 	}
@@ -201,16 +209,24 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pr)
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return "", 0, coreerr.E("forgeCreatePR", "failed to decode PR response", err)
+	}
 
 	return pr.HTMLURL, pr.Number, nil
 }
 
 func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, issue int, comment string) {
-	payload, _ := json.Marshal(map[string]string{"body": comment})
+	payload, err := json.Marshal(map[string]string{"body": comment})
+	if err != nil {
+		return
+	}
 
 	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d/comments", s.forgeURL, org, repo, issue)
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 

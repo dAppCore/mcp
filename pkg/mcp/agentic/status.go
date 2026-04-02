@@ -12,6 +12,7 @@ import (
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
+	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -57,6 +58,12 @@ func writeStatus(wsDir string, status *WorkspaceStatus) error {
 		return err
 	}
 	return writeAtomic(filepath.Join(wsDir, "status.json"), string(data))
+}
+
+func (s *PrepSubsystem) saveStatus(wsDir string, status *WorkspaceStatus) {
+	if err := writeStatus(wsDir, status); err != nil {
+		coreerr.Warn("failed to write workspace status", "workspace", filepath.Base(wsDir), "err", err)
+	}
 }
 
 func readStatus(wsDir string) (*WorkspaceStatus, error) {
@@ -185,7 +192,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 					info.Status = "completed"
 					st.Status = "completed"
 				}
-				_ = writeStatus(wsDir, st)
+				s.saveStatus(wsDir, st)
 
 				if prevStatus != status {
 					payload["status"] = status

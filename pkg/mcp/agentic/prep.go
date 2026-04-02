@@ -523,7 +523,10 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 	}
 
 	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/wiki/pages", s.forgeURL, org, repo)
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0
+	}
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
@@ -539,7 +542,9 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		Title  string `json:"title"`
 		SubURL string `json:"sub_url"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pages)
+	if err := json.NewDecoder(resp.Body).Decode(&pages); err != nil {
+		return 0
+	}
 
 	count := 0
 	for _, page := range pages {
@@ -549,7 +554,10 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		}
 
 		pageURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/wiki/page/%s", s.forgeURL, org, repo, subURL)
-		pageReq, _ := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+		pageReq, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+		if err != nil {
+			continue
+		}
 		pageReq.Header.Set("Authorization", "token "+s.forgeToken)
 
 		pageResp, err := s.client.Do(pageReq)
@@ -564,14 +572,19 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		var pageData struct {
 			ContentBase64 string `json:"content_base64"`
 		}
-		json.NewDecoder(pageResp.Body).Decode(&pageData)
+		if err := json.NewDecoder(pageResp.Body).Decode(&pageData); err != nil {
+			continue
+		}
 		pageResp.Body.Close()
 
 		if pageData.ContentBase64 == "" {
 			continue
 		}
 
-		content, _ := base64.StdEncoding.DecodeString(pageData.ContentBase64)
+		content, err := base64.StdEncoding.DecodeString(pageData.ContentBase64)
+		if err != nil {
+			continue
+		}
 		filename := strings.Map(func(r rune) rune {
 			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
 				return r
@@ -606,14 +619,20 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	body, _ := json.Marshal(map[string]any{
+	body, err := json.Marshal(map[string]any{
 		"query":    "architecture conventions key interfaces for " + repo,
 		"top_k":    10,
 		"project":  repo,
 		"agent_id": "cladius",
 	})
+	if err != nil {
+		return 0
+	}
 
-	req, _ := http.NewRequestWithContext(ctx, "POST", s.brainURL+"/v1/brain/recall", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(ctx, "POST", s.brainURL+"/v1/brain/recall", strings.NewReader(string(body)))
+	if err != nil {
+		return 0
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.brainKey)
@@ -627,11 +646,16 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	respData, _ := goio.ReadAll(resp.Body)
+	respData, err := goio.ReadAll(resp.Body)
+	if err != nil {
+		return 0
+	}
 	var result struct {
 		Memories []map[string]any `json:"memories"`
 	}
-	json.Unmarshal(respData, &result)
+	if err := json.Unmarshal(respData, &result); err != nil {
+		return 0
+	}
 
 	var content strings.Builder
 	content.WriteString("# Context — " + repo + "\n\n")

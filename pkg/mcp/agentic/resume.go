@@ -138,7 +138,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	st.PID = cmd.Process.Pid
 	st.Runs++
 	st.Question = ""
-	writeStatus(wsDir, st)
+	s.saveStatus(wsDir, st)
 
 	go func() {
 		cmd.Wait()
@@ -165,7 +165,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 		st.Status = status
 		st.PID = 0
-		_ = writeStatus(wsDir, st)
+		s.saveStatus(wsDir, st)
 
 		payload["status"] = status
 		s.emitChannel(postCtx, channel, payload)
