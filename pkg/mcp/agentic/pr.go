@@ -20,19 +20,22 @@ import (
 
 // --- agentic_create_pr ---
 
-// CreatePRInput is the input for agentic_create_pr.
+// PRInput is the input for agentic_create_pr and agentic_pr.
 //
-//	input := CreatePRInput{
+//	input := PRInput{
 //	    Workspace: "mcp-1773581873",
 //	    Base:      "main",
 //	}
-type CreatePRInput struct {
+type PRInput struct {
 	Workspace string `json:"workspace"`         // workspace name (e.g. "mcp-1773581873")
 	Title     string `json:"title,omitempty"`   // PR title (default: task description)
 	Body      string `json:"body,omitempty"`    // PR body (default: auto-generated)
 	Base      string `json:"base,omitempty"`    // base branch (default: "main")
 	DryRun    bool   `json:"dry_run,omitempty"` // preview without creating
 }
+
+// CreatePRInput is kept as a compatibility alias for older callers.
+type CreatePRInput = PRInput
 
 // CreatePROutput is the output for agentic_create_pr.
 //
@@ -55,7 +58,7 @@ func (s *PrepSubsystem) registerCreatePRTool(svc *coremcp.Service) {
 	}, s.createPR)
 }
 
-func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, input CreatePRInput) (*mcp.CallToolResult, CreatePROutput, error) {
+func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, input PRInput) (*mcp.CallToolResult, CreatePROutput, error) {
 	if input.Workspace == "" {
 		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace is required", nil)
 	}
