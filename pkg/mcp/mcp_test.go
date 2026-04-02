@@ -253,6 +253,34 @@ func TestFileExists_Good_FileAndDirectory(t *testing.T) {
 	}
 }
 
+func TestListDirectory_Good_ReturnsDocumentedEntryPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	s, err := New(Options{WorkspaceRoot: tmpDir})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	if err := s.medium.EnsureDir("nested"); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+	if err := s.medium.Write("nested/file.txt", "content"); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	_, out, err := s.listDirectory(nil, nil, ListDirectoryInput{Path: "nested"})
+	if err != nil {
+		t.Fatalf("listDirectory failed: %v", err)
+	}
+	if len(out.Entries) != 1 {
+		t.Fatalf("expected one entry, got %d", len(out.Entries))
+	}
+
+	want := filepath.Join("nested", "file.txt")
+	if out.Entries[0].Path != want {
+		t.Fatalf("expected entry path %q, got %q", want, out.Entries[0].Path)
+	}
+}
+
 func TestMedium_Good_IsFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})

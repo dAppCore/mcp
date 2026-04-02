@@ -541,16 +541,25 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 			size = info.Size()
 		}
 		result = append(result, DirectoryEntry{
-			Name: e.Name(),
-			Path: core.JoinPath(input.Path, e.Name()), // Note: This might be relative path, client might expect absolute?
-			// Issue 103 says "Replace ... with local.Medium sandboxing".
-			// Previous code returned `core.JoinPath(input.Path, e.Name())`.
-			// If input.Path is relative, this preserves it.
+			Name:  e.Name(),
+			Path:  directoryEntryPath(input.Path, e.Name()),
 			IsDir: e.IsDir(),
 			Size:  size,
 		})
 	}
 	return nil, ListDirectoryOutput{Entries: result, Path: input.Path}, nil
+}
+
+// directoryEntryPath returns the documented display path for a directory entry.
+//
+// Example:
+//
+//	directoryEntryPath("src", "main.go") == "src/main.go"
+func directoryEntryPath(dir, name string) string {
+	if dir == "" {
+		return name
+	}
+	return core.JoinPath(dir, name)
 }
 
 func (s *Service) createDirectory(ctx context.Context, req *mcp.CallToolRequest, input CreateDirectoryInput) (*mcp.CallToolResult, CreateDirectoryOutput, error) {
