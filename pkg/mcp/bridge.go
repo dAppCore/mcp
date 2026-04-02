@@ -3,6 +3,7 @@
 package mcp
 
 import (
+	"errors"
 	"net/http"
 
 	core "dappco.re/go/core"
@@ -38,8 +39,16 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 		bridge.Add(desc, func(c *gin.Context) {
 			var body []byte
 			if c.Request.Body != nil {
+				c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodySize)
 				r := core.ReadAll(c.Request.Body)
 				if !r.OK {
+					if err, ok := r.Value.(error); ok {
+						var maxBytesErr *http.MaxBytesError
+						if errors.As(err, &maxBytesErr) || core.Contains(err.Error(), "request body too large") {
+							c.JSON(http.StatusRequestEntityTooLarge, api.Fail("request_too_large", "Request body exceeds 10 MB limit"))
+							return
+						}
+					}
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_request", "Failed to read request body"))
 					return
 				}

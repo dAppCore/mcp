@@ -169,6 +169,41 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestBridgeToAPI_Bad_OversizedBody(t *testing.T) {
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := api.NewToolBridge("/tools")
+	BridgeToAPI(svc, bridge)
+
+	engine := gin.New()
+	rg := engine.Group(bridge.BasePath())
+	bridge.RegisterRoutes(rg)
+
+	body := strings.Repeat("a", maxBodySize+1)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 for oversized body, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp api.Response[any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected Success=false for oversized body")
+	}
+	if resp.Error == nil {
+		t.Fatal("expected error in response")
+	}
+}
+
 func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
 	if err != nil {
