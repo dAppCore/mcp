@@ -78,6 +78,27 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		if err := s.lockIssue(ctx, input.Org, input.Repo, input.Issue, input.Agent); err != nil {
 			return nil, DispatchOutput{}, err
 		}
+
+		var dispatchErr error
+		defer func() {
+			if dispatchErr != nil {
+				_ = s.unlockIssue(ctx, input.Org, input.Repo, input.Issue)
+			}
+		}()
+
+		result, out, dispatchErr := s.dispatch(ctx, req, DispatchInput{
+			Repo:     input.Repo,
+			Org:      input.Org,
+			Issue:    input.Issue,
+			Task:     issue.Title,
+			Agent:    input.Agent,
+			Template: input.Template,
+			DryRun:   input.DryRun,
+		})
+		if dispatchErr != nil {
+			return nil, DispatchOutput{}, dispatchErr
+		}
+		return result, out, nil
 	}
 
 	return s.dispatch(ctx, req, DispatchInput{
@@ -89,6 +110,34 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		Template: input.Template,
 		DryRun:   input.DryRun,
 	})
+}
+
+func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue int) error {
+	updateURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	payload, err := json.Marshal(map[string]any{
+		"assignees": []string{},
+	})
+	if err != nil {
+		return coreerr.E("unlockIssue", "failed to encode issue unlock", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
+	if err != nil {
+		return coreerr.E("unlockIssue", "failed to build unlock request", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "token "+s.forgeToken)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return coreerr.E("unlockIssue", "failed to update issue", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= http.StatusBadRequest {
+		return coreerr.E("unlockIssue", fmt.Sprintf("issue unlock returned %d", resp.StatusCode), nil)
+	}
+
+	return nil
 }
 
 func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue int) (*forgeIssue, error) {

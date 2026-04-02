@@ -90,6 +90,66 @@ func TestDispatchIssue_Bad_AssignedIssue(t *testing.T) {
 	}
 }
 
+func TestDispatchIssue_Good_UnlocksOnPrepFailure(t *testing.T) {
+	var methods []string
+	var bodies []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		methods = append(methods, r.Method)
+		bodies = append(bodies, string(body))
+
+		switch r.Method {
+		case http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"title": "Fix login crash",
+				"body":  "details",
+				"state": "open",
+			})
+		case http.MethodPatch:
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer srv.Close()
+
+	s := &PrepSubsystem{
+		forgeURL:   srv.URL,
+		forgeToken: "token",
+		client:     srv.Client(),
+		codePath:   t.TempDir(),
+	}
+
+	_, _, err := s.dispatchIssue(context.Background(), nil, IssueDispatchInput{
+		Repo:  "demo",
+		Org:   "core",
+		Issue: 42,
+	})
+	if err == nil {
+		t.Fatal("expected dispatch to fail when the repo clone is missing")
+	}
+
+	if got, want := len(methods), 3; got != want {
+		t.Fatalf("expected %d requests, got %d (%v)", want, got, methods)
+	}
+	if methods[0] != http.MethodGet {
+		t.Fatalf("expected first request to fetch issue, got %s", methods[0])
+	}
+	if methods[1] != http.MethodPatch {
+		t.Fatalf("expected second request to lock issue, got %s", methods[1])
+	}
+	if methods[2] != http.MethodPatch {
+		t.Fatalf("expected third request to unlock issue, got %s", methods[2])
+	}
+	if !strings.Contains(bodies[1], `"assignees":["claude"]`) {
+		t.Fatalf("expected lock request to assign claude, got %s", bodies[1])
+	}
+	if !strings.Contains(bodies[2], `"assignees":[]`) {
+		t.Fatalf("expected unlock request to clear assignees, got %s", bodies[2])
+	}
+}
+
 func TestLockIssue_Good_RequestBody(t *testing.T) {
 	var gotMethod string
 	var gotPath string
