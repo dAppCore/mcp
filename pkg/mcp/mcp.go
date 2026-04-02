@@ -29,7 +29,7 @@ import (
 //	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "/home/user/project"})
 //	defer svc.Shutdown(ctx)
 type Service struct {
-	*core.ServiceRuntime[McpOptions] // Core access via s.Core()
+	*core.ServiceRuntime[struct{}] // Core access via s.Core()
 
 	server         *mcp.Server
 	workspaceRoot  string           // Root directory for file operations (empty = unrestricted)
@@ -43,9 +43,6 @@ type Service struct {
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
 	tools          []ToolRecord     // Parallel tool registry for REST bridge
 }
-
-// McpOptions configures the MCP service runtime.
-type McpOptions struct{}
 
 // Options configures a Service.
 //

@@ -52,7 +52,7 @@ func Register(c *core.Core) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	svc.ServiceRuntime = core.NewServiceRuntime(c, McpOptions{})
+	svc.ServiceRuntime = core.NewServiceRuntime(c, struct{}{})
 
 	return core.Result{Value: svc, OK: true}
 }
