@@ -60,6 +60,8 @@ func Register(c *core.Core) core.Result {
 
 // OnStartup implements core.Startable — registers MCP transport commands.
 //
+//	svc.OnStartup(context.Background())
+//
 //	core-agent mcp    — start MCP server on stdio
 //	core-agent serve  — start MCP server on HTTP
 func (s *Service) OnStartup(ctx context.Context) core.Result {
@@ -94,9 +96,9 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 }
 
 // HandleIPCEvents implements Core's IPC handler interface.
-// Catches ChannelPush messages from other services and pushes them to Claude Code sessions.
 //
 //	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: statusMap})
+// Catches ChannelPush messages from other services and pushes them to Claude Code sessions.
 func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	ctx := context.Background()
 	if c != nil {
@@ -175,6 +177,8 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 }
 
 // OnShutdown implements core.Stoppable — stops the MCP transport.
+//
+//	svc.OnShutdown(context.Background())
 func (s *Service) OnShutdown(ctx context.Context) core.Result {
 	if err := s.Shutdown(ctx); err != nil {
 		return core.Result{Value: err, OK: false}

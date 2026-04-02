@@ -48,17 +48,24 @@ func (lw *lockedWriter) Close() error { return nil }
 // Created once when the MCP service enters stdio mode.
 var sharedStdout = &lockedWriter{w: os.Stdout}
 
-// Notification method names used by the MCP server.
-const (
-	ChannelNotificationMethod = "notifications/claude/channel"
-	LoggingNotificationMethod = "notifications/message"
-	// ClaudeChannelCapabilityName is the experimental capability key advertised
-	// by the MCP server for channel-based client notifications.
-	ClaudeChannelCapabilityName = "claude/channel"
-)
+// ChannelNotificationMethod is the JSON-RPC method used for named channel
+// events sent through claude/channel.
+const ChannelNotificationMethod = "notifications/claude/channel"
+
+// LoggingNotificationMethod is the JSON-RPC method used for log messages sent
+// to connected MCP clients.
+const LoggingNotificationMethod = "notifications/message"
+
+// ClaudeChannelCapabilityName is the experimental capability key advertised
+// by the MCP server for channel-based client notifications.
+const ClaudeChannelCapabilityName = "claude/channel"
 
 // Shared channel names. Keeping them central avoids drift between emitters
 // and the advertised claude/channel capability.
+//
+// Use these names when emitting structured events from subsystems:
+//
+//	s.ChannelSend(ctx, ChannelProcessStart, map[string]any{"id": "proc-1"})
 const (
 	ChannelBuildStart        = "build.start"
 	ChannelBuildComplete     = "build.complete"
