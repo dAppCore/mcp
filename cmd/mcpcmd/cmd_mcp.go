@@ -17,6 +17,7 @@ import (
 )
 
 var workspaceFlag string
+var unrestrictedFlag bool
 
 var mcpCmd = &cli.Command{
 	Use:   "mcp",
@@ -48,6 +49,9 @@ Examples:
   # Start with workspace restriction
   core mcp serve --workspace /path/to/project
 
+  # Start unrestricted (explicit opt-in)
+  core mcp serve --unrestricted
+
   # Start TCP server
   MCP_ADDR=localhost:9999 core mcp serve`,
 	RunE: func(cmd *cli.Command, args []string) error {
@@ -56,7 +60,8 @@ Examples:
 }
 
 func initFlags() {
-	cli.StringFlag(serveCmd, &workspaceFlag, "workspace", "w", "", "Restrict file operations to this directory (empty = unrestricted)")
+	cli.StringFlag(serveCmd, &workspaceFlag, "workspace", "w", "", "Restrict file operations to this directory")
+	cli.BoolFlag(serveCmd, &unrestrictedFlag, "unrestricted", "", false, "Disable filesystem sandboxing entirely")
 }
 
 // AddMCPCommands registers the 'mcp' command and all subcommands.
@@ -69,11 +74,10 @@ func AddMCPCommands(root *cli.Command) {
 func runServe() error {
 	opts := mcp.Options{}
 
-	if workspaceFlag != "" {
-		opts.WorkspaceRoot = workspaceFlag
-	} else {
-		// Explicitly unrestricted when no workspace specified
+	if unrestrictedFlag {
 		opts.Unrestricted = true
+	} else if workspaceFlag != "" {
+		opts.WorkspaceRoot = workspaceFlag
 	}
 
 	// Register OpenBrain and agentic subsystems
