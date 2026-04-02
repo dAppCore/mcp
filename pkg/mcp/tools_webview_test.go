@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -212,6 +214,41 @@ func TestWebviewWaitInput_Good(t *testing.T) {
 	}
 	if input.Timeout != 10 {
 		t.Errorf("Expected timeout 10, got %d", input.Timeout)
+	}
+}
+
+func TestWaitForSelector_Good(t *testing.T) {
+	ctx := context.Background()
+
+	attempts := 0
+	err := waitForSelector(ctx, 200*time.Millisecond, "#ready", func(selector string) error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("element not found: " + selector)
+		}
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("waitForSelector failed: %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("expected 3 attempts, got %d", attempts)
+	}
+}
+
+func TestWaitForSelector_Bad_Timeout(t *testing.T) {
+	ctx := context.Background()
+
+	start := time.Now()
+	err := waitForSelector(ctx, 50*time.Millisecond, "#missing", func(selector string) error {
+		return errors.New("element not found: " + selector)
+	})
+	if err == nil {
+		t.Fatal("expected waitForSelector to time out")
+	}
+	if time.Since(start) < 50*time.Millisecond {
+		t.Fatal("expected waitForSelector to honor timeout")
 	}
 }
 

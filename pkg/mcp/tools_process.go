@@ -221,10 +221,10 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessStopOutput{}, log.E("processStop", "process not found", err)
 	}
 
-	// For graceful stop, we use Kill() which sends SIGKILL
-	// A more sophisticated implementation could use SIGTERM first
-	if err := proc.Kill(); err != nil {
-		log.Error("mcp: process stop kill failed", "id", input.ID, "err", err)
+	// Use the process service's graceful shutdown path first so callers get
+	// a real stop signal before we fall back to a hard kill internally.
+	if err := proc.Shutdown(); err != nil {
+		log.Error("mcp: process stop failed", "id", input.ID, "err", err)
 		return nil, ProcessStopOutput{}, log.E("processStop", "failed to stop process", err)
 	}
 

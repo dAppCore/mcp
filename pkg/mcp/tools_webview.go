@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/base64"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,20 @@ var (
 	errNotConnected     = log.E("webview", "not connected; use webview_connect first", nil)
 	errSelectorRequired = log.E("webview", "selector is required", nil)
 )
+
+// closeWebviewConnection closes and clears the shared browser connection.
+func closeWebviewConnection() error {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
+	if webviewInstance == nil {
+		return nil
+	}
+
+	err := webviewInstance.Close()
+	webviewInstance = nil
+	return err
+}
 
 // WebviewConnectInput contains parameters for connecting to Chrome DevTools.
 //
@@ -562,7 +577,15 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, WebviewWaitOutput{}, errSelectorRequired
 	}
 
-	if err := webviewInstance.WaitForSelector(input.Selector); err != nil {
+	timeout := time.Duration(input.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+
+	if err := waitForSelector(ctx, timeout, input.Selector, func(selector string) error {
+		_, err := webviewInstance.QuerySelector(selector)
+		return err
+	}); err != nil {
 		log.Error("mcp: webview wait failed", "selector", input.Selector, "err", err)
 		return nil, WebviewWaitOutput{}, log.E("webviewWait", "failed to wait for selector", err)
 	}
@@ -571,4 +594,35 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 		Success: true,
 		Message: core.Sprintf("Element found: %s", input.Selector),
 	}, nil
+}
+
+// waitForSelector polls until the selector exists or the timeout elapses.
+// Query helpers in go-webview report "element not found" as an error, so we
+// keep retrying until we see the element or hit the deadline.
+func waitForSelector(ctx context.Context, timeout time.Duration, selector string, query func(string) error) error {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		err := query(selector)
+		if err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "element not found") {
+			return err
+		}
+
+		select {
+		case <-waitCtx.Done():
+			return log.E("webviewWait", "timed out waiting for selector", waitCtx.Err())
+		case <-ticker.C:
+		}
+	}
 }

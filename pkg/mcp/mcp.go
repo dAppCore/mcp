@@ -174,14 +174,40 @@ func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
 //	defer cancel()
 //	if err := svc.Shutdown(ctx); err != nil { log.Fatal(err) }
 func (s *Service) Shutdown(ctx context.Context) error {
+	var shutdownErr error
+
 	for _, sub := range s.subsystems {
 		if sh, ok := sub.(SubsystemWithShutdown); ok {
 			if err := sh.Shutdown(ctx); err != nil {
-				return log.E("mcp.Shutdown", "shutdown "+sub.Name(), err)
+				if shutdownErr == nil {
+					shutdownErr = log.E("mcp.Shutdown", "shutdown "+sub.Name(), err)
+				}
 			}
 		}
 	}
-	return nil
+
+	if s.wsServer != nil {
+		s.wsMu.Lock()
+		server := s.wsServer
+		s.wsMu.Unlock()
+
+		if err := server.Shutdown(ctx); err != nil && shutdownErr == nil {
+			shutdownErr = log.E("mcp.Shutdown", "shutdown websocket server", err)
+		}
+
+		s.wsMu.Lock()
+		if s.wsServer == server {
+			s.wsServer = nil
+			s.wsAddr = ""
+		}
+		s.wsMu.Unlock()
+	}
+
+	if err := closeWebviewConnection(); err != nil && shutdownErr == nil {
+		shutdownErr = log.E("mcp.Shutdown", "close webview connection", err)
+	}
+
+	return shutdownErr
 }
 
 // WSHub returns the WebSocket hub, or nil if not configured.
