@@ -5,6 +5,11 @@ package ide
 import "time"
 
 // Config holds connection and workspace settings for the IDE subsystem.
+//
+//	cfg := Config{
+//	    LaravelWSURL: "ws://localhost:9876/ws",
+//	    WorkspaceRoot: "/workspace",
+//	}
 type Config struct {
 	// LaravelWSURL is the WebSocket endpoint for the Laravel core-agentic backend.
 	LaravelWSURL string
@@ -24,11 +29,15 @@ type Config struct {
 }
 
 // DefaultConfig returns sensible defaults for local development.
+//
+//	cfg := DefaultConfig()
 func DefaultConfig() Config {
 	return Config{}.WithDefaults()
 }
 
 // WithDefaults fills unset fields with the default development values.
+//
+//	cfg := Config{WorkspaceRoot: "/workspace"}.WithDefaults()
 func (c Config) WithDefaults() Config {
 	if c.LaravelWSURL == "" {
 		c.LaravelWSURL = "ws://localhost:9876/ws"

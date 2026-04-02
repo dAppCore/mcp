@@ -37,6 +37,8 @@ type PrepSubsystem struct {
 }
 
 // NewPrep creates an agentic subsystem.
+//
+//	prep := NewPrep()
 func NewPrep() *PrepSubsystem {
 	home, _ := os.UserHomeDir()
 

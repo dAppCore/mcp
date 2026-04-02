@@ -25,6 +25,9 @@ type Subsystem struct {
 }
 
 // New creates a brain subsystem that uses the given IDE bridge for Laravel communication.
+//
+//	brain := New(ideBridge)
+//
 // Pass nil if headless (tools will return errBridgeNotAvailable).
 func New(bridge *ide.Bridge) *Subsystem {
 	s := &Subsystem{bridge: bridge}

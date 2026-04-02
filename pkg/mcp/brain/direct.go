@@ -44,6 +44,9 @@ func (s *DirectSubsystem) OnChannel(fn func(ctx context.Context, channel string,
 }
 
 // NewDirect creates a brain subsystem that calls the OpenBrain API directly.
+//
+//	brain := NewDirect()
+//
 // Reads CORE_BRAIN_URL and CORE_BRAIN_KEY from environment, or falls back
 // to ~/.claude/brain.key for the API key.
 func NewDirect() *DirectSubsystem {

@@ -36,6 +36,8 @@ type Bridge struct {
 
 // NewBridge creates a bridge that will connect to the Laravel backend and
 // forward incoming messages to the provided ws.Hub channels.
+//
+//	bridge := NewBridge(hub, cfg)
 func NewBridge(hub *ws.Hub, cfg Config) *Bridge {
 	return &Bridge{cfg: cfg, hub: hub}
 }

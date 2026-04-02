@@ -36,6 +36,9 @@ type Subsystem struct {
 
 // New creates an IDE subsystem from a Config DTO.
 //
+//	cfg := DefaultConfig()
+//	ide := New(hub, cfg)
+//
 // The ws.Hub is used for real-time forwarding; pass nil if headless
 // (tools still work but real-time streaming is disabled).
 func New(hub *ws.Hub, cfg Config) *Subsystem {
