@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"context"
-	"iter"
 	"reflect"
 
 	core "dappco.re/go/core"
@@ -132,19 +131,6 @@ func structSchema(v any) map[string]any {
 // splitTag splits a struct tag value by commas.
 func splitTag(tag string) []string {
 	return core.Split(tag, ",")
-}
-
-// splitTagSeq returns an iterator over the tag parts.
-func splitTagSeq(tag string) iter.Seq[string] {
-	// core.Split returns []string; wrap as iterator
-	parts := core.Split(tag, ",")
-	return func(yield func(string) bool) {
-		for _, p := range parts {
-			if !yield(p) {
-				return
-			}
-		}
-	}
 }
 
 // goTypeToJSONType maps Go types to JSON Schema types.
