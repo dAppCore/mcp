@@ -35,6 +35,12 @@ type Subsystem struct {
 	activity     []ActivityEvent
 }
 
+var (
+	_ coremcp.Subsystem             = (*Subsystem)(nil)
+	_ coremcp.SubsystemWithShutdown = (*Subsystem)(nil)
+	_ coremcp.SubsystemWithNotifier = (*Subsystem)(nil)
+)
+
 // New creates an IDE subsystem from a Config DTO.
 //
 //	cfg := DefaultConfig()

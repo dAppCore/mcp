@@ -36,6 +36,12 @@ type PrepSubsystem struct {
 	notifier   coremcp.Notifier
 }
 
+var (
+	_ coremcp.Subsystem             = (*PrepSubsystem)(nil)
+	_ coremcp.SubsystemWithShutdown = (*PrepSubsystem)(nil)
+	_ coremcp.SubsystemWithNotifier = (*PrepSubsystem)(nil)
+)
+
 // NewPrep creates an agentic subsystem.
 //
 //	prep := NewPrep()

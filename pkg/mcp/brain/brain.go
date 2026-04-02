@@ -23,6 +23,12 @@ type Subsystem struct {
 	notifier coremcp.Notifier
 }
 
+var (
+	_ coremcp.Subsystem             = (*Subsystem)(nil)
+	_ coremcp.SubsystemWithShutdown = (*Subsystem)(nil)
+	_ coremcp.SubsystemWithNotifier = (*Subsystem)(nil)
+)
+
 // New creates a brain subsystem that uses the given IDE bridge for Laravel communication.
 //
 //	brain := New(ideBridge)

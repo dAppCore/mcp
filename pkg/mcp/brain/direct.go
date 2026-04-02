@@ -35,6 +35,12 @@ type DirectSubsystem struct {
 	onChannel channelSender
 }
 
+var (
+	_ coremcp.Subsystem                    = (*DirectSubsystem)(nil)
+	_ coremcp.SubsystemWithShutdown        = (*DirectSubsystem)(nil)
+	_ coremcp.SubsystemWithChannelCallback = (*DirectSubsystem)(nil)
+)
+
 // OnChannel sets a callback for channel event broadcasting.
 // Called by the MCP service after creation to wire up notifications.
 //
