@@ -83,7 +83,6 @@ func New(opts Options) (*Service, error) {
 		server:         server,
 		processService: opts.ProcessService,
 		wsHub:          opts.WSHub,
-		subsystems:     opts.Subsystems,
 		logger:         log.Default(),
 		processMeta:    make(map[string]processRuntime),
 	}
@@ -115,7 +114,12 @@ func New(opts Options) (*Service, error) {
 
 	s.registerTools(s.server)
 
-	for _, sub := range s.subsystems {
+	s.subsystems = make([]Subsystem, 0, len(opts.Subsystems))
+	for _, sub := range opts.Subsystems {
+		if sub == nil {
+			continue
+		}
+		s.subsystems = append(s.subsystems, sub)
 		if sn, ok := sub.(SubsystemWithNotifier); ok {
 			sn.SetNotifier(s)
 		}
@@ -141,7 +145,7 @@ func New(opts Options) (*Service, error) {
 //	    fmt.Println(sub.Name())
 //	}
 func (s *Service) Subsystems() []Subsystem {
-	return s.subsystems
+	return slices.Clone(s.subsystems)
 }
 
 // SubsystemsSeq returns an iterator over the registered subsystems.
@@ -150,7 +154,7 @@ func (s *Service) Subsystems() []Subsystem {
 //	    fmt.Println(sub.Name())
 //	}
 func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
-	return slices.Values(s.subsystems)
+	return slices.Values(slices.Clone(s.subsystems))
 }
 
 // Tools returns all recorded tool metadata.
@@ -159,7 +163,7 @@ func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
 //	    fmt.Printf("%s (%s): %s\n", t.Name, t.Group, t.Description)
 //	}
 func (s *Service) Tools() []ToolRecord {
-	return s.tools
+	return slices.Clone(s.tools)
 }
 
 // ToolsSeq returns an iterator over all recorded tool metadata.
@@ -168,7 +172,7 @@ func (s *Service) Tools() []ToolRecord {
 //	    fmt.Println(rec.Name)
 //	}
 func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
-	return slices.Values(s.tools)
+	return slices.Values(slices.Clone(s.tools))
 }
 
 // Shutdown gracefully shuts down all subsystems that support it.

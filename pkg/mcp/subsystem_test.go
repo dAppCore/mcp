@@ -88,6 +88,27 @@ func TestSubsystem_Good_MultipleSubsystems(t *testing.T) {
 	}
 }
 
+func TestSubsystem_Good_NilEntriesIgnoredAndSnapshots(t *testing.T) {
+	sub := &stubSubsystem{name: "snap-sub"}
+	svc, err := New(Options{Subsystems: []Subsystem{nil, sub}})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	subs := svc.Subsystems()
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subsystem after filtering nil entries, got %d", len(subs))
+	}
+	if subs[0].Name() != "snap-sub" {
+		t.Fatalf("expected snap-sub, got %q", subs[0].Name())
+	}
+
+	subs[0] = nil
+	if svc.Subsystems()[0] == nil {
+		t.Fatal("expected Subsystems() to return a snapshot, not the live slice")
+	}
+}
+
 func TestSubsystem_Good_NotifierSetBeforeRegistration(t *testing.T) {
 	sub := &notifierSubsystem{stubSubsystem: stubSubsystem{name: "notifier-sub"}}
 	_, err := New(Options{Subsystems: []Subsystem{sub}})
