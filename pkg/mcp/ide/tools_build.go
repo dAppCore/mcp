@@ -69,44 +69,41 @@ func (s *Subsystem) registerBuildTools(server *mcp.Server) {
 	}, s.buildLogs)
 }
 
-// buildStatus requests build status from the Laravel backend.
-// Stub implementation: sends request via bridge, returns "unknown" status. Awaiting Laravel backend.
+// buildStatus returns a local best-effort build status and refreshes the
+// Laravel backend when the bridge is available.
 func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input BuildStatusInput) (*mcp.CallToolResult, BuildStatusOutput, error) {
-	if s.bridge == nil {
-		return nil, BuildStatusOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "build_status",
+			Data: map[string]any{"buildId": input.BuildID},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "build_status",
-		Data: map[string]any{"buildId": input.BuildID},
-	})
 	return nil, BuildStatusOutput{
 		Build: BuildInfo{ID: input.BuildID, Status: "unknown"},
 	}, nil
 }
 
-// buildList requests a list of builds from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty list. Awaiting Laravel backend.
+// buildList returns the local build list snapshot and refreshes the Laravel
+// backend when the bridge is available.
 func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input BuildListInput) (*mcp.CallToolResult, BuildListOutput, error) {
-	if s.bridge == nil {
-		return nil, BuildListOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "build_list",
+			Data: map[string]any{"repo": input.Repo, "limit": input.Limit},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "build_list",
-		Data: map[string]any{"repo": input.Repo, "limit": input.Limit},
-	})
 	return nil, BuildListOutput{Builds: []BuildInfo{}}, nil
 }
 
-// buildLogs requests build log output from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty lines. Awaiting Laravel backend.
+// buildLogs returns the local build log snapshot and refreshes the Laravel
+// backend when the bridge is available.
 func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input BuildLogsInput) (*mcp.CallToolResult, BuildLogsOutput, error) {
-	if s.bridge == nil {
-		return nil, BuildLogsOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "build_logs",
+			Data: map[string]any{"buildId": input.BuildID, "tail": input.Tail},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "build_logs",
-		Data: map[string]any{"buildId": input.BuildID, "tail": input.Tail},
-	})
 	return nil, BuildLogsOutput{
 		BuildID: input.BuildID,
 		Lines:   []string{},

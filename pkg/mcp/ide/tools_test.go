@@ -90,14 +90,20 @@ func TestChatSend_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestChatHistory_Bad_NilBridge verifies chatHistory returns error without a bridge.
-func TestChatHistory_Bad_NilBridge(t *testing.T) {
+// TestChatHistory_Good_NilBridge verifies chatHistory returns local cache without a bridge.
+func TestChatHistory_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.chatHistory(context.Background(), nil, ChatHistoryInput{
+	_, out, err := sub.chatHistory(context.Background(), nil, ChatHistoryInput{
 		SessionID: "s1",
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("chatHistory failed: %v", err)
+	}
+	if out.SessionID != "s1" {
+		t.Errorf("expected sessionId 's1', got %q", out.SessionID)
+	}
+	if out.Messages == nil {
+		t.Error("expected non-nil messages slice")
 	}
 }
 
@@ -143,12 +149,15 @@ func TestChatHistory_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestSessionList_Bad_NilBridge verifies sessionList returns error without a bridge.
-func TestSessionList_Bad_NilBridge(t *testing.T) {
+// TestSessionList_Good_NilBridge verifies sessionList returns local sessions without a bridge.
+func TestSessionList_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.sessionList(context.Background(), nil, SessionListInput{})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	_, out, err := sub.sessionList(context.Background(), nil, SessionListInput{})
+	if err != nil {
+		t.Fatalf("sessionList failed: %v", err)
+	}
+	if out.Sessions == nil {
+		t.Error("expected non-nil sessions slice")
 	}
 }
 
@@ -180,14 +189,20 @@ func TestSessionList_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestSessionCreate_Bad_NilBridge verifies sessionCreate returns error without a bridge.
-func TestSessionCreate_Bad_NilBridge(t *testing.T) {
+// TestSessionCreate_Good_NilBridge verifies sessionCreate stores a local session without a bridge.
+func TestSessionCreate_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
+	_, out, err := sub.sessionCreate(context.Background(), nil, SessionCreateInput{
 		Name: "test",
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("sessionCreate failed: %v", err)
+	}
+	if out.Session.Name != "test" {
+		t.Errorf("expected session name 'test', got %q", out.Session.Name)
+	}
+	if out.Session.ID == "" {
+		t.Error("expected non-empty session ID")
 	}
 }
 
@@ -217,14 +232,20 @@ func TestSessionCreate_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestPlanStatus_Bad_NilBridge verifies planStatus returns error without a bridge.
-func TestPlanStatus_Bad_NilBridge(t *testing.T) {
+// TestPlanStatus_Good_NilBridge verifies planStatus returns local status without a bridge.
+func TestPlanStatus_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.planStatus(context.Background(), nil, PlanStatusInput{
+	_, out, err := sub.planStatus(context.Background(), nil, PlanStatusInput{
 		SessionID: "s1",
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("planStatus failed: %v", err)
+	}
+	if out.SessionID != "s1" {
+		t.Errorf("expected sessionId 's1', got %q", out.SessionID)
+	}
+	if out.Status != "unknown" {
+		t.Errorf("expected status 'unknown', got %q", out.Status)
 	}
 }
 
@@ -260,14 +281,20 @@ func TestPlanStatus_Good_Connected(t *testing.T) {
 
 // --- 4.3: Build tool tests ---
 
-// TestBuildStatus_Bad_NilBridge verifies buildStatus returns error without a bridge.
-func TestBuildStatus_Bad_NilBridge(t *testing.T) {
+// TestBuildStatus_Good_NilBridge verifies buildStatus returns a local stub without a bridge.
+func TestBuildStatus_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.buildStatus(context.Background(), nil, BuildStatusInput{
+	_, out, err := sub.buildStatus(context.Background(), nil, BuildStatusInput{
 		BuildID: "b1",
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("buildStatus failed: %v", err)
+	}
+	if out.Build.ID != "b1" {
+		t.Errorf("expected build ID 'b1', got %q", out.Build.ID)
+	}
+	if out.Build.Status != "unknown" {
+		t.Errorf("expected status 'unknown', got %q", out.Build.Status)
 	}
 }
 
@@ -291,15 +318,18 @@ func TestBuildStatus_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestBuildList_Bad_NilBridge verifies buildList returns error without a bridge.
-func TestBuildList_Bad_NilBridge(t *testing.T) {
+// TestBuildList_Good_NilBridge verifies buildList returns an empty list without a bridge.
+func TestBuildList_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.buildList(context.Background(), nil, BuildListInput{
+	_, out, err := sub.buildList(context.Background(), nil, BuildListInput{
 		Repo:  "core-php",
 		Limit: 10,
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("buildList failed: %v", err)
+	}
+	if out.Builds == nil {
+		t.Error("expected non-nil builds slice")
 	}
 }
 
@@ -324,15 +354,21 @@ func TestBuildList_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestBuildLogs_Bad_NilBridge verifies buildLogs returns error without a bridge.
-func TestBuildLogs_Bad_NilBridge(t *testing.T) {
+// TestBuildLogs_Good_NilBridge verifies buildLogs returns empty lines without a bridge.
+func TestBuildLogs_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.buildLogs(context.Background(), nil, BuildLogsInput{
+	_, out, err := sub.buildLogs(context.Background(), nil, BuildLogsInput{
 		BuildID: "b1",
 		Tail:    100,
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("buildLogs failed: %v", err)
+	}
+	if out.BuildID != "b1" {
+		t.Errorf("expected buildId 'b1', got %q", out.BuildID)
+	}
+	if out.Lines == nil {
+		t.Error("expected non-nil lines slice")
 	}
 }
 
@@ -400,14 +436,17 @@ func TestDashboardOverview_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestDashboardActivity_Bad_NilBridge verifies dashboardActivity returns error without bridge.
-func TestDashboardActivity_Bad_NilBridge(t *testing.T) {
+// TestDashboardActivity_Good_NilBridge verifies dashboardActivity returns local activity without bridge.
+func TestDashboardActivity_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.dashboardActivity(context.Background(), nil, DashboardActivityInput{
+	_, out, err := sub.dashboardActivity(context.Background(), nil, DashboardActivityInput{
 		Limit: 10,
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("dashboardActivity failed: %v", err)
+	}
+	if out.Events == nil {
+		t.Error("expected non-nil events slice")
 	}
 }
 
@@ -441,14 +480,17 @@ func TestDashboardActivity_Good_Connected(t *testing.T) {
 	}
 }
 
-// TestDashboardMetrics_Bad_NilBridge verifies dashboardMetrics returns error without bridge.
-func TestDashboardMetrics_Bad_NilBridge(t *testing.T) {
+// TestDashboardMetrics_Good_NilBridge verifies dashboardMetrics returns local metrics without bridge.
+func TestDashboardMetrics_Good_NilBridge(t *testing.T) {
 	sub := newNilBridgeSubsystem()
-	_, _, err := sub.dashboardMetrics(context.Background(), nil, DashboardMetricsInput{
+	_, out, err := sub.dashboardMetrics(context.Background(), nil, DashboardMetricsInput{
 		Period: "1h",
 	})
-	if err == nil {
-		t.Error("expected error when bridge is nil")
+	if err != nil {
+		t.Fatalf("dashboardMetrics failed: %v", err)
+	}
+	if out.Period != "1h" {
+		t.Errorf("expected period '1h', got %q", out.Period)
 	}
 }
 

@@ -140,48 +140,44 @@ func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input Ch
 	}, nil
 }
 
-// chatHistory requests message history from the Laravel backend.
-// The subsystem returns the local cache for the requested session while the
-// backend response is still in flight.
+// chatHistory returns the local message history for a session and refreshes
+// the Laravel backend when the bridge is available.
 func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input ChatHistoryInput) (*mcp.CallToolResult, ChatHistoryOutput, error) {
-	if s.bridge == nil {
-		return nil, ChatHistoryOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		// Request history via bridge when available; the local cache still
+		// provides an immediate response in headless mode.
+		_ = s.bridge.Send(BridgeMessage{
+			Type:      "chat_history",
+			SessionID: input.SessionID,
+			Data:      map[string]any{"limit": input.Limit},
+		})
 	}
-	// Request history via bridge; for now return placeholder indicating the
-	// request was forwarded. Real data arrives via WebSocket subscription.
-	_ = s.bridge.Send(BridgeMessage{
-		Type:      "chat_history",
-		SessionID: input.SessionID,
-		Data:      map[string]any{"limit": input.Limit},
-	})
 	return nil, ChatHistoryOutput{
 		SessionID: input.SessionID,
 		Messages:  s.chatMessages(input.SessionID),
 	}, nil
 }
 
-// sessionList requests the session list from the Laravel backend.
-// The local session cache is returned immediately so newly created sessions
-// are visible without waiting for backend persistence.
+// sessionList returns the local session cache and refreshes the Laravel
+// backend when the bridge is available.
 func (s *Subsystem) sessionList(_ context.Context, _ *mcp.CallToolRequest, _ SessionListInput) (*mcp.CallToolResult, SessionListOutput, error) {
-	if s.bridge == nil {
-		return nil, SessionListOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{Type: "session_list"})
 	}
-	_ = s.bridge.Send(BridgeMessage{Type: "session_list"})
 	return nil, SessionListOutput{Sessions: s.listSessions()}, nil
 }
 
-// sessionCreate requests a new session from the Laravel backend.
-// A local session record is created immediately so the caller receives a
-// stable ID even before the backend finishes provisioning the session.
+// sessionCreate creates a local session record immediately and forwards the
+// request to the Laravel backend when the bridge is available.
 func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, input SessionCreateInput) (*mcp.CallToolResult, SessionCreateOutput, error) {
-	if s.bridge == nil {
-		return nil, SessionCreateOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		if err := s.bridge.Send(BridgeMessage{
+			Type: "session_create",
+			Data: map[string]any{"name": input.Name},
+		}); err != nil {
+			return nil, SessionCreateOutput{}, err
+		}
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "session_create",
-		Data: map[string]any{"name": input.Name},
-	})
 	session := Session{
 		ID:        newSessionID(),
 		Name:      input.Name,
@@ -195,17 +191,15 @@ func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, inp
 	}, nil
 }
 
-// planStatus requests plan status from the Laravel backend.
-// When the backend has not populated plan state yet, the local session cache
-// is used as a best-effort status source.
+// planStatus returns the local best-effort session status and refreshes the
+// Laravel backend when the bridge is available.
 func (s *Subsystem) planStatus(_ context.Context, _ *mcp.CallToolRequest, input PlanStatusInput) (*mcp.CallToolResult, PlanStatusOutput, error) {
-	if s.bridge == nil {
-		return nil, PlanStatusOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type:      "plan_status",
+			SessionID: input.SessionID,
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type:      "plan_status",
-		SessionID: input.SessionID,
-	})
 	s.stateMu.Lock()
 	session, ok := s.sessions[input.SessionID]
 	s.stateMu.Unlock()

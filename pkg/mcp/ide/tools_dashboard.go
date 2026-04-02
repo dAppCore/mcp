@@ -100,35 +100,31 @@ func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest,
 	}, nil
 }
 
-// dashboardActivity requests the activity feed from the Laravel backend.
-// The local activity log is returned so recent subsystem actions are visible
-// immediately, even if the backend has not responded yet.
+// dashboardActivity returns the local activity feed and refreshes the Laravel
+// backend when the bridge is available.
 func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest, input DashboardActivityInput) (*mcp.CallToolResult, DashboardActivityOutput, error) {
-	if s.bridge == nil {
-		return nil, DashboardActivityOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "dashboard_activity",
+			Data: map[string]any{"limit": input.Limit},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "dashboard_activity",
-		Data: map[string]any{"limit": input.Limit},
-	})
 	return nil, DashboardActivityOutput{Events: s.activityFeed(input.Limit)}, nil
 }
 
-// dashboardMetrics requests aggregate metrics from the Laravel backend.
-// Local session and message counts are surfaced while waiting for backend
-// analytics.
+// dashboardMetrics returns local session and message counts and refreshes the
+// Laravel backend when the bridge is available.
 func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, input DashboardMetricsInput) (*mcp.CallToolResult, DashboardMetricsOutput, error) {
-	if s.bridge == nil {
-		return nil, DashboardMetricsOutput{}, errBridgeNotAvailable
-	}
 	period := input.Period
 	if period == "" {
 		period = "24h"
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "dashboard_metrics",
-		Data: map[string]any{"period": period},
-	})
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "dashboard_metrics",
+			Data: map[string]any{"period": period},
+		})
+	}
 
 	s.stateMu.Lock()
 	sessions := len(s.sessions)
