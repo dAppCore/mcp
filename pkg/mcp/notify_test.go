@@ -50,6 +50,18 @@ func TestNotificationMethods_Good_NilServer(t *testing.T) {
 	}
 }
 
+func TestNotificationMethods_Good_NilContext(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	svc.SendNotificationToAllClients(nil, "info", "test", map[string]any{"ok": true})
+	svc.SendNotificationToSession(nil, nil, "info", "test", map[string]any{"ok": true})
+	svc.ChannelSend(nil, ChannelBuildComplete, map[string]any{"ok": true})
+	svc.ChannelSendToSession(nil, nil, ChannelBuildComplete, map[string]any{"ok": true})
+}
+
 func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {

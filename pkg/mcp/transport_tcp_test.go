@@ -31,6 +31,26 @@ func TestNewTCPTransport_Defaults(t *testing.T) {
 	}
 }
 
+func TestNormalizeTCPAddr_Good_Defaults(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty", in: "", want: DefaultTCPAddr},
+		{name: "missing host", in: ":9100", want: "127.0.0.1:9100"},
+		{name: "explicit host", in: "127.0.0.1:9100", want: "127.0.0.1:9100"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeTCPAddr(tt.in); got != tt.want {
+				t.Fatalf("normalizeTCPAddr(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNewTCPTransport_Warning(t *testing.T) {
 	// Capture warning output via setDiagWriter (mutex-protected, no race).
 	var buf bytes.Buffer

@@ -19,6 +19,13 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func normalizeNotificationContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
 // lockedWriter wraps an io.Writer with a mutex.
 // Both the SDK's transport and ChannelSend use this writer,
 // ensuring channel notifications don't interleave with SDK messages.
@@ -98,6 +105,7 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 	if s == nil || s.server == nil {
 		return
 	}
+	ctx = normalizeNotificationContext(ctx)
 	for session := range s.server.Sessions() {
 		s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 	}
@@ -111,6 +119,7 @@ func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.Se
 	if s == nil || s.server == nil {
 		return
 	}
+	ctx = normalizeNotificationContext(ctx)
 	s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 }
 
@@ -118,6 +127,7 @@ func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session 
 	if s == nil || s.server == nil || session == nil {
 		return
 	}
+	ctx = normalizeNotificationContext(ctx)
 
 	if err := sendSessionNotification(ctx, session, loggingNotificationMethod, &mcp.LoggingMessageParams{
 		Level:  level,
@@ -137,6 +147,7 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 	if s == nil || s.server == nil {
 		return
 	}
+	ctx = normalizeNotificationContext(ctx)
 	payload := ChannelNotification{Channel: channel, Data: data}
 	s.sendChannelNotificationToAllClients(ctx, payload)
 }
@@ -148,7 +159,7 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 	if s == nil || s.server == nil || session == nil {
 		return
 	}
-
+	ctx = normalizeNotificationContext(ctx)
 	payload := ChannelNotification{Channel: channel, Data: data}
 	if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
 		s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
@@ -171,6 +182,7 @@ func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, paylo
 	if s == nil || s.server == nil {
 		return
 	}
+	ctx = normalizeNotificationContext(ctx)
 	for session := range s.server.Sessions() {
 		if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
 			s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
@@ -182,6 +194,7 @@ func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, me
 	if session == nil {
 		return nil
 	}
+	ctx = normalizeNotificationContext(ctx)
 
 	conn, err := sessionConnection(session)
 	if err != nil {
