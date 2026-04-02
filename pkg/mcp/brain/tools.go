@@ -179,11 +179,6 @@ func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, inp
 		return nil, RecallOutput{}, coreerr.E("brain.recall", "failed to send brain_recall", err)
 	}
 
-	s.emitChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
-		"query": input.Query,
-		"count": 0,
-	})
-
 	return nil, RecallOutput{
 		Success:  true,
 		Memories: []Memory{},

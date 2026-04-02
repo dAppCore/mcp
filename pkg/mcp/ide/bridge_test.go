@@ -164,6 +164,71 @@ func TestBridge_Good_MessageDispatch(t *testing.T) {
 	// This confirms the dispatch path ran without error.
 }
 
+func TestBridge_Good_MultipleObservers(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := testUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		msg := BridgeMessage{
+			Type: "brain_recall",
+			Data: map[string]any{
+				"query": "test query",
+				"count": 3,
+			},
+		}
+		data, _ := json.Marshal(msg)
+		_ = conn.WriteMessage(websocket.TextMessage, data)
+
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				break
+			}
+		}
+	}))
+	defer ts.Close()
+
+	hub := ws.NewHub()
+	ctx := t.Context()
+	go hub.Run(ctx)
+
+	cfg := DefaultConfig()
+	cfg.LaravelWSURL = wsURL(ts)
+	cfg.ReconnectInterval = 100 * time.Millisecond
+
+	bridge := NewBridge(hub, cfg)
+
+	first := make(chan struct{}, 1)
+	second := make(chan struct{}, 1)
+	bridge.AddObserver(func(msg BridgeMessage) {
+		if msg.Type == "brain_recall" {
+			first <- struct{}{}
+		}
+	})
+	bridge.AddObserver(func(msg BridgeMessage) {
+		if msg.Type == "brain_recall" {
+			second <- struct{}{}
+		}
+	})
+
+	bridge.Start(ctx)
+	waitConnected(t, bridge, 2*time.Second)
+
+	select {
+	case <-first:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first observer")
+	}
+
+	select {
+	case <-second:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for second observer")
+	}
+}
+
 func TestBridge_Good_Reconnect(t *testing.T) {
 	// Use atomic counter to avoid data race between HTTP handler goroutine
 	// and the test goroutine.

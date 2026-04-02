@@ -7,6 +7,7 @@ package brain
 import (
 	"context"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -26,7 +27,13 @@ type Subsystem struct {
 // New creates a brain subsystem that uses the given IDE bridge for Laravel communication.
 // Pass nil if headless (tools will return errBridgeNotAvailable).
 func New(bridge *ide.Bridge) *Subsystem {
-	return &Subsystem{bridge: bridge}
+	s := &Subsystem{bridge: bridge}
+	if bridge != nil {
+		bridge.AddObserver(func(msg ide.BridgeMessage) {
+			s.handleBridgeMessage(msg)
+		})
+	}
+	return s
 }
 
 // Name implements mcp.Subsystem.
@@ -45,6 +52,31 @@ func (s *Subsystem) SetNotifier(n Notifier) {
 // RegisterTools implements mcp.Subsystem.
 func (s *Subsystem) RegisterTools(server *mcp.Server) {
 	s.registerBrainTools(server)
+}
+
+func (s *Subsystem) handleBridgeMessage(msg ide.BridgeMessage) {
+	if msg.Type != "brain_recall" {
+		return
+	}
+
+	payload := map[string]any{}
+	if data, ok := msg.Data.(map[string]any); ok {
+		for _, key := range []string{"query", "project", "type", "agent_id"} {
+			if value, ok := data[key]; ok {
+				payload[key] = value
+			}
+		}
+		if count, ok := data["count"]; ok {
+			payload["count"] = count
+		} else if memories, ok := data["memories"].([]any); ok {
+			payload["count"] = len(memories)
+		}
+	}
+	if _, ok := payload["count"]; !ok {
+		payload["count"] = 0
+	}
+
+	s.emitChannel(context.Background(), coremcp.ChannelBrainRecallDone, payload)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.

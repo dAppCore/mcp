@@ -51,7 +51,7 @@ func New(hub *ws.Hub, cfg Config) *Subsystem {
 	}
 	if hub != nil {
 		s.bridge = NewBridge(hub, cfg)
-		s.bridge.SetObserver(func(msg BridgeMessage) {
+		s.bridge.AddObserver(func(msg BridgeMessage) {
 			s.handleBridgeMessage(msg)
 		})
 	}

@@ -31,10 +31,16 @@ var (
 // NewProvider creates a brain provider that proxies to Laravel via the IDE bridge.
 // The WS hub is used to emit brain events. Pass nil for hub if not needed.
 func NewProvider(bridge *ide.Bridge, hub *ws.Hub) *BrainProvider {
-	return &BrainProvider{
+	p := &BrainProvider{
 		bridge: bridge,
 		hub:    hub,
 	}
+	if bridge != nil {
+		bridge.AddObserver(func(msg ide.BridgeMessage) {
+			p.handleBridgeMessage(msg)
+		})
+	}
+	return p
 }
 
 // Name implements api.RouteGroup.
@@ -246,10 +252,6 @@ func (p *BrainProvider) recall(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent(coremcp.ChannelBrainRecallDone, map[string]any{
-		"query": input.Query,
-	})
-
 	c.JSON(http.StatusOK, api.OK(RecallOutput{
 		Success:  true,
 		Memories: []Memory{},
@@ -347,4 +349,29 @@ func (p *BrainProvider) emitEvent(channel string, data any) {
 		Type: ws.TypeEvent,
 		Data: data,
 	})
+}
+
+func (p *BrainProvider) handleBridgeMessage(msg ide.BridgeMessage) {
+	if msg.Type != "brain_recall" {
+		return
+	}
+
+	payload := map[string]any{}
+	if data, ok := msg.Data.(map[string]any); ok {
+		for _, key := range []string{"query", "project", "type", "agent_id"} {
+			if value, ok := data[key]; ok {
+				payload[key] = value
+			}
+		}
+		if count, ok := data["count"]; ok {
+			payload["count"] = count
+		} else if memories, ok := data["memories"].([]any); ok {
+			payload["count"] = len(memories)
+		}
+	}
+	if _, ok := payload["count"]; !ok {
+		payload["count"] = 0
+	}
+
+	p.emitEvent(coremcp.ChannelBrainRecallDone, payload)
 }
