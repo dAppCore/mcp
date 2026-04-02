@@ -123,6 +123,7 @@ func (s *Service) handleConnection(ctx context.Context, conn net.Conn) {
 		conn.Close()
 		return
 	}
+	defer session.Close()
 	// Block until the session ends
 	if err := session.Wait(); err != nil {
 		diagPrintf("Session ended: %v\n", err)
