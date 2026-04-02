@@ -87,6 +87,8 @@ func (s *Subsystem) registerDashboardTools(server *mcp.Server) {
 func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest, _ DashboardOverviewInput) (*mcp.CallToolResult, DashboardOverviewOutput, error) {
 	connected := s.bridge != nil && s.bridge.Connected()
 	activeSessions := len(s.listSessions())
+	builds := s.listBuilds("", 0)
+	repos := s.buildRepoCount()
 
 	if s.bridge != nil {
 		_ = s.bridge.Send(BridgeMessage{Type: "dashboard_overview"})
@@ -94,7 +96,10 @@ func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest,
 
 	return nil, DashboardOverviewOutput{
 		Overview: DashboardOverview{
+			Repos:          repos,
+			Services:       len(builds),
 			ActiveSessions: activeSessions,
+			RecentBuilds:   len(builds),
 			BridgeOnline:   connected,
 		},
 	}, nil
@@ -129,16 +134,58 @@ func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, 
 	s.stateMu.Lock()
 	sessions := len(s.sessions)
 	messages := 0
+	builds := make([]BuildInfo, 0, len(s.buildOrder))
+	for _, id := range s.buildOrder {
+		if build, ok := s.builds[id]; ok {
+			builds = append(builds, build)
+		}
+	}
 	for _, history := range s.chats {
 		messages += len(history)
 	}
 	s.stateMu.Unlock()
 
+	total := len(builds)
+	success := 0
+	failed := 0
+	var durationTotal time.Duration
+	var durationCount int
+	for _, build := range builds {
+		switch build.Status {
+		case "success", "succeeded", "completed", "passed":
+			success++
+		case "failed", "error":
+			failed++
+		}
+		if build.Duration == "" {
+			continue
+		}
+		if d, err := time.ParseDuration(build.Duration); err == nil {
+			durationTotal += d
+			durationCount++
+		}
+	}
+
+	avgBuildTime := ""
+	if durationCount > 0 {
+		avgBuildTime = (durationTotal / time.Duration(durationCount)).String()
+	}
+
+	successRate := 0.0
+	if total > 0 {
+		successRate = float64(success) / float64(total)
+	}
+
 	return nil, DashboardMetricsOutput{
 		Period: period,
 		Metrics: DashboardMetrics{
+			BuildsTotal:   total,
+			BuildsSuccess: success,
+			BuildsFailed:  failed,
+			AvgBuildTime:  avgBuildTime,
 			AgentSessions: sessions,
 			MessagesTotal: messages,
+			SuccessRate:   successRate,
 		},
 	}, nil
 }

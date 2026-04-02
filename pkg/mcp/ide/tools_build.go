@@ -78,9 +78,19 @@ func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input
 			Data: map[string]any{"buildId": input.BuildID},
 		})
 	}
-	return nil, BuildStatusOutput{
-		Build: BuildInfo{ID: input.BuildID, Status: "unknown"},
-	}, nil
+
+	build := BuildInfo{ID: input.BuildID, Status: "unknown"}
+	if cached, ok := s.buildSnapshot(input.BuildID); ok {
+		build = cached
+	} else if input.BuildID != "" {
+		s.addBuild(build)
+	}
+
+	if input.BuildID != "" {
+		s.appendBuildLog(input.BuildID, "build status requested")
+	}
+
+	return nil, BuildStatusOutput{Build: build}, nil
 }
 
 // buildList returns the local build list snapshot and refreshes the Laravel
@@ -92,7 +102,7 @@ func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input B
 			Data: map[string]any{"repo": input.Repo, "limit": input.Limit},
 		})
 	}
-	return nil, BuildListOutput{Builds: []BuildInfo{}}, nil
+	return nil, BuildListOutput{Builds: s.listBuilds(input.Repo, input.Limit)}, nil
 }
 
 // buildLogs returns the local build log snapshot and refreshes the Laravel
@@ -106,6 +116,6 @@ func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input B
 	}
 	return nil, BuildLogsOutput{
 		BuildID: input.BuildID,
-		Lines:   []string{},
+		Lines:   s.buildLogTail(input.BuildID, input.Tail),
 	}, nil
 }

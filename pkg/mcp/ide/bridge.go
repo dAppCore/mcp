@@ -31,12 +31,20 @@ type Bridge struct {
 	mu        sync.Mutex
 	connected bool
 	cancel    context.CancelFunc
+	onMessage func(BridgeMessage)
 }
 
 // NewBridge creates a bridge that will connect to the Laravel backend and
 // forward incoming messages to the provided ws.Hub channels.
 func NewBridge(hub *ws.Hub, cfg Config) *Bridge {
 	return &Bridge{cfg: cfg, hub: hub}
+}
+
+// SetObserver registers a callback for inbound bridge messages.
+func (b *Bridge) SetObserver(fn func(BridgeMessage)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.onMessage = fn
 }
 
 // Start begins the connection loop in a background goroutine.
@@ -161,6 +169,12 @@ func (b *Bridge) readLoop(ctx context.Context) {
 		}
 
 		b.dispatch(msg)
+		b.mu.Lock()
+		observer := b.onMessage
+		b.mu.Unlock()
+		if observer != nil {
+			observer(msg)
+		}
 	}
 }
 
