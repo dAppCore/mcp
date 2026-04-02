@@ -9,6 +9,7 @@ import (
 	"fmt"
 	goio "io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -83,6 +84,11 @@ func (s *DirectSubsystem) RegisterTools(server *mcp.Server) {
 		Name:        "brain_forget",
 		Description: "Remove a memory from OpenBrain by ID.",
 	}, s.forget)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "brain_list",
+		Description: "List memories in OpenBrain with optional filtering by project, type, and agent.",
+	}, s.list)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
@@ -229,5 +235,69 @@ func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, in
 		Success:   true,
 		Forgotten: input.ID,
 		Timestamp: time.Now(),
+	}, nil
+}
+
+func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+	limit := input.Limit
+	if limit == 0 {
+		limit = 50
+	}
+
+	values := url.Values{}
+	if input.Project != "" {
+		values.Set("project", input.Project)
+	}
+	if input.Type != "" {
+		values.Set("type", input.Type)
+	}
+	if input.AgentID != "" {
+		values.Set("agent_id", input.AgentID)
+	}
+	values.Set("limit", fmt.Sprintf("%d", limit))
+
+	result, err := s.apiCall(ctx, http.MethodGet, "/v1/brain/list?"+values.Encode(), nil)
+	if err != nil {
+		return nil, ListOutput{}, err
+	}
+
+	var memories []Memory
+	if mems, ok := result["memories"].([]any); ok {
+		for _, m := range mems {
+			if mm, ok := m.(map[string]any); ok {
+				mem := Memory{
+					Content:   fmt.Sprintf("%v", mm["content"]),
+					Type:      fmt.Sprintf("%v", mm["type"]),
+					Project:   fmt.Sprintf("%v", mm["project"]),
+					AgentID:   fmt.Sprintf("%v", mm["agent_id"]),
+					CreatedAt: fmt.Sprintf("%v", mm["created_at"]),
+				}
+				if id, ok := mm["id"].(string); ok {
+					mem.ID = id
+				}
+				if score, ok := mm["score"].(float64); ok {
+					mem.Confidence = score
+				}
+				if source, ok := mm["source"].(string); ok {
+					mem.Tags = append(mem.Tags, "source:"+source)
+				}
+				memories = append(memories, mem)
+			}
+		}
+	}
+
+	if s.onChannel != nil {
+		s.onChannel(ctx, "brain.list.complete", map[string]any{
+			"project": input.Project,
+			"type":    input.Type,
+			"agent":   input.AgentID,
+			"limit":   limit,
+		})
+	}
+
+	return nil, ListOutput{
+		Success:  true,
+		Count:    len(memories),
+		Memories: memories,
 	}, nil
 }

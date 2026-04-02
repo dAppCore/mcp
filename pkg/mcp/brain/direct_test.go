@@ -207,8 +207,8 @@ func TestDirectRecall_Good(t *testing.T) {
 
 	s := newTestDirect(srv.URL)
 	_, out, err := s.recall(context.Background(), nil, RecallInput{
-		Query: "scoring algorithm",
-		TopK:  5,
+		Query:  "scoring algorithm",
+		TopK:   5,
 		Filter: RecallFilter{Project: "eaas"},
 	})
 	if err != nil {
@@ -301,5 +301,82 @@ func TestDirectForget_Bad_ApiError(t *testing.T) {
 	_, _, err := s.forget(context.Background(), nil, ForgetInput{ID: "nonexistent"})
 	if err == nil {
 		t.Error("expected error on 404")
+	}
+}
+
+// --- list tool tests ---
+
+func TestDirectList_Good(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if got := r.URL.Query().Get("project"); got != "eaas" {
+			t.Errorf("expected project=eaas, got %q", got)
+		}
+		if got := r.URL.Query().Get("type"); got != "decision" {
+			t.Errorf("expected type=decision, got %q", got)
+		}
+		if got := r.URL.Query().Get("agent_id"); got != "virgil" {
+			t.Errorf("expected agent_id=virgil, got %q", got)
+		}
+		if got := r.URL.Query().Get("limit"); got != "20" {
+			t.Errorf("expected limit=20, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"memories": []any{
+				map[string]any{
+					"id":         "mem-1",
+					"content":    "use qdrant",
+					"type":       "decision",
+					"project":    "eaas",
+					"agent_id":   "virgil",
+					"score":      0.88,
+					"created_at": "2026-03-01T00:00:00Z",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	s := newTestDirect(srv.URL)
+	_, out, err := s.list(context.Background(), nil, ListInput{
+		Project: "eaas",
+		Type:    "decision",
+		AgentID: "virgil",
+		Limit:   20,
+	})
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+	if !out.Success || out.Count != 1 {
+		t.Fatalf("expected 1 memory, got %+v", out)
+	}
+	if out.Memories[0].ID != "mem-1" {
+		t.Errorf("expected id=mem-1, got %q", out.Memories[0].ID)
+	}
+	if out.Memories[0].Confidence != 0.88 {
+		t.Errorf("expected score=0.88, got %f", out.Memories[0].Confidence)
+	}
+}
+
+func TestDirectList_Good_DefaultLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("limit"); got != "50" {
+			t.Errorf("expected limit=50, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"memories": []any{}})
+	}))
+	defer srv.Close()
+
+	s := newTestDirect(srv.URL)
+	_, out, err := s.list(context.Background(), nil, ListInput{})
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+	if !out.Success || out.Count != 0 {
+		t.Fatalf("expected empty list, got %+v", out)
 	}
 }
