@@ -90,6 +90,34 @@ var channelCapabilityList = []string{
 	ChannelTestResult,
 }
 
+// ChannelCapabilitySpec describes the experimental claude/channel capability.
+//
+//	spec := ChannelCapabilitySpec{
+//	    Version: "1",
+//	    Description: "Push events into client sessions via named channels",
+//	    Channels: ChannelCapabilityChannels(),
+//	}
+type ChannelCapabilitySpec struct {
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
+	Channels    []string `json:"channels"`
+}
+
+// Map converts the typed capability into the wire-format map expected by the SDK.
+//
+//	caps := ChannelCapabilitySpec{
+//	    Version: "1",
+//	    Description: "Push events into client sessions via named channels",
+//	    Channels: ChannelCapabilityChannels(),
+//	}.Map()
+func (c ChannelCapabilitySpec) Map() map[string]any {
+	return map[string]any{
+		"version":     c.Version,
+		"description": c.Description,
+		"channels":    slices.Clone(c.Channels),
+	}
+}
+
 // ChannelNotification is the payload sent through the experimental channel
 // notification method.
 //
@@ -280,11 +308,18 @@ func (e *notificationError) Error() string {
 // for claude/channel, registered during New().
 func channelCapability() map[string]any {
 	return map[string]any{
-		"claude/channel": map[string]any{
-			"version":     "1",
-			"description": "Push events into client sessions via named channels",
-			"channels":    channelCapabilityChannels(),
-		},
+		"claude/channel": ClaudeChannelCapability().Map(),
+	}
+}
+
+// ClaudeChannelCapability returns the typed experimental capability descriptor.
+//
+//	cap := ClaudeChannelCapability()
+func ClaudeChannelCapability() ChannelCapabilitySpec {
+	return ChannelCapabilitySpec{
+		Version:     "1",
+		Description: "Push events into client sessions via named channels",
+		Channels:    channelCapabilityChannels(),
 	}
 }
 

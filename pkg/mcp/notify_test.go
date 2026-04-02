@@ -59,6 +59,36 @@ func readNotificationMessage(t *testing.T, conn net.Conn) <-chan notificationRea
 	return resultCh
 }
 
+func readNotificationMessageUntil(t *testing.T, conn net.Conn, match func(map[string]any) bool) <-chan notificationReadResult {
+	t.Helper()
+
+	resultCh := make(chan notificationReadResult, 1)
+	scanner := bufio.NewScanner(conn)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+
+	go func() {
+		for scanner.Scan() {
+			var msg map[string]any
+			if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
+				resultCh <- notificationReadResult{err: err}
+				return
+			}
+			if match(msg) {
+				resultCh <- notificationReadResult{msg: msg}
+				return
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			resultCh <- notificationReadResult{err: err}
+			return
+		}
+		resultCh <- notificationReadResult{err: context.DeadlineExceeded}
+	}()
+
+	return resultCh
+}
+
 func TestSendNotificationToAllClients_Good(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {
@@ -130,8 +160,10 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	defer session.Close()
 
 	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
-	scanner := bufio.NewScanner(clientConn)
-	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+
+	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
+		return msg["method"] == loggingNotificationMethod
+	})
 
 	sent := make(chan struct{})
 	go func() {
@@ -141,20 +173,17 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 		close(sent)
 	}()
 
-	if !scanner.Scan() {
-		t.Fatalf("failed to read notification: %v", scanner.Err())
-	}
-
 	select {
 	case <-sent:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for notification send to complete")
 	}
 
-	var msg map[string]any
-	if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
-		t.Fatalf("failed to unmarshal notification: %v", err)
+	res := <-read
+	if res.err != nil {
+		t.Fatalf("failed to read notification: %v", res.err)
 	}
+	msg := res.msg
 	if msg["method"] != loggingNotificationMethod {
 		t.Fatalf("expected method %q, got %v", loggingNotificationMethod, msg["method"])
 	}
@@ -233,8 +262,10 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 	defer session.Close()
 
 	clientConn.SetDeadline(time.Now().Add(5 * time.Second))
-	scanner := bufio.NewScanner(clientConn)
-	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+
+	read := readNotificationMessageUntil(t, clientConn, func(msg map[string]any) bool {
+		return msg["method"] == channelNotificationMethod
+	})
 
 	sent := make(chan struct{})
 	go func() {
@@ -244,20 +275,17 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 		close(sent)
 	}()
 
-	if !scanner.Scan() {
-		t.Fatalf("failed to read custom notification: %v", scanner.Err())
-	}
-
 	select {
 	case <-sent:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for notification send to complete")
 	}
 
-	var msg map[string]any
-	if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
-		t.Fatalf("failed to unmarshal notification: %v", err)
+	res := <-read
+	if res.err != nil {
+		t.Fatalf("failed to read custom notification: %v", res.err)
 	}
+	msg := res.msg
 	if msg["method"] != channelNotificationMethod {
 		t.Fatalf("expected method %q, got %v", channelNotificationMethod, msg["method"])
 	}
@@ -319,6 +347,20 @@ func TestChannelCapability_Good_PublicHelpers(t *testing.T) {
 	want := channelCapability()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected public capability helper to match internal definition")
+	}
+
+	spec := ClaudeChannelCapability()
+	if spec.Version != "1" {
+		t.Fatalf("expected typed capability version 1, got %q", spec.Version)
+	}
+	if spec.Description == "" {
+		t.Fatal("expected typed capability description to be populated")
+	}
+	if !slices.Equal(spec.Channels, channelCapabilityChannels()) {
+		t.Fatalf("expected typed capability channels to match: got %v want %v", spec.Channels, channelCapabilityChannels())
+	}
+	if !reflect.DeepEqual(spec.Map(), want["claude/channel"].(map[string]any)) {
+		t.Fatal("expected typed capability map to match wire-format descriptor")
 	}
 
 	gotChannels := ChannelCapabilityChannels()
