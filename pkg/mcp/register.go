@@ -107,6 +107,29 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	switch ev := msg.(type) {
 	case ChannelPush:
 		s.ChannelSend(ctx, ev.Channel, ev.Data)
+	case process.ActionProcessStarted:
+		s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
+			"id":      ev.ID,
+			"command": ev.Command,
+			"args":    ev.Args,
+			"dir":     ev.Dir,
+			"pid":     ev.PID,
+		})
+	case process.ActionProcessExited:
+		payload := map[string]any{
+			"id":       ev.ID,
+			"exitCode": ev.ExitCode,
+			"duration": ev.Duration,
+		}
+		if ev.Error != nil {
+			payload["error"] = ev.Error.Error()
+		}
+		s.ChannelSend(ctx, ChannelProcessExit, payload)
+	case process.ActionProcessKilled:
+		s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
+			"id":     ev.ID,
+			"signal": ev.Signal,
+		})
 	}
 	return core.Result{OK: true}
 }
