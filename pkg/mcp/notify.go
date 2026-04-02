@@ -92,6 +92,11 @@ var channelCapabilityList = []string{
 
 // ChannelNotification is the payload sent through the experimental channel
 // notification method.
+//
+//	n := ChannelNotification{
+//	    Channel: ChannelBuildComplete,
+//	    Data:    map[string]any{"repo": "core/mcp"},
+//	}
 type ChannelNotification struct {
 	Channel string `json:"channel"`
 	Data    any    `json:"data"`
@@ -285,6 +290,8 @@ func channelCapability() map[string]any {
 
 // ChannelCapability returns the experimental capability descriptor registered
 // during New(). Callers can reuse it when exposing server metadata.
+//
+//	caps := ChannelCapability()
 func ChannelCapability() map[string]any {
 	return channelCapability()
 }
@@ -297,6 +304,8 @@ func channelCapabilityChannels() []string {
 
 // ChannelCapabilityChannels returns the named channel events advertised by the
 // experimental capability.
+//
+//	channels := ChannelCapabilityChannels()
 func ChannelCapabilityChannels() []string {
 	return channelCapabilityChannels()
 }

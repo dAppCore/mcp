@@ -44,7 +44,10 @@ var _ Notifier = (*Service)(nil)
 // a channel event to connected Claude Code sessions.
 // The MCP service catches this in HandleIPCEvents and calls ChannelSend.
 //
-//	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: map[string]any{"repo": "go-io"}})
+//	c.ACTION(mcp.ChannelPush{
+//	    Channel: "agent.status",
+//	    Data:    map[string]any{"repo": "go-io"},
+//	})
 type ChannelPush struct {
 	Channel string
 	Data    any
