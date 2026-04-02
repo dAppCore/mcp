@@ -1,5 +1,7 @@
 // Package ide provides an MCP subsystem that bridges the desktop IDE to
 // a Laravel core-agentic backend over WebSocket.
+// SPDX-License-Identifier: EUPL-1.2
+
 package ide
 
 import "time"
