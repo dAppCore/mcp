@@ -105,6 +105,9 @@ func TestDispatchIssue_Good_UnlocksOnPrepFailure(t *testing.T) {
 				"title": "Fix login crash",
 				"body":  "details",
 				"state": "open",
+				"labels": []map[string]any{
+					{"name": "bug"},
+				},
 			})
 		case http.MethodPatch:
 			w.WriteHeader(http.StatusOK)
@@ -147,6 +150,9 @@ func TestDispatchIssue_Good_UnlocksOnPrepFailure(t *testing.T) {
 	}
 	if !strings.Contains(bodies[2], `"assignees":[]`) {
 		t.Fatalf("expected unlock request to clear assignees, got %s", bodies[2])
+	}
+	if !strings.Contains(bodies[2], `"labels":["bug"]`) {
+		t.Fatalf("expected unlock request to preserve original labels, got %s", bodies[2])
 	}
 }
 

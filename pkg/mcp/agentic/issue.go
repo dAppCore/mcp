@@ -31,9 +31,12 @@ type IssueDispatchInput struct {
 }
 
 type forgeIssue struct {
-	Title    string `json:"title"`
-	Body     string `json:"body"`
-	State    string `json:"state"`
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+	State  string `json:"state"`
+	Labels []struct {
+		Name string `json:"name"`
+	} `json:"labels"`
 	Assignee *struct {
 		Login string `json:"login"`
 	} `json:"assignee"`
@@ -88,7 +91,7 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		var dispatchErr error
 		defer func() {
 			if dispatchErr != nil {
-				_ = s.unlockIssue(ctx, input.Org, input.Repo, input.Issue)
+				_ = s.unlockIssue(ctx, input.Org, input.Repo, input.Issue, issue.Labels)
 			}
 		}()
 
@@ -118,10 +121,23 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 	})
 }
 
-func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue int) error {
+func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue int, labels []struct {
+	Name string `json:"name"`
+}) error {
 	updateURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	issueLabels := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label.Name == "in-progress" {
+			continue
+		}
+		issueLabels = append(issueLabels, label.Name)
+	}
+	if issueLabels == nil {
+		issueLabels = []string{}
+	}
 	payload, err := json.Marshal(map[string]any{
 		"assignees": []string{},
+		"labels":    issueLabels,
 	})
 	if err != nil {
 		return coreerr.E("unlockIssue", "failed to encode issue unlock", err)
