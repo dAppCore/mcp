@@ -19,6 +19,14 @@ import (
 var workspaceFlag string
 var unrestrictedFlag bool
 
+var newMCPService = mcp.New
+var runMCPService = func(svc *mcp.Service, ctx context.Context) error {
+	return svc.Run(ctx)
+}
+var shutdownMCPService = func(svc *mcp.Service, ctx context.Context) error {
+	return svc.Shutdown(ctx)
+}
+
 var mcpCmd = &cli.Command{
 	Use:   "mcp",
 	Short: "MCP server for AI tool integration",
@@ -87,10 +95,13 @@ func runServe() error {
 	}
 
 	// Create the MCP service
-	svc, err := mcp.New(opts)
+	svc, err := newMCPService(opts)
 	if err != nil {
 		return cli.Wrap(err, "create MCP service")
 	}
+	defer func() {
+		_ = shutdownMCPService(svc, context.Background())
+	}()
 
 	// Set up signal handling for clean shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,5 +116,5 @@ func runServe() error {
 	}()
 
 	// Run the server (blocks until context cancelled or error)
-	return svc.Run(ctx)
+	return runMCPService(svc, ctx)
 }
