@@ -22,6 +22,34 @@ func TestSendNotificationToAllClients_Good(t *testing.T) {
 	})
 }
 
+func TestNotificationMethods_Good_NilService(t *testing.T) {
+	var svc *Service
+
+	ctx := context.Background()
+	svc.SendNotificationToAllClients(ctx, "info", "test", map[string]any{"ok": true})
+	svc.SendNotificationToSession(ctx, nil, "info", "test", map[string]any{"ok": true})
+	svc.ChannelSend(ctx, ChannelBuildComplete, map[string]any{"ok": true})
+	svc.ChannelSendToSession(ctx, nil, ChannelBuildComplete, map[string]any{"ok": true})
+
+	for range svc.Sessions() {
+		t.Fatal("expected no sessions from nil service")
+	}
+}
+
+func TestNotificationMethods_Good_NilServer(t *testing.T) {
+	svc := &Service{}
+
+	ctx := context.Background()
+	svc.SendNotificationToAllClients(ctx, "info", "test", map[string]any{"ok": true})
+	svc.SendNotificationToSession(ctx, nil, "info", "test", map[string]any{"ok": true})
+	svc.ChannelSend(ctx, ChannelBuildComplete, map[string]any{"ok": true})
+	svc.ChannelSendToSession(ctx, nil, ChannelBuildComplete, map[string]any{"ok": true})
+
+	for range svc.Sessions() {
+		t.Fatal("expected no sessions from service without a server")
+	}
+}
+
 func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	svc, err := New(Options{})
 	if err != nil {

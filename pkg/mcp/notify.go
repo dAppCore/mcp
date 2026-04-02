@@ -95,6 +95,9 @@ type ChannelNotification struct {
 //
 //	s.SendNotificationToAllClients(ctx, "info", "monitor", map[string]any{"event": "build complete"})
 func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.LoggingLevel, logger string, data any) {
+	if s == nil || s.server == nil {
+		return
+	}
 	for session := range s.server.Sessions() {
 		s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 	}
@@ -105,11 +108,14 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 //
 //	s.SendNotificationToSession(ctx, session, "info", "monitor", data)
 func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
+	if s == nil || s.server == nil {
+		return
+	}
 	s.sendLoggingNotificationToSession(ctx, session, level, logger, data)
 }
 
 func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
-	if session == nil {
+	if s == nil || s.server == nil || session == nil {
 		return
 	}
 
@@ -128,6 +134,9 @@ func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session 
 //	s.ChannelSend(ctx, "agent.complete", map[string]any{"repo": "go-io", "workspace": "go-io-123"})
 //	s.ChannelSend(ctx, "build.failed", map[string]any{"repo": "core", "error": "test timeout"})
 func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
+	if s == nil || s.server == nil {
+		return
+	}
 	payload := ChannelNotification{Channel: channel, Data: data}
 	s.sendChannelNotificationToAllClients(ctx, payload)
 }
@@ -136,7 +145,7 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 //
 //	s.ChannelSendToSession(ctx, session, "agent.progress", progressData)
 func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerSession, channel string, data any) {
-	if session == nil {
+	if s == nil || s.server == nil || session == nil {
 		return
 	}
 
@@ -152,10 +161,16 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 //	    s.ChannelSendToSession(ctx, session, "status", data)
 //	}
 func (s *Service) Sessions() iter.Seq[*mcp.ServerSession] {
+	if s == nil || s.server == nil {
+		return func(yield func(*mcp.ServerSession) bool) {}
+	}
 	return s.server.Sessions()
 }
 
 func (s *Service) sendChannelNotificationToAllClients(ctx context.Context, payload ChannelNotification) {
+	if s == nil || s.server == nil {
+		return
+	}
 	for session := range s.server.Sessions() {
 		if err := sendSessionNotification(ctx, session, channelNotificationMethod, payload); err != nil {
 			s.logger.Debug("channel: failed to send to session", "session", session.ID(), "error", err)
