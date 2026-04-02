@@ -96,6 +96,9 @@ type WorkspaceInfo struct {
 	Status   string `json:"status"`
 	Agent    string `json:"agent"`
 	Repo     string `json:"repo"`
+	Branch   string `json:"branch,omitempty"`
+	Issue    int    `json:"issue,omitempty"`
+	PRURL    string `json:"pr_url,omitempty"`
 	Task     string `json:"task"`
 	Age      string `json:"age"`
 	Question string `json:"question,omitempty"`
@@ -144,6 +147,9 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		info.Status = st.Status
 		info.Agent = st.Agent
 		info.Repo = st.Repo
+		info.Branch = st.Branch
+		info.Issue = st.Issue
+		info.PRURL = st.PRURL
 		info.Task = st.Task
 		info.Runs = st.Runs
 		info.Age = time.Since(st.StartedAt).Truncate(time.Minute).String()

@@ -32,6 +32,8 @@ type WatchResult struct {
 	Agent     string `json:"agent"`
 	Repo      string `json:"repo"`
 	Status    string `json:"status"`
+	Branch    string `json:"branch,omitempty"`
+	Issue     int    `json:"issue,omitempty"`
 	PRURL     string `json:"pr_url,omitempty"`
 }
 
@@ -107,6 +109,9 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 					Agent:     info.Agent,
 					Repo:      info.Repo,
 					Status:    info.Status,
+					Branch:    info.Branch,
+					Issue:     info.Issue,
+					PRURL:     info.PRURL,
 				})
 				delete(remaining, info.Name)
 			case "failed", "blocked":
@@ -115,6 +120,9 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 					Agent:     info.Agent,
 					Repo:      info.Repo,
 					Status:    info.Status,
+					Branch:    info.Branch,
+					Issue:     info.Issue,
+					PRURL:     info.PRURL,
 				})
 				delete(remaining, info.Name)
 			}
