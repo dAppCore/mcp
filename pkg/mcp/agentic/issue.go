@@ -15,6 +15,12 @@ import (
 )
 
 // IssueDispatchInput is the input for agentic_dispatch_issue.
+//
+//	input := IssueDispatchInput{
+//	    Repo:  "go-io",
+//	    Issue: 123,
+//	    Agent: "claude",
+//	}
 type IssueDispatchInput struct {
 	Repo     string `json:"repo"`               // Target repo (e.g. "go-io")
 	Org      string `json:"org,omitempty"`      // Forge org (default "core")

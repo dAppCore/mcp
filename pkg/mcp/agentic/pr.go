@@ -21,6 +21,11 @@ import (
 // --- agentic_create_pr ---
 
 // CreatePRInput is the input for agentic_create_pr.
+//
+//	input := CreatePRInput{
+//	    Workspace: "mcp-1773581873",
+//	    Base:      "main",
+//	}
 type CreatePRInput struct {
 	Workspace string `json:"workspace"`         // workspace name (e.g. "mcp-1773581873")
 	Title     string `json:"title,omitempty"`   // PR title (default: task description)
@@ -30,6 +35,8 @@ type CreatePRInput struct {
 }
 
 // CreatePROutput is the output for agentic_create_pr.
+//
+//	// out.Success == true, out.Branch == "agent/issue-123-fix", out.Pushed == true
 type CreatePROutput struct {
 	Success bool   `json:"success"`
 	PRURL   string `json:"pr_url,omitempty"`
@@ -217,6 +224,8 @@ func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, is
 // --- agentic_list_prs ---
 
 // ListPRsInput is the input for agentic_list_prs.
+//
+//	input := ListPRsInput{Org: "core", Repo: "go-io", State: "open", Limit: 20}
 type ListPRsInput struct {
 	Org   string `json:"org,omitempty"`   // forge org (default "core")
 	Repo  string `json:"repo,omitempty"`  // specific repo, or empty for all
@@ -225,6 +234,8 @@ type ListPRsInput struct {
 }
 
 // ListPRsOutput is the output for agentic_list_prs.
+//
+//	// out.Success == true, len(out.PRs) <= 20
 type ListPRsOutput struct {
 	Success bool     `json:"success"`
 	Count   int      `json:"count"`
@@ -232,6 +243,8 @@ type ListPRsOutput struct {
 }
 
 // PRInfo represents a pull request.
+//
+//	// pr.Number == 42, pr.Branch == "agent/issue-42-fix"
 type PRInfo struct {
 	Repo      string   `json:"repo"`
 	Number    int      `json:"number"`
