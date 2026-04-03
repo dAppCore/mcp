@@ -4,6 +4,7 @@ package agentic
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 )
 
@@ -45,7 +47,9 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 
 	// Only ingest if there are actual findings (file:line references)
 	findings := countFileRefs(body)
+	issueCreated := false
 	if findings < 2 {
+		s.emitHarvestComplete(context.Background(), wsDir, st.Repo, findings, issueCreated)
 		return // No meaningful findings
 	}
 
@@ -66,7 +70,8 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 		description = description[:10000] + "\n\n... (truncated, see full log in workspace)"
 	}
 
-	s.createIssueViaAPI(st.Repo, title, description, issueType, priority, "scan")
+	issueCreated = s.createIssueViaAPI(st.Repo, title, description, issueType, priority, "scan")
+	s.emitHarvestComplete(context.Background(), wsDir, st.Repo, findings, issueCreated)
 }
 
 // countFileRefs counts file:line references in the output (indicates real findings)
@@ -91,35 +96,55 @@ func countFileRefs(body string) int {
 }
 
 // createIssueViaAPI posts an issue to the lthn.sh API
-func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, priority, source string) {
+func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, priority, source string) bool {
 	if s.brainKey == "" {
-		return
+		return false
 	}
 
 	// Read the agent API key from file
 	home, _ := os.UserHomeDir()
 	apiKeyData, err := coreio.Local.Read(filepath.Join(home, ".claude", "agent-api.key"))
 	if err != nil {
-		return
+		return false
 	}
 	apiKey := strings.TrimSpace(apiKeyData)
 
-	payload, _ := json.Marshal(map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"title":       title,
 		"description": description,
 		"type":        issueType,
 		"priority":    priority,
 		"reporter":    "cladius",
 	})
+	if err != nil {
+		return false
+	}
 
-	req, _ := http.NewRequest("POST", s.brainURL+"/v1/issues", bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", s.brainURL+"/v1/issues", bytes.NewReader(payload))
+	if err != nil {
+		return false
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return
+		return false
 	}
 	resp.Body.Close()
+	return resp.StatusCode < 400
+}
+
+// emitHarvestComplete announces that finding ingestion finished for a workspace.
+//
+//	ctx := context.Background()
+//	s.emitHarvestComplete(ctx, "go-io-123", "go-io", 4, true)
+func (s *PrepSubsystem) emitHarvestComplete(ctx context.Context, workspace, repo string, findings int, issueCreated bool) {
+	s.emitChannel(ctx, coremcp.ChannelHarvestComplete, map[string]any{
+		"workspace":     workspace,
+		"repo":          repo,
+		"findings":      findings,
+		"issue_created": issueCreated,
+	})
 }

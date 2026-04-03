@@ -197,6 +197,35 @@ class OpenApiGenerator
             ],
         ];
 
+        $paths['/servers/{serverId}/resources'] = [
+            'get' => [
+                'tags' => ['Discovery'],
+                'summary' => 'List resources for a server',
+                'operationId' => 'listServerResources',
+                'security' => [['bearerAuth' => []], ['apiKeyAuth' => []]],
+                'parameters' => [
+                    [
+                        'name' => 'serverId',
+                        'in' => 'path',
+                        'required' => true,
+                        'schema' => ['type' => 'string'],
+                    ],
+                ],
+                'responses' => [
+                    '200' => [
+                        'description' => 'List of resources',
+                        'content' => [
+                            'application/json' => [
+                                'schema' => [
+                                    '$ref' => '#/components/schemas/ResourceList',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
         // Execution endpoint
         $paths['/tools/call'] = [
             'post' => [
@@ -400,6 +429,17 @@ class OpenApiGenerator
                         'type' => 'object',
                         'additionalProperties' => true,
                     ],
+                ],
+            ],
+            'ResourceList' => [
+                'type' => 'object',
+                'properties' => [
+                    'server' => ['type' => 'string'],
+                    'resources' => [
+                        'type' => 'array',
+                        'items' => ['$ref' => '#/components/schemas/Resource'],
+                    ],
+                    'count' => ['type' => 'integer'],
                 ],
             ],
         ];

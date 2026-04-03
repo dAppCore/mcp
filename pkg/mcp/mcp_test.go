@@ -55,6 +55,114 @@ func TestNew_Good_NoRestriction(t *testing.T) {
 	}
 }
 
+func TestNew_Good_RegistersBuiltInTools(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	tools := map[string]bool{}
+	for _, rec := range s.Tools() {
+		tools[rec.Name] = true
+	}
+
+	for _, name := range []string{
+		"metrics_record",
+		"metrics_query",
+		"rag_query",
+		"rag_ingest",
+		"rag_collections",
+		"webview_connect",
+		"webview_disconnect",
+		"webview_navigate",
+		"webview_click",
+		"webview_type",
+		"webview_query",
+		"webview_console",
+		"webview_eval",
+		"webview_screenshot",
+		"webview_wait",
+	} {
+		if !tools[name] {
+			t.Fatalf("expected tool %q to be registered", name)
+		}
+	}
+
+	for _, name := range []string{"process_start", "ws_start"} {
+		if tools[name] {
+			t.Fatalf("did not expect tool %q to be registered without dependencies", name)
+		}
+	}
+}
+
+func TestGetSupportedLanguages_Good_IncludesAllDetectedLanguages(t *testing.T) {
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	_, out, err := s.getSupportedLanguages(nil, nil, GetSupportedLanguagesInput{})
+	if err != nil {
+		t.Fatalf("getSupportedLanguages failed: %v", err)
+	}
+
+	if got, want := len(out.Languages), 23; got != want {
+		t.Fatalf("expected %d supported languages, got %d", want, got)
+	}
+
+	got := map[string]bool{}
+	for _, lang := range out.Languages {
+		got[lang.ID] = true
+	}
+
+	for _, want := range []string{
+		"typescript",
+		"javascript",
+		"go",
+		"python",
+		"rust",
+		"ruby",
+		"java",
+		"php",
+		"c",
+		"cpp",
+		"csharp",
+		"html",
+		"css",
+		"scss",
+		"json",
+		"yaml",
+		"xml",
+		"markdown",
+		"sql",
+		"shell",
+		"swift",
+		"kotlin",
+		"dockerfile",
+	} {
+		if !got[want] {
+			t.Fatalf("expected language %q to be listed", want)
+		}
+	}
+}
+
+func TestDetectLanguageFromPath_Good_KnownExtensions(t *testing.T) {
+	cases := map[string]string{
+		"main.go":           "go",
+		"index.tsx":         "typescript",
+		"style.scss":        "scss",
+		"Program.cs":        "csharp",
+		"module.kt":         "kotlin",
+		"docker/Dockerfile": "dockerfile",
+	}
+
+	for path, want := range cases {
+		if got := detectLanguageFromPath(path); got != want {
+			t.Fatalf("detectLanguageFromPath(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
 func TestMedium_Good_ReadWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})
@@ -108,6 +216,71 @@ func TestMedium_Good_EnsureDir(t *testing.T) {
 	}
 }
 
+func TestFileExists_Good_FileAndDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	s, err := New(Options{WorkspaceRoot: tmpDir})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	if err := s.medium.EnsureDir("nested"); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+	if err := s.medium.Write("nested/file.txt", "content"); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	_, fileOut, err := s.fileExists(nil, nil, FileExistsInput{Path: "nested/file.txt"})
+	if err != nil {
+		t.Fatalf("fileExists(file) failed: %v", err)
+	}
+	if !fileOut.Exists {
+		t.Fatal("expected file to exist")
+	}
+	if fileOut.IsDir {
+		t.Fatal("expected file to not be reported as a directory")
+	}
+
+	_, dirOut, err := s.fileExists(nil, nil, FileExistsInput{Path: "nested"})
+	if err != nil {
+		t.Fatalf("fileExists(dir) failed: %v", err)
+	}
+	if !dirOut.Exists {
+		t.Fatal("expected directory to exist")
+	}
+	if !dirOut.IsDir {
+		t.Fatal("expected directory to be reported as a directory")
+	}
+}
+
+func TestListDirectory_Good_ReturnsDocumentedEntryPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	s, err := New(Options{WorkspaceRoot: tmpDir})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	if err := s.medium.EnsureDir("nested"); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+	if err := s.medium.Write("nested/file.txt", "content"); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	_, out, err := s.listDirectory(nil, nil, ListDirectoryInput{Path: "nested"})
+	if err != nil {
+		t.Fatalf("listDirectory failed: %v", err)
+	}
+	if len(out.Entries) != 1 {
+		t.Fatalf("expected one entry, got %d", len(out.Entries))
+	}
+
+	want := filepath.Join("nested", "file.txt")
+	if out.Entries[0].Path != want {
+		t.Fatalf("expected entry path %q, got %q", want, out.Entries[0].Path)
+	}
+}
+
 func TestMedium_Good_IsFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})
@@ -126,6 +299,40 @@ func TestMedium_Good_IsFile(t *testing.T) {
 	// Now it should exist
 	if !s.medium.IsFile("test.txt") {
 		t.Error("File should exist after write")
+	}
+}
+
+func TestResolveWorkspacePath_Good(t *testing.T) {
+	tmpDir := t.TempDir()
+	s, err := New(Options{WorkspaceRoot: tmpDir})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	cases := map[string]string{
+		"docs/readme.md":     filepath.Join(tmpDir, "docs", "readme.md"),
+		"/docs/readme.md":    filepath.Join(tmpDir, "docs", "readme.md"),
+		"../escape/notes.md": filepath.Join(tmpDir, "escape", "notes.md"),
+		"":                   "",
+	}
+	for input, want := range cases {
+		if got := s.resolveWorkspacePath(input); got != want {
+			t.Fatalf("resolveWorkspacePath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestResolveWorkspacePath_Good_Unrestricted(t *testing.T) {
+	s, err := New(Options{Unrestricted: true})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	if got, want := s.resolveWorkspacePath("docs/readme.md"), filepath.Clean("docs/readme.md"); got != want {
+		t.Fatalf("resolveWorkspacePath(relative) = %q, want %q", got, want)
+	}
+	if got, want := s.resolveWorkspacePath("/tmp/readme.md"), filepath.Clean("/tmp/readme.md"); got != want {
+		t.Fatalf("resolveWorkspacePath(absolute) = %q, want %q", got, want)
 	}
 }
 

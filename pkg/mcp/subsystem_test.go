@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"testing"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // stubSubsystem is a minimal Subsystem for testing.
@@ -15,7 +13,23 @@ type stubSubsystem struct {
 
 func (s *stubSubsystem) Name() string { return s.name }
 
-func (s *stubSubsystem) RegisterTools(server *mcp.Server) {
+func (s *stubSubsystem) RegisterTools(svc *Service) {
+	s.toolsRegistered = true
+}
+
+// notifierSubsystem verifies notifier wiring happens before tool registration.
+type notifierSubsystem struct {
+	stubSubsystem
+	notifierSet               bool
+	sawNotifierAtRegistration bool
+}
+
+func (s *notifierSubsystem) SetNotifier(n Notifier) {
+	s.notifierSet = n != nil
+}
+
+func (s *notifierSubsystem) RegisterTools(svc *Service) {
+	s.sawNotifierAtRegistration = s.notifierSet
 	s.toolsRegistered = true
 }
 
@@ -69,6 +83,41 @@ func TestSubsystem_Good_MultipleSubsystems(t *testing.T) {
 	}
 	if !sub1.toolsRegistered || !sub2.toolsRegistered {
 		t.Error("expected all subsystems to have RegisterTools called")
+	}
+}
+
+func TestSubsystem_Good_NilEntriesIgnoredAndSnapshots(t *testing.T) {
+	sub := &stubSubsystem{name: "snap-sub"}
+	svc, err := New(Options{Subsystems: []Subsystem{nil, sub}})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+
+	subs := svc.Subsystems()
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subsystem after filtering nil entries, got %d", len(subs))
+	}
+	if subs[0].Name() != "snap-sub" {
+		t.Fatalf("expected snap-sub, got %q", subs[0].Name())
+	}
+
+	subs[0] = nil
+	if svc.Subsystems()[0] == nil {
+		t.Fatal("expected Subsystems() to return a snapshot, not the live slice")
+	}
+}
+
+func TestSubsystem_Good_NotifierSetBeforeRegistration(t *testing.T) {
+	sub := &notifierSubsystem{stubSubsystem: stubSubsystem{name: "notifier-sub"}}
+	_, err := New(Options{Subsystems: []Subsystem{sub}})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	if !sub.notifierSet {
+		t.Fatal("expected notifier to be set")
+	}
+	if !sub.sawNotifierAtRegistration {
+		t.Fatal("expected notifier to be available before RegisterTools ran")
 	}
 }
 

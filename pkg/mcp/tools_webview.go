@@ -1,8 +1,15 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"image"
+	"image/jpeg"
+	_ "image/png"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +31,20 @@ var (
 	errNotConnected     = log.E("webview", "not connected; use webview_connect first", nil)
 	errSelectorRequired = log.E("webview", "selector is required", nil)
 )
+
+// closeWebviewConnection closes and clears the shared browser connection.
+func closeWebviewConnection() error {
+	webviewMu.Lock()
+	defer webviewMu.Unlock()
+
+	if webviewInstance == nil {
+		return nil
+	}
+
+	err := webviewInstance.Close()
+	webviewInstance = nil
+	return err
+}
 
 // WebviewConnectInput contains parameters for connecting to Chrome DevTools.
 //
@@ -201,52 +222,52 @@ type WebviewDisconnectOutput struct {
 
 // registerWebviewTools adds webview tools to the MCP server.
 func (s *Service) registerWebviewTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_connect",
 		Description: "Connect to Chrome DevTools Protocol. Start Chrome with --remote-debugging-port=9222 first.",
 	}, s.webviewConnect)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_disconnect",
 		Description: "Disconnect from Chrome DevTools.",
 	}, s.webviewDisconnect)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_navigate",
 		Description: "Navigate the browser to a URL.",
 	}, s.webviewNavigate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_click",
 		Description: "Click on an element by CSS selector.",
 	}, s.webviewClick)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_type",
 		Description: "Type text into an element by CSS selector.",
 	}, s.webviewType)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_query",
 		Description: "Query DOM elements by CSS selector.",
 	}, s.webviewQuery)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_console",
 		Description: "Get browser console output.",
 	}, s.webviewConsole)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_eval",
 		Description: "Evaluate JavaScript in the browser context.",
 	}, s.webviewEval)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_screenshot",
 		Description: "Capture a screenshot of the browser window.",
 	}, s.webviewScreenshot)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "webview", &mcp.Tool{
 		Name:        "webview_wait",
 		Description: "Wait for an element to appear by CSS selector.",
 	}, s.webviewWait)
@@ -533,6 +554,7 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 	if format == "" {
 		format = "png"
 	}
+	format = strings.ToLower(format)
 
 	data, err := webviewInstance.Screenshot()
 	if err != nil {
@@ -540,11 +562,38 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 		return nil, WebviewScreenshotOutput{}, log.E("webviewScreenshot", "failed to capture screenshot", err)
 	}
 
+	encoded, outputFormat, err := normalizeScreenshotData(data, format)
+	if err != nil {
+		return nil, WebviewScreenshotOutput{}, log.E("webviewScreenshot", "failed to encode screenshot", err)
+	}
+
 	return nil, WebviewScreenshotOutput{
 		Success: true,
-		Data:    base64.StdEncoding.EncodeToString(data),
-		Format:  format,
+		Data:    base64.StdEncoding.EncodeToString(encoded),
+		Format:  outputFormat,
 	}, nil
+}
+
+// normalizeScreenshotData converts screenshot bytes into the requested format.
+// PNG is preserved as-is. JPEG requests are re-encoded so the output matches
+// the declared format in WebviewScreenshotOutput.
+func normalizeScreenshotData(data []byte, format string) ([]byte, string, error) {
+	switch format {
+	case "", "png":
+		return data, "png", nil
+	case "jpeg", "jpg":
+		img, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			return nil, "", err
+		}
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+			return nil, "", err
+		}
+		return buf.Bytes(), "jpeg", nil
+	default:
+		return nil, "", log.E("webviewScreenshot", "unsupported screenshot format: "+format, nil)
+	}
 }
 
 // webviewWait handles the webview_wait tool call.
@@ -562,7 +611,15 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, WebviewWaitOutput{}, errSelectorRequired
 	}
 
-	if err := webviewInstance.WaitForSelector(input.Selector); err != nil {
+	timeout := time.Duration(input.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+
+	if err := waitForSelector(ctx, timeout, input.Selector, func(selector string) error {
+		_, err := webviewInstance.QuerySelector(selector)
+		return err
+	}); err != nil {
 		log.Error("mcp: webview wait failed", "selector", input.Selector, "err", err)
 		return nil, WebviewWaitOutput{}, log.E("webviewWait", "failed to wait for selector", err)
 	}
@@ -571,4 +628,35 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 		Success: true,
 		Message: core.Sprintf("Element found: %s", input.Selector),
 	}, nil
+}
+
+// waitForSelector polls until the selector exists or the timeout elapses.
+// Query helpers in go-webview report "element not found" as an error, so we
+// keep retrying until we see the element or hit the deadline.
+func waitForSelector(ctx context.Context, timeout time.Duration, selector string, query func(string) error) error {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		err := query(selector)
+		if err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "element not found") {
+			return err
+		}
+
+		select {
+		case <-waitCtx.Done():
+			return log.E("webviewWait", "timed out waiting for selector", waitCtx.Err())
+		case <-ticker.C:
+		}
+	}
 }

@@ -4,8 +4,6 @@ package mcp
 
 import (
 	"context"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Subsystem registers additional MCP tools at startup.
@@ -13,10 +11,10 @@ import (
 //
 //	type BrainSubsystem struct{}
 //	func (b *BrainSubsystem) Name() string { return "brain" }
-//	func (b *BrainSubsystem) RegisterTools(server *mcp.Server) { ... }
+//	func (b *BrainSubsystem) RegisterTools(svc *Service) { ... }
 type Subsystem interface {
 	Name() string
-	RegisterTools(server *mcp.Server)
+	RegisterTools(svc *Service)
 }
 
 // SubsystemWithShutdown extends Subsystem with graceful cleanup.
@@ -38,11 +36,16 @@ type Notifier interface {
 	ChannelSend(ctx context.Context, channel string, data any)
 }
 
+var _ Notifier = (*Service)(nil)
+
 // ChannelPush is a Core IPC message that any service can send to push
 // a channel event to connected Claude Code sessions.
 // The MCP service catches this in HandleIPCEvents and calls ChannelSend.
 //
-//	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: map[string]any{"repo": "go-io"}})
+//	c.ACTION(mcp.ChannelPush{
+//	    Channel: "agent.status",
+//	    Data:    map[string]any{"repo": "go-io"},
+//	})
 type ChannelPush struct {
 	Channel string
 	Data    any
@@ -57,4 +60,15 @@ type ChannelPush struct {
 type SubsystemWithNotifier interface {
 	Subsystem
 	SetNotifier(n Notifier)
+}
+
+// SubsystemWithChannelCallback extends Subsystem for implementations that
+// expose an OnChannel callback instead of a Notifier interface.
+//
+//	brain.OnChannel(func(ctx context.Context, channel string, data any) {
+//	    mcpService.ChannelSend(ctx, channel, data)
+//	})
+type SubsystemWithChannelCallback interface {
+	Subsystem
+	OnChannel(func(ctx context.Context, channel string, data any))
 }

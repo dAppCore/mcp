@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -19,23 +20,23 @@ import (
 // EpicInput is the input for agentic_create_epic.
 type EpicInput struct {
 	Repo     string   `json:"repo"`               // Target repo (e.g. "go-scm")
-	Org      string   `json:"org,omitempty"`       // Forge org (default "core")
-	Title    string   `json:"title"`               // Epic title
-	Body     string   `json:"body,omitempty"`      // Epic description (above checklist)
-	Tasks    []string `json:"tasks"`               // Sub-task titles (become child issues)
-	Labels   []string `json:"labels,omitempty"`    // Labels for epic + children (e.g. ["agentic"])
-	Dispatch bool     `json:"dispatch,omitempty"`  // Auto-dispatch agents to each child
-	Agent    string   `json:"agent,omitempty"`     // Agent type for dispatch (default "claude")
-	Template string   `json:"template,omitempty"`  // Prompt template for dispatch (default "coding")
+	Org      string   `json:"org,omitempty"`      // Forge org (default "core")
+	Title    string   `json:"title"`              // Epic title
+	Body     string   `json:"body,omitempty"`     // Epic description (above checklist)
+	Tasks    []string `json:"tasks"`              // Sub-task titles (become child issues)
+	Labels   []string `json:"labels,omitempty"`   // Labels for epic + children (e.g. ["agentic"])
+	Dispatch bool     `json:"dispatch,omitempty"` // Auto-dispatch agents to each child
+	Agent    string   `json:"agent,omitempty"`    // Agent type for dispatch (default "claude")
+	Template string   `json:"template,omitempty"` // Prompt template for dispatch (default "coding")
 }
 
 // EpicOutput is the output for agentic_create_epic.
 type EpicOutput struct {
-	Success     bool       `json:"success"`
-	EpicNumber  int        `json:"epic_number"`
-	EpicURL     string     `json:"epic_url"`
-	Children    []ChildRef `json:"children"`
-	Dispatched  int        `json:"dispatched,omitempty"`
+	Success    bool       `json:"success"`
+	EpicNumber int        `json:"epic_number"`
+	EpicURL    string     `json:"epic_url"`
+	Children   []ChildRef `json:"children"`
+	Dispatched int        `json:"dispatched,omitempty"`
 }
 
 // ChildRef references a child issue.
@@ -45,8 +46,9 @@ type ChildRef struct {
 	URL    string `json:"url"`
 }
 
-func (s *PrepSubsystem) registerEpicTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerEpicTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_create_epic",
 		Description: "Create an epic issue with child issues on Forge. Each task becomes a child issue linked via checklist. Optionally auto-dispatch agents to work each child.",
 	}, s.createEpic)

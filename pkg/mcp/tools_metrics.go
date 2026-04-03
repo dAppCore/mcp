@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
@@ -5,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"forge.lthn.ai/core/go-ai/ai"
 	core "dappco.re/go/core"
+	"forge.lthn.ai/core/go-ai/ai"
 	"forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -71,19 +73,19 @@ type MetricCount struct {
 //	// ev.Type == "dispatch.complete", ev.AgentID == "cladius", ev.Repo == "core-php"
 type MetricEventBrief struct {
 	Type      string    `json:"type"`               // e.g. "dispatch.complete"
-	Timestamp time.Time `json:"timestamp"`           // when the event occurred
+	Timestamp time.Time `json:"timestamp"`          // when the event occurred
 	AgentID   string    `json:"agent_id,omitempty"` // e.g. "cladius"
 	Repo      string    `json:"repo,omitempty"`     // e.g. "core-php"
 }
 
 // registerMetricsTools adds metrics tools to the MCP server.
 func (s *Service) registerMetricsTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "metrics", &mcp.Tool{
 		Name:        "metrics_record",
 		Description: "Record a metrics event for AI/security tracking. Events are stored in daily JSONL files.",
 	}, s.metricsRecord)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "metrics", &mcp.Tool{
 		Name:        "metrics_query",
 		Description: "Query metrics events and get aggregated statistics by type, repo, and agent.",
 	}, s.metricsQuery)

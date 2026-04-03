@@ -5,10 +5,11 @@ package brain
 import (
 	"net/http"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
+	"dappco.re/go/mcp/pkg/mcp/ide"
 	"forge.lthn.ai/core/api"
 	"forge.lthn.ai/core/api/pkg/provider"
 	"forge.lthn.ai/core/go-ws"
-	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,10 +31,16 @@ var (
 // NewProvider creates a brain provider that proxies to Laravel via the IDE bridge.
 // The WS hub is used to emit brain events. Pass nil for hub if not needed.
 func NewProvider(bridge *ide.Bridge, hub *ws.Hub) *BrainProvider {
-	return &BrainProvider{
+	p := &BrainProvider{
 		bridge: bridge,
 		hub:    hub,
 	}
+	if bridge != nil {
+		bridge.AddObserver(func(msg ide.BridgeMessage) {
+			p.handleBridgeMessage(msg)
+		})
+	}
+	return p
 }
 
 // Name implements api.RouteGroup.
@@ -45,9 +52,10 @@ func (p *BrainProvider) BasePath() string { return "/api/brain" }
 // Channels implements provider.Streamable.
 func (p *BrainProvider) Channels() []string {
 	return []string{
-		"brain.remember.complete",
-		"brain.recall.complete",
-		"brain.forget.complete",
+		coremcp.ChannelBrainRememberDone,
+		coremcp.ChannelBrainRecallDone,
+		coremcp.ChannelBrainForgetDone,
+		coremcp.ChannelBrainListDone,
 	}
 }
 
@@ -211,7 +219,7 @@ func (p *BrainProvider) remember(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.remember.complete", map[string]any{
+	p.emitEvent(coremcp.ChannelBrainRememberDone, map[string]any{
 		"type":    input.Type,
 		"project": input.Project,
 	})
@@ -244,10 +252,6 @@ func (p *BrainProvider) recall(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.recall.complete", map[string]any{
-		"query": input.Query,
-	})
-
 	c.JSON(http.StatusOK, api.OK(RecallOutput{
 		Success:  true,
 		Memories: []Memory{},
@@ -278,7 +282,7 @@ func (p *BrainProvider) forget(c *gin.Context) {
 		return
 	}
 
-	p.emitEvent("brain.forget.complete", map[string]any{
+	p.emitEvent(coremcp.ChannelBrainForgetDone, map[string]any{
 		"id": input.ID,
 	})
 
@@ -294,19 +298,31 @@ func (p *BrainProvider) list(c *gin.Context) {
 		return
 	}
 
+	project := c.Query("project")
+	typ := c.Query("type")
+	agentID := c.Query("agent_id")
+	limit := c.Query("limit")
+
 	err := p.bridge.Send(ide.BridgeMessage{
 		Type: "brain_list",
 		Data: map[string]any{
-			"project":  c.Query("project"),
-			"type":     c.Query("type"),
-			"agent_id": c.Query("agent_id"),
-			"limit":    c.Query("limit"),
+			"project":  project,
+			"type":     typ,
+			"agent_id": agentID,
+			"limit":    limit,
 		},
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Fail("bridge_error", err.Error()))
 		return
 	}
+
+	p.emitEvent(coremcp.ChannelBrainListDone, map[string]any{
+		"project":  project,
+		"type":     typ,
+		"agent_id": agentID,
+		"limit":    limit,
+	})
 
 	c.JSON(http.StatusOK, api.OK(ListOutput{
 		Success:  true,
@@ -333,4 +349,19 @@ func (p *BrainProvider) emitEvent(channel string, data any) {
 		Type: ws.TypeEvent,
 		Data: data,
 	})
+}
+
+func (p *BrainProvider) handleBridgeMessage(msg ide.BridgeMessage) {
+	switch msg.Type {
+	case "brain_remember":
+		p.emitEvent(coremcp.ChannelBrainRememberDone, bridgePayload(msg.Data, "type", "project"))
+	case "brain_recall":
+		payload := bridgePayload(msg.Data, "query", "project", "type", "agent_id")
+		payload["count"] = bridgeCount(msg.Data)
+		p.emitEvent(coremcp.ChannelBrainRecallDone, payload)
+	case "brain_forget":
+		p.emitEvent(coremcp.ChannelBrainForgetDone, bridgePayload(msg.Data, "id", "reason"))
+	case "brain_list":
+		p.emitEvent(coremcp.ChannelBrainListDone, bridgePayload(msg.Data, "project", "type", "agent_id", "limit"))
+	}
 }

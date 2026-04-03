@@ -9,16 +9,20 @@ import (
 	"fmt"
 	goio "io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // channelSender is the callback for pushing channel events.
+//
+//	fn := func(ctx context.Context, channel string, data any) { ... }
 type channelSender func(ctx context.Context, channel string, data any)
 
 // DirectSubsystem implements mcp.Subsystem for OpenBrain via direct HTTP calls.
@@ -31,6 +35,12 @@ type DirectSubsystem struct {
 	onChannel channelSender
 }
 
+var (
+	_ coremcp.Subsystem                    = (*DirectSubsystem)(nil)
+	_ coremcp.SubsystemWithShutdown        = (*DirectSubsystem)(nil)
+	_ coremcp.SubsystemWithChannelCallback = (*DirectSubsystem)(nil)
+)
+
 // OnChannel sets a callback for channel event broadcasting.
 // Called by the MCP service after creation to wire up notifications.
 //
@@ -42,6 +52,9 @@ func (s *DirectSubsystem) OnChannel(fn func(ctx context.Context, channel string,
 }
 
 // NewDirect creates a brain subsystem that calls the OpenBrain API directly.
+//
+//	brain := NewDirect()
+//
 // Reads CORE_BRAIN_URL and CORE_BRAIN_KEY from environment, or falls back
 // to ~/.claude/brain.key for the API key.
 func NewDirect() *DirectSubsystem {
@@ -68,21 +81,27 @@ func NewDirect() *DirectSubsystem {
 func (s *DirectSubsystem) Name() string { return "brain" }
 
 // RegisterTools implements mcp.Subsystem.
-func (s *DirectSubsystem) RegisterTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *DirectSubsystem) RegisterTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_remember",
 		Description: "Store a memory in OpenBrain. Types: fact, decision, observation, plan, convention, architecture, research, documentation, service, bug, pattern, context, procedure.",
 	}, s.remember)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_recall",
 		Description: "Semantic search across OpenBrain memories. Returns memories ranked by similarity. Use agent_id 'cladius' for Cladius's memories.",
 	}, s.recall)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_forget",
 		Description: "Remove a memory from OpenBrain by ID.",
 	}, s.forget)
+
+	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
+		Name:        "brain_list",
+		Description: "List memories in OpenBrain with optional filtering by project, type, and agent.",
+	}, s.list)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
@@ -147,7 +166,7 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 
 	id, _ := result["id"].(string)
 	if s.onChannel != nil {
-		s.onChannel(ctx, "brain.remember.complete", map[string]any{
+		s.onChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
 			"id":      id,
 			"type":    input.Type,
 			"project": input.Project,
@@ -207,7 +226,7 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 	}
 
 	if s.onChannel != nil {
-		s.onChannel(ctx, "brain.recall.complete", map[string]any{
+		s.onChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
 			"query": input.Query,
 			"count": len(memories),
 		})
@@ -225,9 +244,80 @@ func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, in
 		return nil, ForgetOutput{}, err
 	}
 
+	if s.onChannel != nil {
+		s.onChannel(ctx, coremcp.ChannelBrainForgetDone, map[string]any{
+			"id":     input.ID,
+			"reason": input.Reason,
+		})
+	}
+
 	return nil, ForgetOutput{
 		Success:   true,
 		Forgotten: input.ID,
 		Timestamp: time.Now(),
+	}, nil
+}
+
+func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+	limit := input.Limit
+	if limit == 0 {
+		limit = 50
+	}
+
+	values := url.Values{}
+	if input.Project != "" {
+		values.Set("project", input.Project)
+	}
+	if input.Type != "" {
+		values.Set("type", input.Type)
+	}
+	if input.AgentID != "" {
+		values.Set("agent_id", input.AgentID)
+	}
+	values.Set("limit", fmt.Sprintf("%d", limit))
+
+	result, err := s.apiCall(ctx, http.MethodGet, "/v1/brain/list?"+values.Encode(), nil)
+	if err != nil {
+		return nil, ListOutput{}, err
+	}
+
+	var memories []Memory
+	if mems, ok := result["memories"].([]any); ok {
+		for _, m := range mems {
+			if mm, ok := m.(map[string]any); ok {
+				mem := Memory{
+					Content:   fmt.Sprintf("%v", mm["content"]),
+					Type:      fmt.Sprintf("%v", mm["type"]),
+					Project:   fmt.Sprintf("%v", mm["project"]),
+					AgentID:   fmt.Sprintf("%v", mm["agent_id"]),
+					CreatedAt: fmt.Sprintf("%v", mm["created_at"]),
+				}
+				if id, ok := mm["id"].(string); ok {
+					mem.ID = id
+				}
+				if score, ok := mm["score"].(float64); ok {
+					mem.Confidence = score
+				}
+				if source, ok := mm["source"].(string); ok {
+					mem.Tags = append(mem.Tags, "source:"+source)
+				}
+				memories = append(memories, mem)
+			}
+		}
+	}
+
+	if s.onChannel != nil {
+		s.onChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
+			"project":  input.Project,
+			"type":     input.Type,
+			"agent_id": input.AgentID,
+			"limit":    limit,
+		})
+	}
+
+	return nil, ListOutput{
+		Success:  true,
+		Count:    len(memories),
+		Memories: memories,
 	}, nil
 }

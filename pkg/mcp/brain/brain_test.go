@@ -7,7 +7,19 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"dappco.re/go/mcp/pkg/mcp/ide"
 )
+
+type recordingNotifier struct {
+	channel string
+	data    any
+}
+
+func (r *recordingNotifier) ChannelSend(_ context.Context, channel string, data any) {
+	r.channel = channel
+	r.data = data
+}
 
 // --- Nil bridge tests (headless mode) ---
 
@@ -65,6 +77,38 @@ func TestSubsystem_Good_ShutdownNoop(t *testing.T) {
 	sub := New(nil)
 	if err := sub.Shutdown(context.Background()); err != nil {
 		t.Errorf("Shutdown failed: %v", err)
+	}
+}
+
+func TestSubsystem_Good_BridgeRecallNotification(t *testing.T) {
+	sub := New(nil)
+	notifier := &recordingNotifier{}
+	sub.notifier = notifier
+
+	sub.handleBridgeMessage(ide.BridgeMessage{
+		Type: "brain_recall",
+		Data: map[string]any{
+			"query": "how does scoring work?",
+			"memories": []any{
+				map[string]any{"id": "m1"},
+				map[string]any{"id": "m2"},
+			},
+		},
+	})
+
+	if notifier.channel != "brain.recall.complete" {
+		t.Fatalf("expected brain.recall.complete, got %q", notifier.channel)
+	}
+
+	payload, ok := notifier.data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload map, got %T", notifier.data)
+	}
+	if payload["count"] != 2 {
+		t.Fatalf("expected count 2, got %v", payload["count"])
+	}
+	if payload["query"] != "how does scoring work?" {
+		t.Fatalf("expected query to be forwarded, got %v", payload["query"])
 	}
 }
 

@@ -3,6 +3,7 @@
 package mcp
 
 import (
+	"errors"
 	"net/http"
 
 	core "dappco.re/go/core"
@@ -23,6 +24,10 @@ const maxBodySize = 10 << 20 // 10 MB
 //	mcp.BridgeToAPI(svc, bridge)
 //	bridge.Mount(router, "/v1/tools")
 func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
+	if svc == nil || bridge == nil {
+		return
+	}
+
 	for rec := range svc.ToolsSeq() {
 		desc := api.ToolDescriptor{
 			Name:         rec.Name,
@@ -38,8 +43,16 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 		bridge.Add(desc, func(c *gin.Context) {
 			var body []byte
 			if c.Request.Body != nil {
+				c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodySize)
 				r := core.ReadAll(c.Request.Body)
 				if !r.OK {
+					if err, ok := r.Value.(error); ok {
+						var maxBytesErr *http.MaxBytesError
+						if errors.As(err, &maxBytesErr) || core.Contains(err.Error(), "request body too large") {
+							c.JSON(http.StatusRequestEntityTooLarge, api.Fail("request_too_large", "Request body exceeds 10 MB limit"))
+							return
+						}
+					}
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_request", "Failed to read request body"))
 					return
 				}
@@ -50,7 +63,7 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 			if err != nil {
 				// Body present + error = likely bad input (malformed JSON).
 				// No body + error = tool execution failure.
-				if len(body) > 0 && core.Contains(err.Error(), "unmarshal") {
+				if errors.Is(err, errInvalidRESTInput) {
 					c.JSON(http.StatusBadRequest, api.Fail("invalid_input", "Malformed JSON in request body"))
 					return
 				}

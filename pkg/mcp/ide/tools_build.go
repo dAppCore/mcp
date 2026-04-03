@@ -1,20 +1,27 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package ide
 
 import (
 	"context"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Build tool input/output types.
 
 // BuildStatusInput is the input for ide_build_status.
+//
+//	input := BuildStatusInput{BuildID: "build-123"}
 type BuildStatusInput struct {
 	BuildID string `json:"buildId"`
 }
 
 // BuildInfo represents a single build.
+//
+//	info := BuildInfo{ID: "build-123", Repo: "go-io", Status: "running"}
 type BuildInfo struct {
 	ID        string    `json:"id"`
 	Repo      string    `json:"repo"`
@@ -25,90 +32,102 @@ type BuildInfo struct {
 }
 
 // BuildStatusOutput is the output for ide_build_status.
+//
+//	// out.Build.Status == "running"
 type BuildStatusOutput struct {
 	Build BuildInfo `json:"build"`
 }
 
 // BuildListInput is the input for ide_build_list.
+//
+//	input := BuildListInput{Repo: "go-io", Limit: 20}
 type BuildListInput struct {
 	Repo  string `json:"repo,omitempty"`
 	Limit int    `json:"limit,omitempty"`
 }
 
 // BuildListOutput is the output for ide_build_list.
+//
+//	// out.Builds holds the local build snapshot
 type BuildListOutput struct {
 	Builds []BuildInfo `json:"builds"`
 }
 
 // BuildLogsInput is the input for ide_build_logs.
+//
+//	input := BuildLogsInput{BuildID: "build-123", Tail: 200}
 type BuildLogsInput struct {
 	BuildID string `json:"buildId"`
 	Tail    int    `json:"tail,omitempty"`
 }
 
 // BuildLogsOutput is the output for ide_build_logs.
+//
+//	// out.Lines contains the captured build log lines
 type BuildLogsOutput struct {
 	BuildID string   `json:"buildId"`
 	Lines   []string `json:"lines"`
 }
 
-func (s *Subsystem) registerBuildTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *Subsystem) registerBuildTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_build_status",
 		Description: "Get the status of a specific build",
 	}, s.buildStatus)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_build_list",
 		Description: "List recent builds, optionally filtered by repository",
 	}, s.buildList)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
 		Name:        "ide_build_logs",
 		Description: "Retrieve log output for a build",
 	}, s.buildLogs)
 }
 
-// buildStatus requests build status from the Laravel backend.
-// Stub implementation: sends request via bridge, returns "unknown" status. Awaiting Laravel backend.
+// buildStatus returns a local best-effort build status and refreshes the
+// Laravel backend when the bridge is available.
 func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input BuildStatusInput) (*mcp.CallToolResult, BuildStatusOutput, error) {
-	if s.bridge == nil {
-		return nil, BuildStatusOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "build_status",
+			Data: map[string]any{"buildId": input.BuildID},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "build_status",
-		Data: map[string]any{"buildId": input.BuildID},
-	})
-	return nil, BuildStatusOutput{
-		Build: BuildInfo{ID: input.BuildID, Status: "unknown"},
-	}, nil
+
+	build := BuildInfo{ID: input.BuildID, Status: "unknown"}
+	if cached, ok := s.buildSnapshot(input.BuildID); ok {
+		build = cached
+	}
+
+	return nil, BuildStatusOutput{Build: build}, nil
 }
 
-// buildList requests a list of builds from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty list. Awaiting Laravel backend.
+// buildList returns the local build list snapshot and refreshes the Laravel
+// backend when the bridge is available.
 func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input BuildListInput) (*mcp.CallToolResult, BuildListOutput, error) {
-	if s.bridge == nil {
-		return nil, BuildListOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "build_list",
+			Data: map[string]any{"repo": input.Repo, "limit": input.Limit},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "build_list",
-		Data: map[string]any{"repo": input.Repo, "limit": input.Limit},
-	})
-	return nil, BuildListOutput{Builds: []BuildInfo{}}, nil
+	return nil, BuildListOutput{Builds: s.listBuilds(input.Repo, input.Limit)}, nil
 }
 
-// buildLogs requests build log output from the Laravel backend.
-// Stub implementation: sends request via bridge, returns empty lines. Awaiting Laravel backend.
+// buildLogs returns the local build log snapshot and refreshes the Laravel
+// backend when the bridge is available.
 func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input BuildLogsInput) (*mcp.CallToolResult, BuildLogsOutput, error) {
-	if s.bridge == nil {
-		return nil, BuildLogsOutput{}, errBridgeNotAvailable
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "build_logs",
+			Data: map[string]any{"buildId": input.BuildID, "tail": input.Tail},
+		})
 	}
-	_ = s.bridge.Send(BridgeMessage{
-		Type: "build_logs",
-		Data: map[string]any{"buildId": input.BuildID, "tail": input.Tail},
-	})
 	return nil, BuildLogsOutput{
 		BuildID: input.BuildID,
-		Lines:   []string{},
+		Lines:   s.buildLogTail(input.BuildID, input.Tail),
 	}, nil
 }

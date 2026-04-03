@@ -33,6 +33,9 @@ class ToolRegistry
             'query' => 'SELECT id, name FROM users LIMIT 10',
         ],
         'list_tables' => [],
+        'describe_table' => [
+            'table' => 'users',
+        ],
         'list_routes' => [],
         'list_sites' => [],
         'get_stats' => [],

@@ -29,9 +29,9 @@ func TestService_Iterators(t *testing.T) {
 	}
 }
 
-func TestRegistry_SplitTagSeq(t *testing.T) {
+func TestRegistry_SplitTag(t *testing.T) {
 	tag := "name,omitempty,json"
-	parts := slices.Collect(splitTagSeq(tag))
+	parts := splitTag(tag)
 	expected := []string{"name", "omitempty", "json"}
 
 	if !slices.Equal(parts, expected) {

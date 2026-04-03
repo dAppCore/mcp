@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -19,16 +20,26 @@ import (
 
 // --- agentic_create_pr ---
 
-// CreatePRInput is the input for agentic_create_pr.
-type CreatePRInput struct {
-	Workspace string `json:"workspace"`            // workspace name (e.g. "mcp-1773581873")
-	Title     string `json:"title,omitempty"`       // PR title (default: task description)
-	Body      string `json:"body,omitempty"`        // PR body (default: auto-generated)
-	Base      string `json:"base,omitempty"`        // base branch (default: "main")
-	DryRun    bool   `json:"dry_run,omitempty"`     // preview without creating
+// PRInput is the input for agentic_create_pr and agentic_pr.
+//
+//	input := PRInput{
+//	    Workspace: "mcp-1773581873",
+//	    Base:      "main",
+//	}
+type PRInput struct {
+	Workspace string `json:"workspace"`         // workspace name (e.g. "mcp-1773581873")
+	Title     string `json:"title,omitempty"`   // PR title (default: task description)
+	Body      string `json:"body,omitempty"`    // PR body (default: auto-generated)
+	Base      string `json:"base,omitempty"`    // base branch (default: "main")
+	DryRun    bool   `json:"dry_run,omitempty"` // preview without creating
 }
 
+// CreatePRInput is kept as a compatibility alias for older callers.
+type CreatePRInput = PRInput
+
 // CreatePROutput is the output for agentic_create_pr.
+//
+//	// out.Success == true, out.Branch == "agent/issue-123-fix", out.Pushed == true
 type CreatePROutput struct {
 	Success bool   `json:"success"`
 	PRURL   string `json:"pr_url,omitempty"`
@@ -39,14 +50,15 @@ type CreatePROutput struct {
 	Pushed  bool   `json:"pushed"`
 }
 
-func (s *PrepSubsystem) registerCreatePRTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerCreatePRTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_create_pr",
 		Description: "Create a pull request from an agent workspace. Pushes the branch to Forge and opens a PR. Links to the source issue if one was tracked.",
 	}, s.createPR)
 }
 
-func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, input CreatePRInput) (*mcp.CallToolResult, CreatePROutput, error) {
+func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, input PRInput) (*mcp.CallToolResult, CreatePROutput, error) {
 	if input.Workspace == "" {
 		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace is required", nil)
 	}
@@ -127,7 +139,7 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 
 	// Update status with PR URL
 	st.PRURL = prURL
-	writeStatus(wsDir, st)
+	s.saveStatus(wsDir, st)
 
 	// Comment on issue if tracked
 	if st.Issue > 0 {
@@ -163,15 +175,21 @@ func (s *PrepSubsystem) buildPRBody(st *WorkspaceStatus) string {
 }
 
 func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base, title, body string) (string, int, error) {
-	payload, _ := json.Marshal(map[string]any{
+	payload, err := json.Marshal(map[string]any{
 		"title": title,
 		"body":  body,
 		"head":  head,
 		"base":  base,
 	})
+	if err != nil {
+		return "", 0, coreerr.E("forgeCreatePR", "failed to marshal PR payload", err)
+	}
 
 	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls", s.forgeURL, org, repo)
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	if err != nil {
+		return "", 0, coreerr.E("forgeCreatePR", "failed to build PR request", err)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -183,7 +201,9 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 
 	if resp.StatusCode != 201 {
 		var errBody map[string]any
-		json.NewDecoder(resp.Body).Decode(&errBody)
+		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
+			return "", 0, coreerr.E("forgeCreatePR", fmt.Sprintf("HTTP %d with unreadable error body", resp.StatusCode), err)
+		}
 		msg, _ := errBody["message"].(string)
 		return "", 0, coreerr.E("forgeCreatePR", fmt.Sprintf("HTTP %d: %s", resp.StatusCode, msg), nil)
 	}
@@ -192,16 +212,24 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pr)
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return "", 0, coreerr.E("forgeCreatePR", "failed to decode PR response", err)
+	}
 
 	return pr.HTMLURL, pr.Number, nil
 }
 
 func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, issue int, comment string) {
-	payload, _ := json.Marshal(map[string]string{"body": comment})
+	payload, err := json.Marshal(map[string]string{"body": comment})
+	if err != nil {
+		return
+	}
 
 	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d/comments", s.forgeURL, org, repo, issue)
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -215,14 +243,18 @@ func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, is
 // --- agentic_list_prs ---
 
 // ListPRsInput is the input for agentic_list_prs.
+//
+//	input := ListPRsInput{Org: "core", Repo: "go-io", State: "open", Limit: 20}
 type ListPRsInput struct {
 	Org   string `json:"org,omitempty"`   // forge org (default "core")
-	Repo  string `json:"repo,omitempty"` // specific repo, or empty for all
+	Repo  string `json:"repo,omitempty"`  // specific repo, or empty for all
 	State string `json:"state,omitempty"` // "open" (default), "closed", "all"
 	Limit int    `json:"limit,omitempty"` // max results (default 20)
 }
 
 // ListPRsOutput is the output for agentic_list_prs.
+//
+//	// out.Success == true, len(out.PRs) <= 20
 type ListPRsOutput struct {
 	Success bool     `json:"success"`
 	Count   int      `json:"count"`
@@ -230,6 +262,8 @@ type ListPRsOutput struct {
 }
 
 // PRInfo represents a pull request.
+//
+//	// pr.Number == 42, pr.Branch == "agent/issue-42-fix"
 type PRInfo struct {
 	Repo      string   `json:"repo"`
 	Number    int      `json:"number"`
@@ -243,8 +277,9 @@ type PRInfo struct {
 	URL       string   `json:"url"`
 }
 
-func (s *PrepSubsystem) registerListPRsTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerListPRsTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_list_prs",
 		Description: "List pull requests across Forge repos. Filter by org, repo, and state (open/closed/all).",
 	}, s.listPRs)

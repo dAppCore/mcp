@@ -4,8 +4,8 @@ package mcp
 
 import (
 	"context"
-	"iter"
 	"reflect"
+	"time"
 
 	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -21,6 +21,38 @@ import (
 //	}
 type RESTHandler func(ctx context.Context, body []byte) (any, error)
 
+// errInvalidRESTInput marks malformed JSON bodies for the REST bridge.
+var errInvalidRESTInput = &restInputError{}
+
+// restInputError preserves invalid-REST-input identity without stdlib
+// error constructors so bridge.go can keep using errors.Is.
+type restInputError struct {
+	cause error
+}
+
+func (e *restInputError) Error() string {
+	if e == nil || e.cause == nil {
+		return "invalid REST input"
+	}
+	return "invalid REST input: " + e.cause.Error()
+}
+
+func (e *restInputError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+func (e *restInputError) Is(target error) bool {
+	_, ok := target.(*restInputError)
+	return ok
+}
+
+func invalidRESTInputError(cause error) error {
+	return &restInputError{cause: cause}
+}
+
 // ToolRecord captures metadata about a registered MCP tool.
 //
 //	for _, rec := range svc.Tools() {
@@ -35,11 +67,17 @@ type ToolRecord struct {
 	RESTHandler  RESTHandler    // REST-callable handler created at registration time
 }
 
-// addToolRecorded registers a tool with the MCP server AND records its metadata.
+// AddToolRecorded registers a tool with the MCP server and records its metadata.
 // This is a generic function that captures the In/Out types for schema extraction.
 // It also creates a RESTHandler closure that can unmarshal JSON to the correct
 // input type and call the handler directly, enabling the MCP-to-REST bridge.
-func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
+//
+//	svc, _ := mcp.New(mcp.Options{})
+//	mcp.AddToolRecorded(svc, svc.Server(), "files", &mcp.Tool{Name: "file_read"},
+//	    func(context.Context, *mcp.CallToolRequest, ReadFileInput) (*mcp.CallToolResult, ReadFileOutput, error) {
+//	        return nil, ReadFileOutput{Path: "src/main.go"}, nil
+//	    })
+func AddToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
 	mcp.AddTool(server, t, h)
 
 	restHandler := func(ctx context.Context, body []byte) (any, error) {
@@ -47,9 +85,9 @@ func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 		if len(body) > 0 {
 			if r := core.JSONUnmarshal(body, &input); !r.OK {
 				if err, ok := r.Value.(error); ok {
-					return nil, err
+					return nil, invalidRESTInputError(err)
 				}
-				return nil, core.E("registry.RESTHandler", "failed to unmarshal input", nil)
+				return nil, invalidRESTInputError(nil)
 			}
 		}
 		// nil: REST callers have no MCP request context.
@@ -68,6 +106,10 @@ func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 	})
 }
 
+func addToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
+	AddToolRecorded(s, server, group, t, h)
+}
+
 // structSchema builds a simple JSON Schema from a struct's json tags via reflection.
 // Returns nil for non-struct types or empty structs.
 func structSchema(v any) map[string]any {
@@ -81,70 +123,12 @@ func structSchema(v any) map[string]any {
 	if t.Kind() != reflect.Struct {
 		return nil
 	}
-	if t.NumField() == 0 {
-		return map[string]any{"type": "object", "properties": map[string]any{}}
-	}
-
-	properties := make(map[string]any)
-	required := make([]string, 0)
-
-	for f := range t.Fields() {
-		f := f
-		if !f.IsExported() {
-			continue
-		}
-		jsonTag := f.Tag.Get("json")
-		if jsonTag == "-" {
-			continue
-		}
-		name := f.Name
-		isOptional := false
-		if jsonTag != "" {
-			parts := splitTag(jsonTag)
-			name = parts[0]
-			for _, p := range parts[1:] {
-				if p == "omitempty" {
-					isOptional = true
-				}
-			}
-		}
-
-		prop := map[string]any{
-			"type": goTypeToJSONType(f.Type),
-		}
-		properties[name] = prop
-
-		if !isOptional {
-			required = append(required, name)
-		}
-	}
-
-	schema := map[string]any{
-		"type":       "object",
-		"properties": properties,
-	}
-	if len(required) > 0 {
-		schema["required"] = required
-	}
-	return schema
+	return schemaForType(t, map[reflect.Type]bool{})
 }
 
 // splitTag splits a struct tag value by commas.
 func splitTag(tag string) []string {
 	return core.Split(tag, ",")
-}
-
-// splitTagSeq returns an iterator over the tag parts.
-func splitTagSeq(tag string) iter.Seq[string] {
-	// core.Split returns []string; wrap as iterator
-	parts := core.Split(tag, ",")
-	return func(yield func(string) bool) {
-		for _, p := range parts {
-			if !yield(p) {
-				return
-			}
-		}
-	}
 }
 
 // goTypeToJSONType maps Go types to JSON Schema types.
@@ -166,4 +150,121 @@ func goTypeToJSONType(t reflect.Type) string {
 	default:
 		return "string"
 	}
+}
+
+func schemaForType(t reflect.Type, seen map[reflect.Type]bool) map[string]any {
+	if t == nil {
+		return nil
+	}
+
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+		if t == nil {
+			return nil
+		}
+	}
+
+	if isTimeType(t) {
+		return map[string]any{
+			"type":   "string",
+			"format": "date-time",
+		}
+	}
+
+	switch t.Kind() {
+	case reflect.Interface:
+		return map[string]any{}
+
+	case reflect.Struct:
+		if seen[t] {
+			return map[string]any{"type": "object"}
+		}
+		seen[t] = true
+
+		properties := make(map[string]any)
+		required := make([]string, 0, t.NumField())
+
+		for f := range t.Fields() {
+			f := f
+			if !f.IsExported() {
+				continue
+			}
+
+			jsonTag := f.Tag.Get("json")
+			if jsonTag == "-" {
+				continue
+			}
+
+			name := f.Name
+			isOptional := false
+			if jsonTag != "" {
+				parts := splitTag(jsonTag)
+				name = parts[0]
+				for _, p := range parts[1:] {
+					if p == "omitempty" {
+						isOptional = true
+					}
+				}
+			}
+
+			prop := schemaForType(f.Type, cloneSeenSet(seen))
+			if prop == nil {
+				prop = map[string]any{"type": goTypeToJSONType(f.Type)}
+			}
+			properties[name] = prop
+
+			if !isOptional {
+				required = append(required, name)
+			}
+		}
+
+		schema := map[string]any{
+			"type":       "object",
+			"properties": properties,
+		}
+		if len(required) > 0 {
+			schema["required"] = required
+		}
+		return schema
+
+	case reflect.Slice, reflect.Array:
+		schema := map[string]any{
+			"type":  "array",
+			"items": schemaForType(t.Elem(), cloneSeenSet(seen)),
+		}
+		return schema
+
+	case reflect.Map:
+		schema := map[string]any{
+			"type": "object",
+		}
+		if t.Key().Kind() == reflect.String {
+			if valueSchema := schemaForType(t.Elem(), cloneSeenSet(seen)); valueSchema != nil {
+				schema["additionalProperties"] = valueSchema
+			}
+		}
+		return schema
+
+	default:
+		if typeName := goTypeToJSONType(t); typeName != "" {
+			return map[string]any{"type": typeName}
+		}
+	}
+
+	return nil
+}
+
+func cloneSeenSet(seen map[reflect.Type]bool) map[reflect.Type]bool {
+	if len(seen) == 0 {
+		return map[reflect.Type]bool{}
+	}
+	clone := make(map[reflect.Type]bool, len(seen))
+	for t := range seen {
+		clone[t] = true
+	}
+	return clone
+}
+
+func isTimeType(t reflect.Type) bool {
+	return t == reflect.TypeOf(time.Time{})
 }

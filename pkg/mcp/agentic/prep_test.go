@@ -6,7 +6,19 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 )
+
+type recordingNotifier struct {
+	channel string
+	data    any
+}
+
+func (r *recordingNotifier) ChannelSend(_ context.Context, channel string, data any) {
+	r.channel = channel
+	r.data = data
+}
 
 func TestSanitizeRepoPathSegment_Good(t *testing.T) {
 	t.Run("repo", func(t *testing.T) {
@@ -92,5 +104,48 @@ func TestPrepWorkspace_Bad_BadPlanTemplateTraversal(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "plan_template") {
 		t.Fatalf("expected plan template error, got %q", err)
+	}
+}
+
+func TestSetNotifier_Good_EmitsChannelEvents(t *testing.T) {
+	s := NewPrep()
+	notifier := &recordingNotifier{}
+	s.SetNotifier(notifier)
+
+	s.emitChannel(context.Background(), coremcp.ChannelAgentStatus, map[string]any{"status": "running"})
+
+	if notifier.channel != coremcp.ChannelAgentStatus {
+		t.Fatalf("expected %s channel, got %q", coremcp.ChannelAgentStatus, notifier.channel)
+	}
+	if payload, ok := notifier.data.(map[string]any); !ok || payload["status"] != "running" {
+		t.Fatalf("expected payload to include running status, got %#v", notifier.data)
+	}
+}
+
+func TestEmitHarvestComplete_Good_EmitsChannelEvents(t *testing.T) {
+	s := NewPrep()
+	notifier := &recordingNotifier{}
+	s.SetNotifier(notifier)
+
+	s.emitHarvestComplete(context.Background(), "go-io-123", "go-io", 4, true)
+
+	if notifier.channel != coremcp.ChannelHarvestComplete {
+		t.Fatalf("expected %s channel, got %q", coremcp.ChannelHarvestComplete, notifier.channel)
+	}
+	payload, ok := notifier.data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload object, got %#v", notifier.data)
+	}
+	if payload["workspace"] != "go-io-123" {
+		t.Fatalf("expected workspace go-io-123, got %#v", payload["workspace"])
+	}
+	if payload["repo"] != "go-io" {
+		t.Fatalf("expected repo go-io, got %#v", payload["repo"])
+	}
+	if payload["findings"] != 4 {
+		t.Fatalf("expected findings 4, got %#v", payload["findings"])
+	}
+	if payload["issue_created"] != true {
+		t.Fatalf("expected issue_created true, got %#v", payload["issue_created"])
 	}
 }

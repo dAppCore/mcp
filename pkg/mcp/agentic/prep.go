@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,9 +33,18 @@ type PrepSubsystem struct {
 	specsPath  string
 	codePath   string
 	client     *http.Client
+	notifier   coremcp.Notifier
 }
 
+var (
+	_ coremcp.Subsystem             = (*PrepSubsystem)(nil)
+	_ coremcp.SubsystemWithShutdown = (*PrepSubsystem)(nil)
+	_ coremcp.SubsystemWithNotifier = (*PrepSubsystem)(nil)
+)
+
 // NewPrep creates an agentic subsystem.
+//
+//	prep := NewPrep()
 func NewPrep() *PrepSubsystem {
 	home, _ := os.UserHomeDir()
 
@@ -58,6 +68,18 @@ func NewPrep() *PrepSubsystem {
 		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
 		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
 		client:     &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// SetNotifier wires the shared MCP notifier into the agentic subsystem.
+func (s *PrepSubsystem) SetNotifier(n coremcp.Notifier) {
+	s.notifier = n
+}
+
+// emitChannel pushes an agentic event through the shared notifier.
+func (s *PrepSubsystem) emitChannel(ctx context.Context, channel string, data any) {
+	if s.notifier != nil {
+		s.notifier.ChannelSend(ctx, channel, data)
 	}
 }
 
@@ -108,25 +130,30 @@ func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, er
 func (s *PrepSubsystem) Name() string { return "agentic" }
 
 // RegisterTools implements mcp.Subsystem.
-func (s *PrepSubsystem) RegisterTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) RegisterTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_prep_workspace",
 		Description: "Prepare a sandboxed agent workspace with TODO.md, CLAUDE.md, CONTEXT.md, CONSUMERS.md, RECENT.md, and a git clone of the target repo in src/.",
 	}, s.prepWorkspace)
 
-	s.registerDispatchTool(server)
-	s.registerStatusTool(server)
-	s.registerResumeTool(server)
-	s.registerCreatePRTool(server)
-	s.registerListPRsTool(server)
-	s.registerEpicTool(server)
+	s.registerDispatchTool(svc)
+	s.registerIssueTools(svc)
+	s.registerStatusTool(svc)
+	s.registerResumeTool(svc)
+	s.registerCreatePRTool(svc)
+	s.registerListPRsTool(svc)
+	s.registerEpicTool(svc)
+	s.registerWatchTool(svc)
+	s.registerReviewQueueTool(svc)
+	s.registerMirrorTool(svc)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_scan",
 		Description: "Scan Forge repos for open issues with actionable labels (agentic, help-wanted, bug).",
 	}, s.scan)
 
-	s.registerPlanTools(server)
+	s.registerPlanTools(svc)
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
@@ -145,6 +172,7 @@ type PrepInput struct {
 	Org          string            `json:"org,omitempty"`           // default "core"
 	Issue        int               `json:"issue,omitempty"`         // Forge issue number
 	Task         string            `json:"task,omitempty"`          // Task description (if no issue)
+	Branch       string            `json:"branch,omitempty"`        // Override branch name
 	Template     string            `json:"template,omitempty"`      // Prompt template: conventions, security, coding (default: coding)
 	PlanTemplate string            `json:"plan_template,omitempty"` // Plan template slug: bug-fix, code-review, new-feature, refactor, feature-port
 	Variables    map[string]string `json:"variables,omitempty"`     // Template variable substitution
@@ -155,6 +183,7 @@ type PrepInput struct {
 type PrepOutput struct {
 	Success      bool   `json:"success"`
 	WorkspaceDir string `json:"workspace_dir"`
+	Branch       string `json:"branch,omitempty"`
 	WikiPages    int    `json:"wiki_pages"`
 	SpecFiles    int    `json:"spec_files"`
 	Memories     int    `json:"memories"`
@@ -197,6 +226,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	// Workspace root: .core/workspace/{repo}-{timestamp}/
 	wsRoot := s.workspaceRoot()
+	coreio.Local.EnsureDir(wsRoot)
 	wsName := fmt.Sprintf("%s-%d", input.Repo, time.Now().Unix())
 	wsDir := filepath.Join(wsRoot, wsName)
 
@@ -215,27 +245,27 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
 	}
 
-	// Create feature branch
-	taskSlug := strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
-			return r
+	// Create feature branch.
+	branchName := input.Branch
+	if branchName == "" {
+		taskSlug := branchSlug(input.Task)
+		if input.Issue > 0 {
+			issueSlug := branchSlug(input.Task)
+			branchName = fmt.Sprintf("agent/issue-%d", input.Issue)
+			if issueSlug != "" {
+				branchName += "-" + issueSlug
+			}
+		} else if taskSlug != "" {
+			branchName = fmt.Sprintf("agent/%s", taskSlug)
 		}
-		if r >= 'A' && r <= 'Z' {
-			return r + 32 // lowercase
-		}
-		return '-'
-	}, input.Task)
-	if len(taskSlug) > 40 {
-		taskSlug = taskSlug[:40]
 	}
-	taskSlug = strings.Trim(taskSlug, "-")
-	if taskSlug != "" {
-		branchName := fmt.Sprintf("agent/%s", taskSlug)
+	if branchName != "" {
 		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
 		branchCmd.Dir = srcDir
 		if err := branchCmd.Run(); err != nil {
 			return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to create branch", err)
 		}
+		out.Branch = branchName
 	}
 
 	// Create context dirs inside src/
@@ -248,20 +278,20 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
 	if data, err := coreio.Local.Read(claudeMdPath); err == nil {
-		coreio.Local.Write(filepath.Join(wsDir, "src", "CLAUDE.md"), data)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "CLAUDE.md"), data)
 		out.ClaudeMd = true
 	}
 	// Copy GEMINI.md from core/agent (ethics framework for all agents)
 	agentGeminiMd := filepath.Join(s.codePath, "core", "agent", "GEMINI.md")
 	if data, err := coreio.Local.Read(agentGeminiMd); err == nil {
-		coreio.Local.Write(filepath.Join(wsDir, "src", "GEMINI.md"), data)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "GEMINI.md"), data)
 	}
 
 	// Copy persona if specified
 	if persona != "" {
 		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
-			coreio.Local.Write(filepath.Join(wsDir, "src", "PERSONA.md"), data)
+			_ = writeAtomic(filepath.Join(wsDir, "src", "PERSONA.md"), data)
 		}
 	}
 
@@ -271,7 +301,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	} else if input.Task != "" {
 		todo := fmt.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		coreio.Local.Write(filepath.Join(wsDir, "src", "TODO.md"), todo)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "TODO.md"), todo)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -299,6 +329,42 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	out.Success = true
 	return nil, out, nil
+}
+
+// branchSlug converts a free-form string into a git-friendly branch suffix.
+func branchSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.Grow(len(value))
+	lastDash := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_' || r == '.' || r == ' ':
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		default:
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+
+	slug := strings.Trim(b.String(), "-")
+	if len(slug) > 40 {
+		slug = slug[:40]
+		slug = strings.Trim(slug, "-")
+	}
+	return slug
 }
 
 // --- Prompt templates ---
@@ -368,7 +434,7 @@ Do NOT push. Commit only — a reviewer will verify and push.
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "PROMPT.md"), prompt)
+	_ = writeAtomic(filepath.Join(wsDir, "src", "PROMPT.md"), prompt)
 }
 
 // --- Plan template rendering ---
@@ -446,7 +512,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
 	}
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "PLAN.md"), plan.String())
+	_ = writeAtomic(filepath.Join(wsDir, "src", "PLAN.md"), plan.String())
 }
 
 // --- Helpers (unchanged) ---
@@ -457,7 +523,10 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 	}
 
 	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/wiki/pages", s.forgeURL, org, repo)
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0
+	}
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
@@ -473,7 +542,9 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		Title  string `json:"title"`
 		SubURL string `json:"sub_url"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pages)
+	if err := json.NewDecoder(resp.Body).Decode(&pages); err != nil {
+		return 0
+	}
 
 	count := 0
 	for _, page := range pages {
@@ -483,7 +554,10 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		}
 
 		pageURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/wiki/page/%s", s.forgeURL, org, repo, subURL)
-		pageReq, _ := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+		pageReq, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
+		if err != nil {
+			continue
+		}
 		pageReq.Header.Set("Authorization", "token "+s.forgeToken)
 
 		pageResp, err := s.client.Do(pageReq)
@@ -498,14 +572,19 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		var pageData struct {
 			ContentBase64 string `json:"content_base64"`
 		}
-		json.NewDecoder(pageResp.Body).Decode(&pageData)
+		if err := json.NewDecoder(pageResp.Body).Decode(&pageData); err != nil {
+			continue
+		}
 		pageResp.Body.Close()
 
 		if pageData.ContentBase64 == "" {
 			continue
 		}
 
-		content, _ := base64.StdEncoding.DecodeString(pageData.ContentBase64)
+		content, err := base64.StdEncoding.DecodeString(pageData.ContentBase64)
+		if err != nil {
+			continue
+		}
 		filename := strings.Map(func(r rune) rune {
 			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
 				return r
@@ -513,7 +592,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 			return '-'
 		}, page.Title) + ".md"
 
-		coreio.Local.Write(filepath.Join(wsDir, "src", "kb", filename), string(content))
+		_ = writeAtomic(filepath.Join(wsDir, "src", "kb", filename), string(content))
 		count++
 	}
 
@@ -527,7 +606,7 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	for _, file := range specFiles {
 		src := filepath.Join(s.specsPath, file)
 		if data, err := coreio.Local.Read(src); err == nil {
-			coreio.Local.Write(filepath.Join(wsDir, "src", "specs", file), data)
+			_ = writeAtomic(filepath.Join(wsDir, "src", "specs", file), data)
 			count++
 		}
 	}
@@ -540,14 +619,20 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	body, _ := json.Marshal(map[string]any{
+	body, err := json.Marshal(map[string]any{
 		"query":    "architecture conventions key interfaces for " + repo,
 		"top_k":    10,
 		"project":  repo,
 		"agent_id": "cladius",
 	})
+	if err != nil {
+		return 0
+	}
 
-	req, _ := http.NewRequestWithContext(ctx, "POST", s.brainURL+"/v1/brain/recall", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(ctx, "POST", s.brainURL+"/v1/brain/recall", strings.NewReader(string(body)))
+	if err != nil {
+		return 0
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.brainKey)
@@ -561,11 +646,16 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	respData, _ := goio.ReadAll(resp.Body)
+	respData, err := goio.ReadAll(resp.Body)
+	if err != nil {
+		return 0
+	}
 	var result struct {
 		Memories []map[string]any `json:"memories"`
 	}
-	json.Unmarshal(respData, &result)
+	if err := json.Unmarshal(respData, &result); err != nil {
+		return 0
+	}
 
 	var content strings.Builder
 	content.WriteString("# Context — " + repo + "\n\n")
@@ -579,7 +669,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		content.WriteString(fmt.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "CONTEXT.md"), content.String())
+	_ = writeAtomic(filepath.Join(wsDir, "src", "CONTEXT.md"), content.String())
 	return len(result.Memories)
 }
 
@@ -616,7 +706,7 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += fmt.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		coreio.Local.Write(filepath.Join(wsDir, "src", "CONSUMERS.md"), content)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "CONSUMERS.md"), content)
 	}
 
 	return len(consumers)
@@ -633,7 +723,7 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		coreio.Local.Write(filepath.Join(wsDir, "src", "RECENT.md"), content)
+		_ = writeAtomic(filepath.Join(wsDir, "src", "RECENT.md"), content)
 	}
 
 	return len(lines)
@@ -669,5 +759,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += fmt.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	coreio.Local.Write(filepath.Join(wsDir, "src", "TODO.md"), content)
+	_ = writeAtomic(filepath.Join(wsDir, "src", "TODO.md"), content)
 }

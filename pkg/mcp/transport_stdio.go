@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
@@ -16,7 +18,6 @@ import (
 //	}
 func (s *Service) ServeStdio(ctx context.Context) error {
 	s.logger.Info("MCP Stdio server starting", "user", log.Username())
-	s.stdioMode = true
 	return s.server.Run(ctx, &mcp.IOTransport{
 		Reader: os.Stdin,
 		Writer: sharedStdout,

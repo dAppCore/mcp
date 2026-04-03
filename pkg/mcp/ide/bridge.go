@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package ide
 
 import (
@@ -12,7 +14,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// BridgeMessage is the wire format between the IDE and Laravel.
+// BridgeMessage is the wire format between the IDE bridge and Laravel.
+//
+//	msg := BridgeMessage{
+//	    Type: "chat_send",
+//	    SessionID: "sess-42",
+//	    Data: "hello",
+//	}
 type BridgeMessage struct {
 	Type      string    `json:"type"`
 	Channel   string    `json:"channel,omitempty"`
@@ -23,6 +31,8 @@ type BridgeMessage struct {
 
 // Bridge maintains a WebSocket connection to the Laravel core-agentic
 // backend and forwards responses to a local ws.Hub.
+//
+//	bridge := NewBridge(hub, cfg)
 type Bridge struct {
 	cfg  Config
 	hub  *ws.Hub
@@ -31,22 +41,57 @@ type Bridge struct {
 	mu        sync.Mutex
 	connected bool
 	cancel    context.CancelFunc
+	observers []func(BridgeMessage)
 }
 
 // NewBridge creates a bridge that will connect to the Laravel backend and
 // forward incoming messages to the provided ws.Hub channels.
+//
+//	bridge := NewBridge(hub, cfg)
 func NewBridge(hub *ws.Hub, cfg Config) *Bridge {
 	return &Bridge{cfg: cfg, hub: hub}
 }
 
+// SetObserver registers a callback for inbound bridge messages.
+//
+//	bridge.SetObserver(func(msg BridgeMessage) {
+//	    fmt.Println(msg.Type)
+//	})
+func (b *Bridge) SetObserver(fn func(BridgeMessage)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if fn == nil {
+		b.observers = nil
+		return
+	}
+	b.observers = []func(BridgeMessage){fn}
+}
+
+// AddObserver registers an additional bridge observer.
+// Observers are invoked in registration order after each inbound message.
+//
+//	bridge.AddObserver(func(msg BridgeMessage) { log.Println(msg.Type) })
+func (b *Bridge) AddObserver(fn func(BridgeMessage)) {
+	if fn == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.observers = append(b.observers, fn)
+}
+
 // Start begins the connection loop in a background goroutine.
 // Call Shutdown to stop it.
+//
+//	bridge.Start(ctx)
 func (b *Bridge) Start(ctx context.Context) {
 	ctx, b.cancel = context.WithCancel(ctx)
 	go b.connectLoop(ctx)
 }
 
 // Shutdown cleanly closes the bridge.
+//
+//	bridge.Shutdown()
 func (b *Bridge) Shutdown() {
 	if b.cancel != nil {
 		b.cancel()
@@ -61,6 +106,10 @@ func (b *Bridge) Shutdown() {
 }
 
 // Connected reports whether the bridge has an active connection.
+//
+//	if bridge.Connected() {
+//	    fmt.Println("online")
+//	}
 func (b *Bridge) Connected() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -68,6 +117,8 @@ func (b *Bridge) Connected() bool {
 }
 
 // Send sends a message to the Laravel backend.
+//
+//	err := bridge.Send(BridgeMessage{Type: "dashboard_overview"})
 func (b *Bridge) Send(msg BridgeMessage) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -161,7 +212,22 @@ func (b *Bridge) readLoop(ctx context.Context) {
 		}
 
 		b.dispatch(msg)
+		for _, observer := range b.snapshotObservers() {
+			observer(msg)
+		}
 	}
+}
+
+func (b *Bridge) snapshotObservers() []func(BridgeMessage) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if len(b.observers) == 0 {
+		return nil
+	}
+	observers := make([]func(BridgeMessage), len(b.observers))
+	copy(observers, b.observers)
+	return observers
 }
 
 // dispatch routes an incoming message to the appropriate ws.Hub channel.

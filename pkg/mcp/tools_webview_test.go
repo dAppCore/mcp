@@ -1,6 +1,13 @@
 package mcp
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"testing"
 	"time"
 
@@ -215,6 +222,41 @@ func TestWebviewWaitInput_Good(t *testing.T) {
 	}
 }
 
+func TestWaitForSelector_Good(t *testing.T) {
+	ctx := context.Background()
+
+	attempts := 0
+	err := waitForSelector(ctx, 200*time.Millisecond, "#ready", func(selector string) error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("element not found: " + selector)
+		}
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("waitForSelector failed: %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("expected 3 attempts, got %d", attempts)
+	}
+}
+
+func TestWaitForSelector_Bad_Timeout(t *testing.T) {
+	ctx := context.Background()
+
+	start := time.Now()
+	err := waitForSelector(ctx, 50*time.Millisecond, "#missing", func(selector string) error {
+		return errors.New("element not found: " + selector)
+	})
+	if err == nil {
+		t.Fatal("expected waitForSelector to time out")
+	}
+	if time.Since(start) < 50*time.Millisecond {
+		t.Fatal("expected waitForSelector to honor timeout")
+	}
+}
+
 // TestWebviewConnectOutput_Good verifies the WebviewConnectOutput struct has expected fields.
 func TestWebviewConnectOutput_Good(t *testing.T) {
 	output := WebviewConnectOutput{
@@ -356,6 +398,61 @@ func TestWebviewScreenshotOutput_Good(t *testing.T) {
 	if output.Format != "png" {
 		t.Errorf("Expected format 'png', got %q", output.Format)
 	}
+}
+
+func TestNormalizeScreenshotData_Good_Png(t *testing.T) {
+	src := mustEncodeTestPNG(t)
+
+	out, format, err := normalizeScreenshotData(src, "png")
+	if err != nil {
+		t.Fatalf("normalizeScreenshotData failed: %v", err)
+	}
+	if format != "png" {
+		t.Fatalf("expected png format, got %q", format)
+	}
+	if !bytes.Equal(out, src) {
+		t.Fatal("expected png output to preserve the original bytes")
+	}
+}
+
+func TestNormalizeScreenshotData_Good_Jpeg(t *testing.T) {
+	src := mustEncodeTestPNG(t)
+
+	out, format, err := normalizeScreenshotData(src, "jpeg")
+	if err != nil {
+		t.Fatalf("normalizeScreenshotData failed: %v", err)
+	}
+	if format != "jpeg" {
+		t.Fatalf("expected jpeg format, got %q", format)
+	}
+	if bytes.Equal(out, src) {
+		t.Fatal("expected jpeg output to differ from png input")
+	}
+
+	if _, err := jpeg.Decode(bytes.NewReader(out)); err != nil {
+		t.Fatalf("expected output to decode as an image: %v", err)
+	}
+}
+
+func TestNormalizeScreenshotData_Bad_UnsupportedFormat(t *testing.T) {
+	src := mustEncodeTestPNG(t)
+
+	if _, _, err := normalizeScreenshotData(src, "gif"); err == nil {
+		t.Fatal("expected unsupported format error")
+	}
+}
+
+func mustEncodeTestPNG(t *testing.T) []byte {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{R: 200, G: 80, B: 40, A: 255})
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png encode failed: %v", err)
+	}
+	return buf.Bytes()
 }
 
 // TestWebviewElementInfo_Good verifies the WebviewElementInfo struct has expected fields.

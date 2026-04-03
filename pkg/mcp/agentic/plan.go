@@ -11,16 +11,22 @@ import (
 	"strings"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Plan represents an implementation plan for agent work.
+//
+//	plan := Plan{
+//	    Title:  "Add notifications",
+//	    Status: "draft",
+//	}
 type Plan struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
-	Status    string    `json:"status"`            // draft, ready, in_progress, needs_verification, verified, approved
+	Status    string    `json:"status"` // draft, ready, in_progress, needs_verification, verified, approved
 	Repo      string    `json:"repo,omitempty"`
 	Org       string    `json:"org,omitempty"`
 	Objective string    `json:"objective"`
@@ -32,18 +38,32 @@ type Plan struct {
 }
 
 // Phase represents a phase within an implementation plan.
+//
+//	phase := Phase{Name: "Implementation", Status: "pending"}
 type Phase struct {
-	Number   int      `json:"number"`
-	Name     string   `json:"name"`
-	Status   string   `json:"status"`             // pending, in_progress, done
-	Criteria []string `json:"criteria,omitempty"`
-	Tests    int      `json:"tests,omitempty"`
-	Notes    string   `json:"notes,omitempty"`
+	Number      int          `json:"number"`
+	Name        string       `json:"name"`
+	Status      string       `json:"status"` // pending, in_progress, done
+	Criteria    []string     `json:"criteria,omitempty"`
+	Tests       int          `json:"tests,omitempty"`
+	Notes       string       `json:"notes,omitempty"`
+	Checkpoints []Checkpoint `json:"checkpoints,omitempty"`
+}
+
+// Checkpoint records phase progress or completion details.
+//
+//	cp := Checkpoint{Notes: "Implemented transport hooks", Done: true}
+type Checkpoint struct {
+	Notes     string    `json:"notes,omitempty"`
+	Done      bool      `json:"done,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // --- Input/Output types ---
 
 // PlanCreateInput is the input for agentic_plan_create.
+//
+//	input := PlanCreateInput{Title: "Add notifications", Objective: "Broadcast MCP events"}
 type PlanCreateInput struct {
 	Title     string  `json:"title"`
 	Objective string  `json:"objective"`
@@ -54,6 +74,8 @@ type PlanCreateInput struct {
 }
 
 // PlanCreateOutput is the output for agentic_plan_create.
+//
+//	// out.Success == true, out.ID != ""
 type PlanCreateOutput struct {
 	Success bool   `json:"success"`
 	ID      string `json:"id"`
@@ -61,17 +83,23 @@ type PlanCreateOutput struct {
 }
 
 // PlanReadInput is the input for agentic_plan_read.
+//
+//	input := PlanReadInput{ID: "add-notifications"}
 type PlanReadInput struct {
 	ID string `json:"id"`
 }
 
 // PlanReadOutput is the output for agentic_plan_read.
+//
+//	// out.Plan.Title == "Add notifications"
 type PlanReadOutput struct {
 	Success bool `json:"success"`
 	Plan    Plan `json:"plan"`
 }
 
 // PlanUpdateInput is the input for agentic_plan_update.
+//
+//	input := PlanUpdateInput{ID: "add-notifications", Status: "ready"}
 type PlanUpdateInput struct {
 	ID        string  `json:"id"`
 	Status    string  `json:"status,omitempty"`
@@ -83,62 +111,102 @@ type PlanUpdateInput struct {
 }
 
 // PlanUpdateOutput is the output for agentic_plan_update.
+//
+//	// out.Plan.Status == "ready"
 type PlanUpdateOutput struct {
 	Success bool `json:"success"`
 	Plan    Plan `json:"plan"`
 }
 
 // PlanDeleteInput is the input for agentic_plan_delete.
+//
+//	input := PlanDeleteInput{ID: "add-notifications"}
 type PlanDeleteInput struct {
 	ID string `json:"id"`
 }
 
 // PlanDeleteOutput is the output for agentic_plan_delete.
+//
+//	// out.Deleted == "add-notifications"
 type PlanDeleteOutput struct {
 	Success bool   `json:"success"`
 	Deleted string `json:"deleted"`
 }
 
 // PlanListInput is the input for agentic_plan_list.
+//
+//	input := PlanListInput{Status: "draft"}
 type PlanListInput struct {
 	Status string `json:"status,omitempty"`
 	Repo   string `json:"repo,omitempty"`
 }
 
 // PlanListOutput is the output for agentic_plan_list.
+//
+//	// len(out.Plans) >= 1
 type PlanListOutput struct {
 	Success bool   `json:"success"`
 	Count   int    `json:"count"`
 	Plans   []Plan `json:"plans"`
 }
 
+// PlanCheckpointInput is the input for agentic_plan_checkpoint.
+//
+//	input := PlanCheckpointInput{ID: "add-notifications", Phase: 1, Done: true}
+type PlanCheckpointInput struct {
+	ID    string `json:"id"`
+	Phase int    `json:"phase"`
+	Notes string `json:"notes,omitempty"`
+	Done  bool   `json:"done,omitempty"`
+}
+
+// PlanCheckpointOutput is the output for agentic_plan_checkpoint.
+//
+//	// out.Plan.Phases[0].Status == "done"
+type PlanCheckpointOutput struct {
+	Success bool `json:"success"`
+	Plan    Plan `json:"plan"`
+}
+
 // --- Registration ---
 
-func (s *PrepSubsystem) registerPlanTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerPlanTools(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_create",
 		Description: "Create an implementation plan. Plans track phased work with acceptance criteria, status lifecycle (draft → ready → in_progress → needs_verification → verified → approved), and per-phase progress.",
 	}, s.planCreate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_read",
 		Description: "Read an implementation plan by ID. Returns the full plan with all phases, criteria, and status.",
 	}, s.planRead)
 
-	mcp.AddTool(server, &mcp.Tool{
+	// agentic_plan_status is kept as a user-facing alias for the read tool.
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
+		Name:        "agentic_plan_status",
+		Description: "Get the current status of an implementation plan by ID. Returns the full plan with all phases, criteria, and status.",
+	}, s.planRead)
+
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_update",
 		Description: "Update an implementation plan. Supports partial updates — only provided fields are changed. Use this to advance status, update phases, or add notes.",
 	}, s.planUpdate)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_delete",
 		Description: "Delete an implementation plan by ID. Permanently removes the plan file.",
 	}, s.planDelete)
 
-	mcp.AddTool(server, &mcp.Tool{
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_plan_list",
 		Description: "List implementation plans. Supports filtering by status (draft, ready, in_progress, etc.) and repo.",
 	}, s.planList)
+
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
+		Name:        "agentic_plan_checkpoint",
+		Description: "Record a checkpoint for a plan phase and optionally mark the phase done.",
+	}, s.planCheckpoint)
 }
 
 // --- Handlers ---
@@ -309,6 +377,48 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 	}, nil
 }
 
+func (s *PrepSubsystem) planCheckpoint(_ context.Context, _ *mcp.CallToolRequest, input PlanCheckpointInput) (*mcp.CallToolResult, PlanCheckpointOutput, error) {
+	if input.ID == "" {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "id is required", nil)
+	}
+	if input.Phase <= 0 {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "phase must be greater than zero", nil)
+	}
+	if input.Notes == "" && !input.Done {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "notes or done is required", nil)
+	}
+
+	plan, err := readPlan(s.plansDir(), input.ID)
+	if err != nil {
+		return nil, PlanCheckpointOutput{}, err
+	}
+
+	phaseIndex := input.Phase - 1
+	if phaseIndex >= len(plan.Phases) {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "phase not found", nil)
+	}
+
+	phase := &plan.Phases[phaseIndex]
+	phase.Checkpoints = append(phase.Checkpoints, Checkpoint{
+		Notes:     input.Notes,
+		Done:      input.Done,
+		CreatedAt: time.Now(),
+	})
+	if input.Done {
+		phase.Status = "done"
+	}
+
+	plan.UpdatedAt = time.Now()
+	if _, err := writePlan(s.plansDir(), plan); err != nil {
+		return nil, PlanCheckpointOutput{}, coreerr.E("planCheckpoint", "failed to write plan", err)
+	}
+
+	return nil, PlanCheckpointOutput{
+		Success: true,
+		Plan:    *plan,
+	}, nil
+}
+
 // --- Helpers ---
 
 func (s *PrepSubsystem) plansDir() string {
@@ -373,7 +483,7 @@ func writePlan(dir string, plan *Plan) (string, error) {
 		return "", err
 	}
 
-	return path, coreio.Local.Write(path, string(data))
+	return path, writeAtomic(path, string(data))
 }
 
 func validPlanStatus(status string) bool {

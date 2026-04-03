@@ -25,18 +25,18 @@ type DispatchConfig struct {
 // RateConfig controls pacing between task dispatches.
 type RateConfig struct {
 	ResetUTC       string `yaml:"reset_utc"`       // Daily quota reset time (UTC), e.g. "06:00"
-	DailyLimit     int    `yaml:"daily_limit"`      // Max requests per day (0 = unknown)
-	MinDelay       int    `yaml:"min_delay"`        // Minimum seconds between task starts
-	SustainedDelay int    `yaml:"sustained_delay"`  // Delay when pacing for full-day use
-	BurstWindow    int    `yaml:"burst_window"`     // Hours before reset where burst kicks in
-	BurstDelay     int    `yaml:"burst_delay"`      // Delay during burst window
+	DailyLimit     int    `yaml:"daily_limit"`     // Max requests per day (0 = unknown)
+	MinDelay       int    `yaml:"min_delay"`       // Minimum seconds between task starts
+	SustainedDelay int    `yaml:"sustained_delay"` // Delay when pacing for full-day use
+	BurstWindow    int    `yaml:"burst_window"`    // Hours before reset where burst kicks in
+	BurstDelay     int    `yaml:"burst_delay"`     // Delay during burst window
 }
 
 // AgentsConfig is the root of config/agents.yaml.
 type AgentsConfig struct {
-	Version     int                `yaml:"version"`
-	Dispatch    DispatchConfig     `yaml:"dispatch"`
-	Concurrency map[string]int    `yaml:"concurrency"`
+	Version     int                   `yaml:"version"`
+	Dispatch    DispatchConfig        `yaml:"dispatch"`
+	Concurrency map[string]int        `yaml:"concurrency"`
 	Rates       map[string]RateConfig `yaml:"rates"`
 }
 
@@ -243,7 +243,7 @@ func (s *PrepSubsystem) drainQueue() {
 		st.Status = "running"
 		st.PID = cmd.Process.Pid
 		st.Runs++
-		writeStatus(wsDir, st)
+		s.saveStatus(wsDir, st)
 
 		go func() {
 			cmd.Wait()
@@ -252,7 +252,7 @@ func (s *PrepSubsystem) drainQueue() {
 			if st2, err := readStatus(wsDir); err == nil {
 				st2.Status = "completed"
 				st2.PID = 0
-				writeStatus(wsDir, st2)
+				s.saveStatus(wsDir, st2)
 			}
 
 			// Ingest scan findings as issues

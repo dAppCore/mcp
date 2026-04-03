@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
@@ -55,11 +57,14 @@ type TCPTransport struct {
 
 // NewTCPTransport creates a new TCP transport listener.
 // Defaults to 127.0.0.1 when the host component is empty (e.g. ":9100").
+// Defaults to DefaultTCPAddr when addr is empty.
 // Emits a security warning when explicitly binding to 0.0.0.0 (all interfaces).
 //
 //	t, err := NewTCPTransport("127.0.0.1:9100")
 //	t, err := NewTCPTransport(":9100") // defaults to 127.0.0.1:9100
 func NewTCPTransport(addr string) (*TCPTransport, error) {
+	addr = normalizeTCPAddr(addr)
+
 	host, port, _ := net.SplitHostPort(addr)
 	if host == "" {
 		addr = net.JoinHostPort("127.0.0.1", port)
@@ -71,6 +76,23 @@ func NewTCPTransport(addr string) (*TCPTransport, error) {
 		return nil, err
 	}
 	return &TCPTransport{addr: addr, listener: listener}, nil
+}
+
+func normalizeTCPAddr(addr string) string {
+	if addr == "" {
+		return DefaultTCPAddr
+	}
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+
+	if host == "" {
+		return net.JoinHostPort("127.0.0.1", port)
+	}
+
+	return addr
 }
 
 // ServeTCP starts a TCP server for the MCP service.
@@ -91,11 +113,7 @@ func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 		<-ctx.Done()
 		_ = t.listener.Close()
 	}()
-
-	if addr == "" {
-		addr = t.listener.Addr().String()
-	}
-	diagPrintf("MCP TCP server listening on %s\n", addr)
+	diagPrintf("MCP TCP server listening on %s\n", t.listener.Addr().String())
 
 	for {
 		conn, err := t.listener.Accept()
@@ -123,6 +141,7 @@ func (s *Service) handleConnection(ctx context.Context, conn net.Conn) {
 		conn.Close()
 		return
 	}
+	defer session.Close()
 	// Block until the session ends
 	if err := session.Wait(); err != nil {
 		diagPrintf("Session ended: %v\n", err)

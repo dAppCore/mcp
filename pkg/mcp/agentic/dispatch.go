@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreio "forge.lthn.ai/core/go-io"
 	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -42,8 +43,9 @@ type DispatchOutput struct {
 	OutputFile   string `json:"output_file,omitempty"`
 }
 
-func (s *PrepSubsystem) registerDispatchTool(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+func (s *PrepSubsystem) registerDispatchTool(svc *coremcp.Service) {
+	server := svc.Server()
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_dispatch",
 		Description: "Dispatch a subagent (Gemini, Codex, or Claude) to work on a task. Preps a sandboxed workspace first, then spawns the agent inside it. Templates: conventions, security, coding.",
 	}, s.dispatch)
@@ -137,12 +139,14 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	// Step 2: Check per-agent concurrency limit
 	if !s.canDispatchAgent(input.Agent) {
 		// Queue the workspace — write status as "queued" and return
-		writeStatus(wsDir, &WorkspaceStatus{
+		s.saveStatus(wsDir, &WorkspaceStatus{
 			Status:    "queued",
 			Agent:     input.Agent,
 			Repo:      input.Repo,
 			Org:       input.Org,
 			Task:      input.Task,
+			Issue:     input.Issue,
+			Branch:    prepOut.Branch,
 			StartedAt: time.Now(),
 			Runs:      0,
 		})
@@ -157,12 +161,14 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 
 	// Step 3: Write status BEFORE spawning so concurrent dispatches
 	// see this workspace as "running" during the concurrency check.
-	writeStatus(wsDir, &WorkspaceStatus{
+	s.saveStatus(wsDir, &WorkspaceStatus{
 		Status:    "running",
 		Agent:     input.Agent,
 		Repo:      input.Repo,
 		Org:       input.Org,
 		Task:      input.Task,
+		Issue:     input.Issue,
+		Branch:    prepOut.Branch,
 		StartedAt: time.Now(),
 		Runs:      1,
 	})
@@ -204,11 +210,13 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()
 		// Revert status so the slot is freed
-		writeStatus(wsDir, &WorkspaceStatus{
+		s.saveStatus(wsDir, &WorkspaceStatus{
 			Status: "failed",
 			Agent:  input.Agent,
 			Repo:   input.Repo,
 			Task:   input.Task,
+			Issue:  input.Issue,
+			Branch: prepOut.Branch,
 		})
 		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to spawn "+input.Agent, err)
 	}
@@ -216,12 +224,14 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	pid := cmd.Process.Pid
 
 	// Update status with PID now that agent is running
-	writeStatus(wsDir, &WorkspaceStatus{
+	s.saveStatus(wsDir, &WorkspaceStatus{
 		Status:    "running",
 		Agent:     input.Agent,
 		Repo:      input.Repo,
 		Org:       input.Org,
 		Task:      input.Task,
+		Issue:     input.Issue,
+		Branch:    prepOut.Branch,
 		PID:       pid,
 		StartedAt: time.Now(),
 		Runs:      1,
@@ -233,12 +243,37 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		cmd.Wait()
 		outFile.Close()
 
-		// Update status to completed
-		if st, err := readStatus(wsDir); err == nil {
-			st.Status = "completed"
-			st.PID = 0
-			writeStatus(wsDir, st)
+		postCtx := context.WithoutCancel(ctx)
+		status := "completed"
+		channel := coremcp.ChannelAgentComplete
+		payload := map[string]any{
+			"workspace": filepath.Base(wsDir),
+			"repo":      input.Repo,
+			"org":       input.Org,
+			"agent":     input.Agent,
+			"branch":    prepOut.Branch,
 		}
+
+		// Update status to completed or blocked.
+		if st, err := readStatus(wsDir); err == nil {
+			st.PID = 0
+			if data, err := coreio.Local.Read(filepath.Join(wsDir, "src", "BLOCKED.md")); err == nil {
+				status = "blocked"
+				channel = coremcp.ChannelAgentBlocked
+				st.Status = status
+				st.Question = strings.TrimSpace(data)
+				if st.Question != "" {
+					payload["question"] = st.Question
+				}
+			} else {
+				st.Status = status
+			}
+			s.saveStatus(wsDir, st)
+		}
+
+		payload["status"] = status
+		s.emitChannel(postCtx, channel, payload)
+		s.emitChannel(postCtx, coremcp.ChannelAgentStatus, payload)
 
 		// Ingest scan findings as issues
 		s.ingestFindings(wsDir)
@@ -256,4 +291,3 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		OutputFile:   outputFile,
 	}, nil
 }
-

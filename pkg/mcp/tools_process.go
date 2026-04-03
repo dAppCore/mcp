@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
@@ -139,32 +141,32 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 		return false
 	}
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_start",
 		Description: "Start a new external process. Returns process ID for tracking.",
 	}, s.processStart)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_stop",
 		Description: "Gracefully stop a running process by ID.",
 	}, s.processStop)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_kill",
 		Description: "Force kill a process by ID. Use when process_stop doesn't work.",
 	}, s.processKill)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_list",
 		Description: "List all managed processes. Use running_only=true for only active processes.",
 	}, s.processList)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_output",
 		Description: "Get the captured output of a process by ID.",
 	}, s.processOutput)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_input",
 		Description: "Send input to a running process stdin.",
 	}, s.processInput)
@@ -174,6 +176,10 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 
 // processStart handles the process_start tool call.
 func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, input ProcessStartInput) (*mcp.CallToolResult, ProcessStartOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessStartOutput{}, log.E("processStart", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_start", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
 
 	if input.Command == "" {
@@ -183,7 +189,7 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 	opts := process.RunOptions{
 		Command: input.Command,
 		Args:    input.Args,
-		Dir:     input.Dir,
+		Dir:     s.resolveWorkspacePath(input.Dir),
 		Env:     input.Env,
 	}
 
@@ -201,14 +207,29 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 		Args:      proc.Args,
 		StartedAt: proc.StartedAt,
 	}
-	s.ChannelSend(ctx, "process.start", map[string]any{
-		"id": output.ID, "pid": output.PID, "command": output.Command,
+	s.recordProcessRuntime(output.ID, processRuntime{
+		Command:   output.Command,
+		Args:      output.Args,
+		Dir:       info.Dir,
+		StartedAt: output.StartedAt,
+	})
+	s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
+		"id":        output.ID,
+		"pid":       output.PID,
+		"command":   output.Command,
+		"args":      output.Args,
+		"dir":       info.Dir,
+		"startedAt": output.StartedAt,
 	})
 	return nil, output, nil
 }
 
 // processStop handles the process_stop tool call.
 func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, input ProcessStopInput) (*mcp.CallToolResult, ProcessStopOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessStopOutput{}, log.E("processStop", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_stop", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
@@ -221,14 +242,23 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessStopOutput{}, log.E("processStop", "process not found", err)
 	}
 
-	// For graceful stop, we use Kill() which sends SIGKILL
-	// A more sophisticated implementation could use SIGTERM first
-	if err := proc.Kill(); err != nil {
-		log.Error("mcp: process stop kill failed", "id", input.ID, "err", err)
+	// Use the process service's graceful shutdown path first so callers get
+	// a real stop signal before we fall back to a hard kill internally.
+	if err := proc.Shutdown(); err != nil {
+		log.Error("mcp: process stop failed", "id", input.ID, "err", err)
 		return nil, ProcessStopOutput{}, log.E("processStop", "failed to stop process", err)
 	}
 
-	s.ChannelSend(ctx, "process.exit", map[string]any{"id": input.ID, "signal": "stop"})
+	info := proc.Info()
+	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
+		"id":        input.ID,
+		"signal":    "stop",
+		"command":   info.Command,
+		"args":      info.Args,
+		"dir":       info.Dir,
+		"startedAt": info.StartedAt,
+	})
+	s.emitTestResult(ctx, input.ID, 0, 0, "stop", "")
 	return nil, ProcessStopOutput{
 		ID:      input.ID,
 		Success: true,
@@ -238,10 +268,20 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // processKill handles the process_kill tool call.
 func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, input ProcessKillInput) (*mcp.CallToolResult, ProcessKillOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessKillOutput{}, log.E("processKill", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_kill", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
 		return nil, ProcessKillOutput{}, errIDEmpty
+	}
+
+	proc, err := s.processService.Get(input.ID)
+	if err != nil {
+		log.Error("mcp: process kill failed", "id", input.ID, "err", err)
+		return nil, ProcessKillOutput{}, log.E("processKill", "process not found", err)
 	}
 
 	if err := s.processService.Kill(input.ID); err != nil {
@@ -249,7 +289,16 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessKillOutput{}, log.E("processKill", "failed to kill process", err)
 	}
 
-	s.ChannelSend(ctx, "process.exit", map[string]any{"id": input.ID, "signal": "kill"})
+	info := proc.Info()
+	s.ChannelSend(ctx, ChannelProcessExit, map[string]any{
+		"id":        input.ID,
+		"signal":    "kill",
+		"command":   info.Command,
+		"args":      info.Args,
+		"dir":       info.Dir,
+		"startedAt": info.StartedAt,
+	})
+	s.emitTestResult(ctx, input.ID, 0, 0, "kill", "")
 	return nil, ProcessKillOutput{
 		ID:      input.ID,
 		Success: true,
@@ -259,6 +308,10 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // processList handles the process_list tool call.
 func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, input ProcessListInput) (*mcp.CallToolResult, ProcessListOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessListOutput{}, log.E("processList", "process service unavailable", nil)
+	}
+
 	s.logger.Info("MCP tool execution", "tool", "process_list", "running_only", input.RunningOnly, "user", log.Username())
 
 	var procs []*process.Process
@@ -292,6 +345,10 @@ func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, inp
 
 // processOutput handles the process_output tool call.
 func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, input ProcessOutputInput) (*mcp.CallToolResult, ProcessOutputOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessOutputOutput{}, log.E("processOutput", "process service unavailable", nil)
+	}
+
 	s.logger.Info("MCP tool execution", "tool", "process_output", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {
@@ -312,6 +369,10 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 
 // processInput handles the process_input tool call.
 func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, input ProcessInputInput) (*mcp.CallToolResult, ProcessInputOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessInputOutput{}, log.E("processInput", "process service unavailable", nil)
+	}
+
 	s.logger.Security("MCP tool execution", "tool", "process_input", "id", input.ID, "user", log.Username())
 
 	if input.ID == "" {

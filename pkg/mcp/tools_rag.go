@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EUPL-1.2
+
 package mcp
 
 import (
@@ -99,17 +101,17 @@ type RAGCollectionsOutput struct {
 
 // registerRAGTools adds RAG tools to the MCP server.
 func (s *Service) registerRAGTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_query",
 		Description: "Query the RAG vector database for relevant documentation. Returns semantically similar content based on the query.",
 	}, s.ragQuery)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_ingest",
 		Description: "Ingest documents into the RAG vector database. Supports both single files and directories.",
 	}, s.ragIngest)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_collections",
 		Description: "List all available collections in the RAG vector database.",
 	}, s.ragCollections)
@@ -183,12 +185,13 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		log.Error("mcp: rag ingest stat failed", "path", input.Path, "err", err)
 		return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to access path", err)
 	}
+	resolvedPath := s.resolveWorkspacePath(input.Path)
 
 	var message string
 	var chunks int
 	if info.IsDir() {
 		// Ingest directory
-		err = rag.IngestDirectory(ctx, input.Path, collection, input.Recreate)
+		err = rag.IngestDirectory(ctx, resolvedPath, collection, input.Recreate)
 		if err != nil {
 			log.Error("mcp: rag ingest directory failed", "path", input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest directory", err)
@@ -196,7 +199,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		message = core.Sprintf("Successfully ingested directory %s into collection %s", input.Path, collection)
 	} else {
 		// Ingest single file
-		chunks, err = rag.IngestSingleFile(ctx, input.Path, collection)
+		chunks, err = rag.IngestSingleFile(ctx, resolvedPath, collection)
 		if err != nil {
 			log.Error("mcp: rag ingest file failed", "path", input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest file", err)

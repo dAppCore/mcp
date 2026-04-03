@@ -107,6 +107,44 @@ func TestServeHTTP_Good_AuthRequired(t *testing.T) {
 	<-errCh
 }
 
+func TestServeHTTP_Good_NoAuthConfigured(t *testing.T) {
+	os.Unsetenv("MCP_AUTH_TOKEN")
+
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("Failed to create service: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to find free port: %v", err)
+	}
+	addr := listener.Addr().String()
+	listener.Close()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.ServeHTTP(ctx, addr)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == 401 {
+		t.Fatalf("expected /mcp to be open without MCP_AUTH_TOKEN, got %d", resp.StatusCode)
+	}
+
+	cancel()
+	<-errCh
+}
+
 func TestWithAuth_Good_ValidToken(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -157,19 +195,18 @@ func TestWithAuth_Bad_MissingToken(t *testing.T) {
 	}
 }
 
-func TestWithAuth_Bad_EmptyConfiguredToken(t *testing.T) {
+func TestWithAuth_Good_EmptyConfiguredToken_DisablesAuth(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	})
 
-	// Empty token now requires explicit configuration
 	wrapped := withAuth("", handler)
 
 	req, _ := http.NewRequest("GET", "/", nil)
 	rr := &fakeResponseWriter{code: 200}
 	wrapped.ServeHTTP(rr, req)
-	if rr.code != 401 {
-		t.Errorf("expected 401 with empty configured token, got %d", rr.code)
+	if rr.code != 200 {
+		t.Errorf("expected 200 with empty configured token, got %d", rr.code)
 	}
 }
 

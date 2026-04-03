@@ -6,10 +6,14 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -20,31 +24,29 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Service provides a lightweight MCP server with file operations only.
+// Service provides a lightweight MCP server with file operations and
+// optional subsystems.
 // For full GUI features, use the core-gui package.
 //
 //	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "/home/user/project"})
 //	defer svc.Shutdown(ctx)
 type Service struct {
-	*core.ServiceRuntime[McpOptions] // Core access via s.Core()
+	*core.ServiceRuntime[struct{}] // Core access via s.Core()
 
 	server         *mcp.Server
-	workspaceRoot  string           // Root directory for file operations (empty = unrestricted)
+	workspaceRoot  string           // Root directory for file operations (empty = cwd unless Unrestricted)
 	medium         io.Medium        // Filesystem medium for sandboxed operations
-	subsystems     []Subsystem      // Additional subsystems registered via WithSubsystem
+	subsystems     []Subsystem      // Additional subsystems registered via Options.Subsystems
 	logger         *log.Logger      // Logger for tool execution auditing
 	processService *process.Service // Process management service (optional)
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
 	wsAddr         string           // WebSocket server address
 	wsMu           sync.Mutex       // Protects wsServer and wsAddr
-	stdioMode      bool             // True when running via stdio transport
-	tools          []ToolRecord     // Parallel tool registry for REST bridge
-	coreRef        any              // Deprecated: use s.Core() via ServiceRuntime
+	processMu      sync.Mutex       // Protects processMeta
+	processMeta    map[string]processRuntime
+	tools          []ToolRecord // Parallel tool registry for REST bridge
 }
-
-// McpOptions configures the MCP service runtime.
-type McpOptions struct{}
 
 // Options configures a Service.
 //
@@ -61,7 +63,7 @@ type Options struct {
 	Subsystems     []Subsystem      // Additional tool groups registered at startup
 }
 
-// New creates a new MCP service with file operations.
+// New creates a new MCP service with file operations and optional subsystems.
 //
 //	svc, err := mcp.New(mcp.Options{WorkspaceRoot: "."})
 func New(opts Options) (*Service, error) {
@@ -82,8 +84,8 @@ func New(opts Options) (*Service, error) {
 		server:         server,
 		processService: opts.ProcessService,
 		wsHub:          opts.WSHub,
-		subsystems:     opts.Subsystems,
 		logger:         log.Default(),
+		processMeta:    make(map[string]processRuntime),
 	}
 
 	// Workspace root: unrestricted, explicit root, or default to cwd
@@ -93,10 +95,18 @@ func New(opts Options) (*Service, error) {
 	} else {
 		root := opts.WorkspaceRoot
 		if root == "" {
-			root = core.Env("DIR_CWD")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, core.E("mcp.New", "failed to get working directory", err)
+			}
+			root = cwd
 		}
-		s.workspaceRoot = root
-		m, merr := io.NewSandboxed(root)
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return nil, core.E("mcp.New", "failed to resolve workspace root", err)
+		}
+		s.workspaceRoot = abs
+		m, merr := io.NewSandboxed(abs)
 		if merr != nil {
 			return nil, core.E("mcp.New", "failed to create workspace medium", merr)
 		}
@@ -105,21 +115,23 @@ func New(opts Options) (*Service, error) {
 
 	s.registerTools(s.server)
 
-	for _, sub := range s.subsystems {
-		sub.RegisterTools(s.server)
+	s.subsystems = make([]Subsystem, 0, len(opts.Subsystems))
+	for _, sub := range opts.Subsystems {
+		if sub == nil {
+			continue
+		}
+		s.subsystems = append(s.subsystems, sub)
 		if sn, ok := sub.(SubsystemWithNotifier); ok {
 			sn.SetNotifier(s)
 		}
-		// Wire channel callback for subsystems that use func-based notification
-		type channelWirer interface {
-			OnChannel(func(ctx context.Context, channel string, data any))
-		}
-		if cw, ok := sub.(channelWirer); ok {
+		// Wire channel callback for subsystems that use func-based notification.
+		if cw, ok := sub.(SubsystemWithChannelCallback); ok {
 			svc := s // capture for closure
 			cw.OnChannel(func(ctx context.Context, channel string, data any) {
 				svc.ChannelSend(ctx, channel, data)
 			})
 		}
+		sub.RegisterTools(s)
 	}
 
 	return s, nil
@@ -131,7 +143,7 @@ func New(opts Options) (*Service, error) {
 //	    fmt.Println(sub.Name())
 //	}
 func (s *Service) Subsystems() []Subsystem {
-	return s.subsystems
+	return slices.Clone(s.subsystems)
 }
 
 // SubsystemsSeq returns an iterator over the registered subsystems.
@@ -140,7 +152,7 @@ func (s *Service) Subsystems() []Subsystem {
 //	    fmt.Println(sub.Name())
 //	}
 func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
-	return slices.Values(s.subsystems)
+	return slices.Values(slices.Clone(s.subsystems))
 }
 
 // Tools returns all recorded tool metadata.
@@ -149,7 +161,7 @@ func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
 //	    fmt.Printf("%s (%s): %s\n", t.Name, t.Group, t.Description)
 //	}
 func (s *Service) Tools() []ToolRecord {
-	return s.tools
+	return slices.Clone(s.tools)
 }
 
 // ToolsSeq returns an iterator over all recorded tool metadata.
@@ -158,7 +170,7 @@ func (s *Service) Tools() []ToolRecord {
 //	    fmt.Println(rec.Name)
 //	}
 func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
-	return slices.Values(s.tools)
+	return slices.Values(slices.Clone(s.tools))
 }
 
 // Shutdown gracefully shuts down all subsystems that support it.
@@ -167,16 +179,41 @@ func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
 //	defer cancel()
 //	if err := svc.Shutdown(ctx); err != nil { log.Fatal(err) }
 func (s *Service) Shutdown(ctx context.Context) error {
+	var shutdownErr error
+
 	for _, sub := range s.subsystems {
 		if sh, ok := sub.(SubsystemWithShutdown); ok {
 			if err := sh.Shutdown(ctx); err != nil {
-				return log.E("mcp.Shutdown", "shutdown "+sub.Name(), err)
+				if shutdownErr == nil {
+					shutdownErr = log.E("mcp.Shutdown", "shutdown "+sub.Name(), err)
+				}
 			}
 		}
 	}
-	return nil
-}
 
+	if s.wsServer != nil {
+		s.wsMu.Lock()
+		server := s.wsServer
+		s.wsMu.Unlock()
+
+		if err := server.Shutdown(ctx); err != nil && shutdownErr == nil {
+			shutdownErr = log.E("mcp.Shutdown", "shutdown websocket server", err)
+		}
+
+		s.wsMu.Lock()
+		if s.wsServer == server {
+			s.wsServer = nil
+			s.wsAddr = ""
+		}
+		s.wsMu.Unlock()
+	}
+
+	if err := closeWebviewConnection(); err != nil && shutdownErr == nil {
+		shutdownErr = log.E("mcp.Shutdown", "close webview connection", err)
+	}
+
+	return shutdownErr
+}
 
 // WSHub returns the WebSocket hub, or nil if not configured.
 //
@@ -196,7 +233,30 @@ func (s *Service) ProcessService() *process.Service {
 	return s.processService
 }
 
-// registerTools adds file operation tools to the MCP server.
+// resolveWorkspacePath converts a tool path into the filesystem path the
+// service actually operates on.
+//
+// Sandboxed services keep paths anchored under workspaceRoot. Unrestricted
+// services preserve absolute paths and clean relative ones against the current
+// working directory.
+func (s *Service) resolveWorkspacePath(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	if s.workspaceRoot == "" {
+		return filepath.Clean(path)
+	}
+
+	clean := filepath.Clean(string(filepath.Separator) + path)
+	clean = strings.TrimPrefix(clean, string(filepath.Separator))
+	if clean == "." || clean == "" {
+		return s.workspaceRoot
+	}
+	return filepath.Join(s.workspaceRoot, clean)
+}
+
+// registerTools adds the built-in tool groups to the MCP server.
 func (s *Service) registerTools(server *mcp.Server) {
 	// File operations
 	addToolRecorded(s, server, "files", &mcp.Tool{
@@ -250,6 +310,13 @@ func (s *Service) registerTools(server *mcp.Server) {
 		Name:        "lang_list",
 		Description: "Get list of supported programming languages",
 	}, s.getSupportedLanguages)
+
+	// Additional built-in tool groups.
+	s.registerMetricsTools(server)
+	s.registerRAGTools(server)
+	s.registerProcessTools(server)
+	s.registerWebviewTools(server)
+	s.registerWSTools(server)
 }
 
 // Tool input/output types for MCP file operations.
@@ -399,7 +466,7 @@ type GetSupportedLanguagesInput struct{}
 
 // GetSupportedLanguagesOutput contains the list of supported languages.
 //
-//	// len(out.Languages) == 15
+//	// len(out.Languages) == 23
 //	// out.Languages[0].ID == "typescript"
 type GetSupportedLanguagesOutput struct {
 	Languages []LanguageInfo `json:"languages"` // all recognised languages
@@ -423,8 +490,8 @@ type LanguageInfo struct {
 //	}
 type EditDiffInput struct {
 	Path       string `json:"path"`                  // e.g. "main.go"
-	OldString  string `json:"old_string"`             // text to find
-	NewString  string `json:"new_string"`             // replacement text
+	OldString  string `json:"old_string"`            // text to find
+	NewString  string `json:"new_string"`            // replacement text
 	ReplaceAll bool   `json:"replace_all,omitempty"` // replace all occurrences (default: first only)
 }
 
@@ -440,6 +507,10 @@ type EditDiffOutput struct {
 // Tool handlers
 
 func (s *Service) readFile(ctx context.Context, req *mcp.CallToolRequest, input ReadFileInput) (*mcp.CallToolResult, ReadFileOutput, error) {
+	if s.medium == nil {
+		return nil, ReadFileOutput{}, log.E("mcp.readFile", "workspace medium unavailable", nil)
+	}
+
 	content, err := s.medium.Read(input.Path)
 	if err != nil {
 		return nil, ReadFileOutput{}, log.E("mcp.readFile", "failed to read file", err)
@@ -452,6 +523,10 @@ func (s *Service) readFile(ctx context.Context, req *mcp.CallToolRequest, input 
 }
 
 func (s *Service) writeFile(ctx context.Context, req *mcp.CallToolRequest, input WriteFileInput) (*mcp.CallToolResult, WriteFileOutput, error) {
+	if s.medium == nil {
+		return nil, WriteFileOutput{}, log.E("mcp.writeFile", "workspace medium unavailable", nil)
+	}
+
 	// Medium.Write creates parent directories automatically
 	if err := s.medium.Write(input.Path, input.Content); err != nil {
 		return nil, WriteFileOutput{}, log.E("mcp.writeFile", "failed to write file", err)
@@ -460,10 +535,17 @@ func (s *Service) writeFile(ctx context.Context, req *mcp.CallToolRequest, input
 }
 
 func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, input ListDirectoryInput) (*mcp.CallToolResult, ListDirectoryOutput, error) {
+	if s.medium == nil {
+		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "workspace medium unavailable", nil)
+	}
+
 	entries, err := s.medium.List(input.Path)
 	if err != nil {
 		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
 	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
 	result := make([]DirectoryEntry, 0, len(entries))
 	for _, e := range entries {
 		info, _ := e.Info()
@@ -472,11 +554,8 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 			size = info.Size()
 		}
 		result = append(result, DirectoryEntry{
-			Name: e.Name(),
-			Path: core.JoinPath(input.Path, e.Name()), // Note: This might be relative path, client might expect absolute?
-			// Issue 103 says "Replace ... with local.Medium sandboxing".
-			// Previous code returned `core.JoinPath(input.Path, e.Name())`.
-			// If input.Path is relative, this preserves it.
+			Name:  e.Name(),
+			Path:  directoryEntryPath(input.Path, e.Name()),
 			IsDir: e.IsDir(),
 			Size:  size,
 		})
@@ -484,7 +563,23 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 	return nil, ListDirectoryOutput{Entries: result, Path: input.Path}, nil
 }
 
+// directoryEntryPath returns the documented display path for a directory entry.
+//
+// Example:
+//
+//	directoryEntryPath("src", "main.go") == "src/main.go"
+func directoryEntryPath(dir, name string) string {
+	if dir == "" {
+		return name
+	}
+	return core.JoinPath(dir, name)
+}
+
 func (s *Service) createDirectory(ctx context.Context, req *mcp.CallToolRequest, input CreateDirectoryInput) (*mcp.CallToolResult, CreateDirectoryOutput, error) {
+	if s.medium == nil {
+		return nil, CreateDirectoryOutput{}, log.E("mcp.createDirectory", "workspace medium unavailable", nil)
+	}
+
 	if err := s.medium.EnsureDir(input.Path); err != nil {
 		return nil, CreateDirectoryOutput{}, log.E("mcp.createDirectory", "failed to create directory", err)
 	}
@@ -492,6 +587,10 @@ func (s *Service) createDirectory(ctx context.Context, req *mcp.CallToolRequest,
 }
 
 func (s *Service) deleteFile(ctx context.Context, req *mcp.CallToolRequest, input DeleteFileInput) (*mcp.CallToolResult, DeleteFileOutput, error) {
+	if s.medium == nil {
+		return nil, DeleteFileOutput{}, log.E("mcp.deleteFile", "workspace medium unavailable", nil)
+	}
+
 	if err := s.medium.Delete(input.Path); err != nil {
 		return nil, DeleteFileOutput{}, log.E("mcp.deleteFile", "failed to delete file", err)
 	}
@@ -499,6 +598,10 @@ func (s *Service) deleteFile(ctx context.Context, req *mcp.CallToolRequest, inpu
 }
 
 func (s *Service) renameFile(ctx context.Context, req *mcp.CallToolRequest, input RenameFileInput) (*mcp.CallToolResult, RenameFileOutput, error) {
+	if s.medium == nil {
+		return nil, RenameFileOutput{}, log.E("mcp.renameFile", "workspace medium unavailable", nil)
+	}
+
 	if err := s.medium.Rename(input.OldPath, input.NewPath); err != nil {
 		return nil, RenameFileOutput{}, log.E("mcp.renameFile", "failed to rename file", err)
 	}
@@ -506,21 +609,22 @@ func (s *Service) renameFile(ctx context.Context, req *mcp.CallToolRequest, inpu
 }
 
 func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, input FileExistsInput) (*mcp.CallToolResult, FileExistsOutput, error) {
-	exists := s.medium.IsFile(input.Path)
-	if exists {
-		return nil, FileExistsOutput{Exists: true, IsDir: false, Path: input.Path}, nil
+	if s.medium == nil {
+		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "workspace medium unavailable", nil)
 	}
-	// Check if it's a directory by attempting to list it
-	// List might fail if it's a file too (but we checked IsFile) or if doesn't exist.
-	_, err := s.medium.List(input.Path)
-	isDir := err == nil
 
-	// If List failed, it might mean it doesn't exist OR it's a special file or permissions.
-	// Assuming if List works, it's a directory.
-
-	// Refinement: If it doesn't exist, List returns error.
-
-	return nil, FileExistsOutput{Exists: isDir, IsDir: isDir, Path: input.Path}, nil
+	info, err := s.medium.Stat(input.Path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
+		}
+		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "failed to stat path", err)
+	}
+	return nil, FileExistsOutput{
+		Exists: true,
+		IsDir:  info.IsDir(),
+		Path:   input.Path,
+	}, nil
 }
 
 func (s *Service) detectLanguage(ctx context.Context, req *mcp.CallToolRequest, input DetectLanguageInput) (*mcp.CallToolResult, DetectLanguageOutput, error) {
@@ -529,27 +633,14 @@ func (s *Service) detectLanguage(ctx context.Context, req *mcp.CallToolRequest, 
 }
 
 func (s *Service) getSupportedLanguages(ctx context.Context, req *mcp.CallToolRequest, input GetSupportedLanguagesInput) (*mcp.CallToolResult, GetSupportedLanguagesOutput, error) {
-	languages := []LanguageInfo{
-		{ID: "typescript", Name: "TypeScript", Extensions: []string{".ts", ".tsx"}},
-		{ID: "javascript", Name: "JavaScript", Extensions: []string{".js", ".jsx"}},
-		{ID: "go", Name: "Go", Extensions: []string{".go"}},
-		{ID: "python", Name: "Python", Extensions: []string{".py"}},
-		{ID: "rust", Name: "Rust", Extensions: []string{".rs"}},
-		{ID: "java", Name: "Java", Extensions: []string{".java"}},
-		{ID: "php", Name: "PHP", Extensions: []string{".php"}},
-		{ID: "ruby", Name: "Ruby", Extensions: []string{".rb"}},
-		{ID: "html", Name: "HTML", Extensions: []string{".html", ".htm"}},
-		{ID: "css", Name: "CSS", Extensions: []string{".css"}},
-		{ID: "json", Name: "JSON", Extensions: []string{".json"}},
-		{ID: "yaml", Name: "YAML", Extensions: []string{".yaml", ".yml"}},
-		{ID: "markdown", Name: "Markdown", Extensions: []string{".md", ".markdown"}},
-		{ID: "sql", Name: "SQL", Extensions: []string{".sql"}},
-		{ID: "shell", Name: "Shell", Extensions: []string{".sh", ".bash"}},
-	}
-	return nil, GetSupportedLanguagesOutput{Languages: languages}, nil
+	return nil, GetSupportedLanguagesOutput{Languages: supportedLanguages()}, nil
 }
 
 func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input EditDiffInput) (*mcp.CallToolResult, EditDiffOutput, error) {
+	if s.medium == nil {
+		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "workspace medium unavailable", nil)
+	}
+
 	if input.OldString == "" {
 		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string cannot be empty", nil)
 	}
@@ -588,57 +679,78 @@ func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input 
 
 // detectLanguageFromPath maps file extensions to language IDs.
 func detectLanguageFromPath(path string) string {
+	if core.PathBase(path) == "Dockerfile" {
+		return "dockerfile"
+	}
+
 	ext := core.PathExt(path)
-	switch ext {
-	case ".ts", ".tsx":
-		return "typescript"
-	case ".js", ".jsx":
-		return "javascript"
-	case ".go":
-		return "go"
-	case ".py":
-		return "python"
-	case ".rs":
-		return "rust"
-	case ".rb":
-		return "ruby"
-	case ".java":
-		return "java"
-	case ".php":
-		return "php"
-	case ".c", ".h":
-		return "c"
-	case ".cpp", ".hpp", ".cc", ".cxx":
-		return "cpp"
-	case ".cs":
-		return "csharp"
-	case ".html", ".htm":
-		return "html"
-	case ".css":
-		return "css"
-	case ".scss":
-		return "scss"
-	case ".json":
-		return "json"
-	case ".yaml", ".yml":
-		return "yaml"
-	case ".xml":
-		return "xml"
-	case ".md", ".markdown":
-		return "markdown"
-	case ".sql":
-		return "sql"
-	case ".sh", ".bash":
-		return "shell"
-	case ".swift":
-		return "swift"
-	case ".kt", ".kts":
-		return "kotlin"
-	default:
-		if core.PathBase(path) == "Dockerfile" {
-			return "dockerfile"
-		}
-		return "plaintext"
+	if lang, ok := languageByExtension[ext]; ok {
+		return lang
+	}
+	return "plaintext"
+}
+
+var languageByExtension = map[string]string{
+	".ts":       "typescript",
+	".tsx":      "typescript",
+	".js":       "javascript",
+	".jsx":      "javascript",
+	".go":       "go",
+	".py":       "python",
+	".rs":       "rust",
+	".rb":       "ruby",
+	".java":     "java",
+	".php":      "php",
+	".c":        "c",
+	".h":        "c",
+	".cpp":      "cpp",
+	".hpp":      "cpp",
+	".cc":       "cpp",
+	".cxx":      "cpp",
+	".cs":       "csharp",
+	".html":     "html",
+	".htm":      "html",
+	".css":      "css",
+	".scss":     "scss",
+	".json":     "json",
+	".yaml":     "yaml",
+	".yml":      "yaml",
+	".xml":      "xml",
+	".md":       "markdown",
+	".markdown": "markdown",
+	".sql":      "sql",
+	".sh":       "shell",
+	".bash":     "shell",
+	".swift":    "swift",
+	".kt":       "kotlin",
+	".kts":      "kotlin",
+}
+
+func supportedLanguages() []LanguageInfo {
+	return []LanguageInfo{
+		{ID: "typescript", Name: "TypeScript", Extensions: []string{".ts", ".tsx"}},
+		{ID: "javascript", Name: "JavaScript", Extensions: []string{".js", ".jsx"}},
+		{ID: "go", Name: "Go", Extensions: []string{".go"}},
+		{ID: "python", Name: "Python", Extensions: []string{".py"}},
+		{ID: "rust", Name: "Rust", Extensions: []string{".rs"}},
+		{ID: "ruby", Name: "Ruby", Extensions: []string{".rb"}},
+		{ID: "java", Name: "Java", Extensions: []string{".java"}},
+		{ID: "php", Name: "PHP", Extensions: []string{".php"}},
+		{ID: "c", Name: "C", Extensions: []string{".c", ".h"}},
+		{ID: "cpp", Name: "C++", Extensions: []string{".cpp", ".hpp", ".cc", ".cxx"}},
+		{ID: "csharp", Name: "C#", Extensions: []string{".cs"}},
+		{ID: "html", Name: "HTML", Extensions: []string{".html", ".htm"}},
+		{ID: "css", Name: "CSS", Extensions: []string{".css"}},
+		{ID: "scss", Name: "SCSS", Extensions: []string{".scss"}},
+		{ID: "json", Name: "JSON", Extensions: []string{".json"}},
+		{ID: "yaml", Name: "YAML", Extensions: []string{".yaml", ".yml"}},
+		{ID: "xml", Name: "XML", Extensions: []string{".xml"}},
+		{ID: "markdown", Name: "Markdown", Extensions: []string{".md", ".markdown"}},
+		{ID: "sql", Name: "SQL", Extensions: []string{".sql"}},
+		{ID: "shell", Name: "Shell", Extensions: []string{".sh", ".bash"}},
+		{ID: "swift", Name: "Swift", Extensions: []string{".swift"}},
+		{ID: "kotlin", Name: "Kotlin", Extensions: []string{".kt", ".kts"}},
+		{ID: "dockerfile", Name: "Dockerfile", Extensions: []string{}},
 	}
 }
 
@@ -651,6 +763,10 @@ func detectLanguageFromPath(path string) string {
 //	os.Setenv("MCP_ADDR", "127.0.0.1:9100")
 //	svc.Run(ctx)
 //
+//	// Unix socket (set MCP_UNIX_SOCKET):
+//	os.Setenv("MCP_UNIX_SOCKET", "/tmp/core-mcp.sock")
+//	svc.Run(ctx)
+//
 //	// HTTP (set MCP_HTTP_ADDR):
 //	os.Setenv("MCP_HTTP_ADDR", "127.0.0.1:9101")
 //	svc.Run(ctx)
@@ -661,13 +777,11 @@ func (s *Service) Run(ctx context.Context) error {
 	if addr := core.Env("MCP_ADDR"); addr != "" {
 		return s.ServeTCP(ctx, addr)
 	}
-	s.stdioMode = true
-	return s.server.Run(ctx, &mcp.IOTransport{
-		Reader: os.Stdin,
-		Writer: sharedStdout,
-	})
+	if socketPath := core.Env("MCP_UNIX_SOCKET"); socketPath != "" {
+		return s.ServeUnix(ctx, socketPath)
+	}
+	return s.ServeStdio(ctx)
 }
-
 
 // countOccurrences counts non-overlapping instances of substr in s.
 func countOccurrences(s, substr string) int {

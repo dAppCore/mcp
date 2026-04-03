@@ -3,7 +3,11 @@
 package mcp
 
 import (
+	"context"
+	"errors"
 	"testing"
+
+	"forge.lthn.ai/core/go-process"
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {
@@ -68,8 +72,12 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 
 	tools := svc.Tools()
 	// Built-in tools: file_read, file_write, file_delete, file_rename,
-	// file_exists, file_edit, dir_list, dir_create, lang_detect, lang_list
-	const expectedCount = 10
+	// file_exists, file_edit, dir_list, dir_create, lang_detect, lang_list,
+	// metrics_record, metrics_query, rag_query, rag_ingest, rag_collections,
+	// webview_connect, webview_disconnect, webview_navigate, webview_click,
+	// webview_type, webview_query, webview_console, webview_eval,
+	// webview_screenshot, webview_wait
+	const expectedCount = 25
 	if len(tools) != expectedCount {
 		t.Errorf("expected %d tools, got %d", expectedCount, len(tools))
 		for _, tr := range tools {
@@ -86,6 +94,9 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 
 	fileTools := []string{"file_read", "file_write", "file_delete", "file_rename", "file_exists", "file_edit", "dir_list", "dir_create"}
 	langTools := []string{"lang_detect", "lang_list"}
+	metricsTools := []string{"metrics_record", "metrics_query"}
+	ragTools := []string{"rag_query", "rag_ingest", "rag_collections"}
+	webviewTools := []string{"webview_connect", "webview_disconnect", "webview_navigate", "webview_click", "webview_type", "webview_query", "webview_console", "webview_eval", "webview_screenshot", "webview_wait"}
 
 	byName := make(map[string]ToolRecord)
 	for _, tr := range svc.Tools() {
@@ -111,6 +122,39 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 		}
 		if tr.Group != "language" {
 			t.Errorf("tool %s: expected group 'language', got %q", name, tr.Group)
+		}
+	}
+
+	for _, name := range metricsTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "metrics" {
+			t.Errorf("tool %s: expected group 'metrics', got %q", name, tr.Group)
+		}
+	}
+
+	for _, name := range ragTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "rag" {
+			t.Errorf("tool %s: expected group 'rag', got %q", name, tr.Group)
+		}
+	}
+
+	for _, name := range webviewTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "webview" {
+			t.Errorf("tool %s: expected group 'webview', got %q", name, tr.Group)
 		}
 	}
 }
@@ -146,5 +190,95 @@ func TestToolRegistry_Good_ToolRecordFields(t *testing.T) {
 	}
 	if record.OutputSchema == nil {
 		t.Error("expected non-nil OutputSchema")
+	}
+}
+
+func TestToolRegistry_Good_TimeSchemas(t *testing.T) {
+	svc, err := New(Options{
+		WorkspaceRoot:  t.TempDir(),
+		ProcessService: &process.Service{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	byName := make(map[string]ToolRecord)
+	for _, tr := range svc.Tools() {
+		byName[tr.Name] = tr
+	}
+
+	metrics, ok := byName["metrics_record"]
+	if !ok {
+		t.Fatal("metrics_record not found in registry")
+	}
+	inputProps, ok := metrics.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected metrics_record input properties map")
+	}
+	dataSchema, ok := inputProps["data"].(map[string]any)
+	if !ok {
+		t.Fatal("expected data schema for metrics_record input")
+	}
+	if got := dataSchema["type"]; got != "object" {
+		t.Fatalf("expected metrics_record data type object, got %#v", got)
+	}
+	props, ok := metrics.OutputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected metrics_record output properties map")
+	}
+	timestamp, ok := props["timestamp"].(map[string]any)
+	if !ok {
+		t.Fatal("expected timestamp schema for metrics_record output")
+	}
+	if got := timestamp["type"]; got != "string" {
+		t.Fatalf("expected metrics_record timestamp type string, got %#v", got)
+	}
+	if got := timestamp["format"]; got != "date-time" {
+		t.Fatalf("expected metrics_record timestamp format date-time, got %#v", got)
+	}
+
+	processStart, ok := byName["process_start"]
+	if !ok {
+		t.Fatal("process_start not found in registry")
+	}
+	props, ok = processStart.OutputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected process_start output properties map")
+	}
+	startedAt, ok := props["startedAt"].(map[string]any)
+	if !ok {
+		t.Fatal("expected startedAt schema for process_start output")
+	}
+	if got := startedAt["type"]; got != "string" {
+		t.Fatalf("expected process_start startedAt type string, got %#v", got)
+	}
+	if got := startedAt["format"]; got != "date-time" {
+		t.Fatalf("expected process_start startedAt format date-time, got %#v", got)
+	}
+}
+
+func TestToolRegistry_Bad_InvalidRESTInputIsClassified(t *testing.T) {
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var record ToolRecord
+	for _, tr := range svc.Tools() {
+		if tr.Name == "file_read" {
+			record = tr
+			break
+		}
+	}
+	if record.Name == "" {
+		t.Fatal("file_read not found in registry")
+	}
+
+	_, err = record.RESTHandler(context.Background(), []byte("{bad json"))
+	if err == nil {
+		t.Fatal("expected REST handler error for malformed JSON")
+	}
+	if !errors.Is(err, errInvalidRESTInput) {
+		t.Fatalf("expected invalid REST input error, got %v", err)
 	}
 }
