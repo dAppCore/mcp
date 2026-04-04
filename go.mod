@@ -4,15 +4,15 @@ go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	forge.lthn.ai/core/api v0.1.5
-	forge.lthn.ai/core/cli v0.3.7
-	forge.lthn.ai/core/go-ai v0.1.12
-	forge.lthn.ai/core/go-io v0.1.7
-	forge.lthn.ai/core/go-log v0.0.4
-	forge.lthn.ai/core/go-process v0.2.9
-	forge.lthn.ai/core/go-rag v0.1.11
-	forge.lthn.ai/core/go-webview v0.1.6
-	forge.lthn.ai/core/go-ws v0.2.5
+	dappco.re/go/core/api v0.1.5
+	dappco.re/go/core/cli v0.3.7
+	dappco.re/go/core/ai v0.1.12
+	dappco.re/go/core/io v0.1.7
+	dappco.re/go/core/log v0.0.4
+	dappco.re/go/core/process v0.2.9
+	dappco.re/go/core/rag v0.1.11
+	dappco.re/go/core/webview v0.1.6
+	dappco.re/go/core/ws v0.2.5
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.4.1
@@ -21,9 +21,9 @@ require (
 )
 
 require (
-	forge.lthn.ai/core/go v0.3.3 // indirect
-	forge.lthn.ai/core/go-i18n v0.1.7 // indirect
-	forge.lthn.ai/core/go-inference v0.1.6 // indirect
+	dappco.re/go/core v0.3.3 // indirect
+	dappco.re/go/core/i18n v0.1.7 // indirect
+	dappco.re/go/core/inference v0.1.6 // indirect
 	github.com/99designs/gqlgen v0.17.88 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
