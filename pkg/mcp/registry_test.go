@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"forge.lthn.ai/core/go-process"
+	"dappco.re/go/core/process"
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {

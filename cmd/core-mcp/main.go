@@ -1,7 +1,7 @@
 package main
 
 import (
-	"forge.lthn.ai/core/cli/pkg/cli"
+	"dappco.re/go/core/cli/pkg/cli"
 	mcpcmd "dappco.re/go/mcp/cmd/mcpcmd"
 )
 

@@ -6,8 +6,8 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-rag"
+	"dappco.re/go/core/log"
+	"dappco.re/go/core/rag"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

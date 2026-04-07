@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/ws"
 	"github.com/gorilla/websocket"
 )
 

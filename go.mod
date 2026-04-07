@@ -4,15 +4,15 @@ go 1.26.0
 
 require (
 	dappco.re/go/core v0.8.0-alpha.1
-	dappco.re/go/core/api v0.1.5
-	dappco.re/go/core/cli v0.3.7
-	dappco.re/go/core/ai v0.1.12
-	dappco.re/go/core/io v0.1.7
-	dappco.re/go/core/log v0.0.4
-	dappco.re/go/core/process v0.2.9
-	dappco.re/go/core/rag v0.1.11
-	dappco.re/go/core/webview v0.1.6
-	dappco.re/go/core/ws v0.2.5
+	dappco.re/go/core/ai v0.2.2
+	dappco.re/go/core/api v0.3.0
+	dappco.re/go/core/cli v0.5.2
+	dappco.re/go/core/io v0.4.1
+	dappco.re/go/core/log v0.1.2
+	dappco.re/go/core/process v0.5.0
+	dappco.re/go/core/rag v0.1.13
+	dappco.re/go/core/webview v0.2.1
+	dappco.re/go/core/ws v0.4.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.4.1
@@ -21,9 +21,8 @@ require (
 )
 
 require (
-	dappco.re/go/core v0.3.3 // indirect
-	dappco.re/go/core/i18n v0.1.7 // indirect
-	dappco.re/go/core/inference v0.1.6 // indirect
+	dappco.re/go/core/i18n v0.2.3 // indirect
+	dappco.re/go/core/inference v0.3.0 // indirect
 	github.com/99designs/gqlgen v0.17.88 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect

@@ -8,8 +8,8 @@ import (
 	"net/http"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/log"
+	"dappco.re/go/core/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

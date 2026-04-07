@@ -9,7 +9,7 @@ import (
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge

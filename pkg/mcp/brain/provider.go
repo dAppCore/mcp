@@ -7,9 +7,9 @@ import (
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	"forge.lthn.ai/core/api"
-	"forge.lthn.ai/core/api/pkg/provider"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/api"
+	"dappco.re/go/core/api/pkg/provider"
+	"dappco.re/go/core/ws"
 	"github.com/gin-gonic/gin"
 )
 

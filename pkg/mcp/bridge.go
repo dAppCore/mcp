@@ -9,7 +9,7 @@ import (
 	core "dappco.re/go/core"
 	"github.com/gin-gonic/gin"
 
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 // maxBodySize is the maximum request body size accepted by bridged tool endpoints.

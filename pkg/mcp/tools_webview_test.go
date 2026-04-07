@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"forge.lthn.ai/core/go-webview"
+	"dappco.re/go/core/webview"
 )
 
 // skipIfShort skips webview tests in short mode (go test -short).

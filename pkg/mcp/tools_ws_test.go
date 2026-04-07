@@ -3,7 +3,7 @@ package mcp
 import (
 	"testing"
 
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/ws"
 )
 
 // TestWSToolsRegistered_Good verifies that WebSocket tools are registered when hub is available.

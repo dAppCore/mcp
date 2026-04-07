@@ -17,10 +17,10 @@ import (
 	"sync"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-io"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-process"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/io"
+	"dappco.re/go/core/log"
+	"dappco.re/go/core/process"
+	"dappco.re/go/core/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

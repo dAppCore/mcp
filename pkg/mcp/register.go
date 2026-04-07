@@ -7,8 +7,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-process"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/process"
+	"dappco.re/go/core/ws"
 )
 
 // Register is the service factory for core.WithService.

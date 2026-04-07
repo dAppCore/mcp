@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/core/ws"
 )
 
 // --- Helpers ---

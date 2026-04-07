@@ -17,7 +17,7 @@ import (
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	api "forge.lthn.ai/core/api"
+	api "dappco.re/go/core/api"
 )
 
 func init() {

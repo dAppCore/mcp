@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	coreio "forge.lthn.ai/core/go-io"
+	coreio "dappco.re/go/core/io"
 )
 
 // writeAtomic writes content to path by staging it in a temporary file and

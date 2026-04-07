@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
+	coreio "dappco.re/go/core/io"
 )
 
 // ingestFindings reads the agent output log and creates issues via the API

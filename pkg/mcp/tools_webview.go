@@ -14,8 +14,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-webview"
+	"dappco.re/go/core/log"
+	"dappco.re/go/core/webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
