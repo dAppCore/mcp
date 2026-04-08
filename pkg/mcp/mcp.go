@@ -311,12 +311,16 @@ func (s *Service) registerTools(server *mcp.Server) {
 		Description: "Get list of supported programming languages",
 	}, s.getSupportedLanguages)
 
-	// Additional built-in tool groups.
-	s.registerMetricsTools(server)
-	s.registerRAGTools(server)
+	// Additional built-in tool groups — gated by process/ws availability.
 	s.registerProcessTools(server)
-	s.registerWebviewTools(server)
 	s.registerWSTools(server)
+
+	// Extended built-in tools — only when CORE_MCP_FULL=1
+	if core.Env("CORE_MCP_FULL") == "1" {
+		s.registerMetricsTools(server)
+		s.registerRAGTools(server)
+		s.registerWebviewTools(server)
+	}
 }
 
 // Tool input/output types for MCP file operations.
