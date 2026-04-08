@@ -74,7 +74,8 @@ func New(opts Options) (*Service, error) {
 
 	server := mcp.NewServer(impl, &mcp.ServerOptions{
 		Capabilities: &mcp.ServerCapabilities{
-			Tools:        &mcp.ToolCapabilities{ListChanged: true},
+			Resources:    &mcp.ResourceCapabilities{ListChanged: false},
+			Tools:        &mcp.ToolCapabilities{ListChanged: false},
 			Logging:      &mcp.LoggingCapabilities{},
 			Experimental: channelCapability(),
 		},
