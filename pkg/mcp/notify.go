@@ -14,10 +14,10 @@ import (
 	"reflect"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"unsafe"
 
+	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -203,7 +203,7 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 	if s == nil || s.server == nil {
 		return
 	}
-	if strings.TrimSpace(channel) == "" {
+	if core.Trim(channel) == "" {
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
@@ -218,7 +218,7 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 	if s == nil || s.server == nil || session == nil {
 		return
 	}
-	if strings.TrimSpace(channel) == "" {
+	if core.Trim(channel) == "" {
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)

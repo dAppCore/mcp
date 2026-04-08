@@ -78,7 +78,40 @@ type ToolRecord struct {
 //	        return nil, ReadFileOutput{Path: "src/main.go"}, nil
 //	    })
 func AddToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
-	mcp.AddTool(server, t, h)
+	// Set inputSchema from struct reflection if not already set.
+	// Use server.AddTool (non-generic) to avoid auto-generated outputSchema.
+	// The go-sdk's generic mcp.AddTool generates outputSchema from the Out type,
+	// but Claude Code's protocol (2025-03-26) doesn't support outputSchema.
+	// Removing it reduces tools/list from 214KB to ~74KB.
+	if t.InputSchema == nil {
+		t.InputSchema = structSchema(new(In))
+		if t.InputSchema == nil {
+			t.InputSchema = map[string]any{"type": "object"}
+		}
+	}
+	// Wrap the typed handler into a generic ToolHandler.
+	wrapped := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var input In
+		if req != nil && len(req.Params.Arguments) > 0 {
+			if r := core.JSONUnmarshal(req.Params.Arguments, &input); !r.OK {
+				if err, ok := r.Value.(error); ok {
+					return nil, err
+				}
+			}
+		}
+		result, output, err := h(ctx, req, input)
+		if err != nil {
+			return nil, err
+		}
+		if result != nil {
+			return result, nil
+		}
+		data := core.JSONMarshalString(output)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: data}},
+		}, nil
+	}
+	server.AddTool(t, wrapped)
 
 	restHandler := func(ctx context.Context, body []byte) (any, error) {
 		var input In

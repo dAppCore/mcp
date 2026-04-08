@@ -9,7 +9,6 @@ import (
 	"image"
 	"image/jpeg"
 	_ "image/png"
-	"strings"
 	"sync"
 	"time"
 
@@ -554,7 +553,7 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 	if format == "" {
 		format = "png"
 	}
-	format = strings.ToLower(format)
+	format = core.Lower(format)
 
 	data, err := webviewInstance.Screenshot()
 	if err != nil {
@@ -649,7 +648,7 @@ func waitForSelector(ctx context.Context, timeout time.Duration, selector string
 		if err == nil {
 			return nil
 		}
-		if !strings.Contains(err.Error(), "element not found") {
+		if !core.Contains(err.Error(), "element not found") {
 			return err
 		}
 

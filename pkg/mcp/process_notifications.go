@@ -4,9 +4,10 @@ package mcp
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"time"
+
+	core "dappco.re/go/core"
 )
 
 type processRuntime struct {
@@ -50,7 +51,7 @@ func (s *Service) forgetProcessRuntime(id string) {
 }
 
 func isTestProcess(command string, args []string) bool {
-	base := strings.ToLower(filepath.Base(command))
+	base := core.Lower(core.PathBase(command))
 	if base == "" {
 		return false
 	}
@@ -62,7 +63,7 @@ func isTestProcess(command string, args []string) bool {
 		return len(args) > 0 && strings.EqualFold(args[0], "test")
 	case "npm", "pnpm", "yarn", "bun":
 		for _, arg := range args {
-			if strings.EqualFold(arg, "test") || strings.HasPrefix(strings.ToLower(arg), "test:") {
+			if strings.EqualFold(arg, "test") || core.HasPrefix(core.Lower(arg), "test:") {
 				return true
 			}
 		}

@@ -6,14 +6,12 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"iter"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -246,15 +244,15 @@ func (s *Service) resolveWorkspacePath(path string) string {
 	}
 
 	if s.workspaceRoot == "" {
-		return filepath.Clean(path)
+		return core.CleanPath(path, "/")
 	}
 
-	clean := filepath.Clean(string(filepath.Separator) + path)
-	clean = strings.TrimPrefix(clean, string(filepath.Separator))
+	clean := core.CleanPath(string(filepath.Separator)+path, "/")
+	clean = core.TrimPrefix(clean, string(filepath.Separator))
 	if clean == "." || clean == "" {
 		return s.workspaceRoot
 	}
-	return filepath.Join(s.workspaceRoot, clean)
+	return core.Path(s.workspaceRoot, clean)
 }
 
 // registerTools adds the built-in tool groups to the MCP server.
@@ -616,7 +614,7 @@ func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, inpu
 
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if core.Is(err, os.ErrNotExist) {
 			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
 		}
 		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "failed to stat path", err)

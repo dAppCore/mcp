@@ -6,12 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -101,14 +100,14 @@ func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest
 	}
 
 	// Step 2: Build epic body with checklist
-	var body strings.Builder
+	body := core.NewBuilder()
 	if input.Body != "" {
 		body.WriteString(input.Body)
 		body.WriteString("\n\n")
 	}
 	body.WriteString("## Tasks\n\n")
 	for _, child := range children {
-		body.WriteString(fmt.Sprintf("- [ ] #%d %s\n", child.Number, child.Title))
+		body.WriteString(core.Sprintf("- [ ] #%d %s\n", child.Number, child.Title))
 	}
 
 	// Step 3: Create epic issue
@@ -157,8 +156,12 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 		payload["labels"] = labelIDs
 	}
 
-	data, _ := json.Marshal(payload)
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues", s.forgeURL, org, repo)
+	r := core.JSONMarshal(payload)
+	if !r.OK {
+		return ChildRef{}, coreerr.E("createIssue", "failed to encode issue payload", nil)
+	}
+	data := r.Value.([]byte)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues", s.forgeURL, org, repo)
 	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
@@ -170,7 +173,7 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
-		return ChildRef{}, coreerr.E("createIssue", fmt.Sprintf("returned %d", resp.StatusCode), nil)
+		return ChildRef{}, coreerr.E("createIssue", core.Sprintf("returned %d", resp.StatusCode), nil)
 	}
 
 	var result struct {
@@ -193,7 +196,7 @@ func (s *PrepSubsystem) resolveLabelIDs(ctx context.Context, org, repo string, n
 	}
 
 	// Fetch existing labels
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/labels?limit=50", s.forgeURL, org, repo)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/labels?limit=50", s.forgeURL, org, repo)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -246,12 +249,16 @@ func (s *PrepSubsystem) createLabel(ctx context.Context, org, repo, name string)
 		colour = "#6b7280"
 	}
 
-	payload, _ := json.Marshal(map[string]string{
+	r := core.JSONMarshal(map[string]string{
 		"name":  name,
 		"color": colour,
 	})
+	if !r.OK {
+		return 0
+	}
+	payload := r.Value.([]byte)
 
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/labels", s.forgeURL, org, repo)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/labels", s.forgeURL, org, repo)
 	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
