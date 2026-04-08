@@ -148,3 +148,5 @@ require (
 	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace dappco.re/go/core/process => ../go-process

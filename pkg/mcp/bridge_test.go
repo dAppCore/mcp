@@ -250,7 +250,7 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 	}
 
 	// Verify a tool endpoint is reachable through the engine.
-	resp2, err := http.Post(srv.URL+"/tools/lang_list", "application/json", nil)
+	resp2, err := http.Post(srv.URL+"/tools/lang_list", "application/json", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatalf("lang_list request failed: %v", err)
 	}
