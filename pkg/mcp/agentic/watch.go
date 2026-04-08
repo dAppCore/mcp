@@ -4,11 +4,11 @@ package agentic
 
 import (
 	"context"
-	"path/filepath"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -153,15 +153,15 @@ func (s *PrepSubsystem) findActiveWorkspaces() []string {
 		}
 		switch st.Status {
 		case "running", "queued":
-			active = append(active, filepath.Base(wsDir))
+			active = append(active, core.PathBase(wsDir))
 		}
 	}
 	return active
 }
 
 func (s *PrepSubsystem) resolveWorkspaceDir(name string) string {
-	if filepath.IsAbs(name) {
+	if core.PathIsAbs(name) {
 		return name
 	}
-	return filepath.Join(s.workspaceRoot(), name)
+	return core.JoinPath(s.workspaceRoot(), name)
 }

@@ -8,9 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -85,18 +85,18 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 // If token is empty, authentication is disabled for local development.
 func withAuth(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.TrimSpace(token) == "" {
+		if core.Trim(token) == "" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
 		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
+		if !core.HasPrefix(auth, "Bearer ") {
 			http.Error(w, `{"error":"missing Bearer token"}`, http.StatusUnauthorized)
 			return
 		}
 
-		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		provided := core.Trim(core.TrimPrefix(auth, "Bearer "))
 		if len(provided) == 0 {
 			http.Error(w, `{"error":"missing Bearer token"}`, http.StatusUnauthorized)
 			return

@@ -4,7 +4,6 @@ package ide
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -556,7 +555,7 @@ func stringFromAny(v any) string {
 	switch value := v.(type) {
 	case string:
 		return value
-	case fmt.Stringer:
+	case interface{ String() string }:
 		return value.String()
 	default:
 		return ""

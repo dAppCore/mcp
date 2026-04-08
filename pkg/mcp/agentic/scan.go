@@ -5,10 +5,10 @@ package agentic
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -81,7 +81,7 @@ func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input 
 	seen := make(map[string]bool)
 	var unique []ScanIssue
 	for _, issue := range allIssues {
-		key := fmt.Sprintf("%s#%d", issue.Repo, issue.Number)
+		key := core.Sprintf("%s#%d", issue.Repo, issue.Number)
 		if !seen[key] {
 			seen[key] = true
 			unique = append(unique, issue)
@@ -100,7 +100,7 @@ func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input 
 }
 
 func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string, error) {
-	url := fmt.Sprintf("%s/api/v1/orgs/%s/repos?limit=50", s.forgeURL, org)
+	url := core.Sprintf("%s/api/v1/orgs/%s/repos?limit=50", s.forgeURL, org)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -110,7 +110,7 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listOrgRepos", fmt.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
+		return nil, coreerr.E("listOrgRepos", core.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
 	}
 
 	var repos []struct {
@@ -126,7 +126,7 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 }
 
 func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label string) ([]ScanIssue, error) {
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues?state=open&labels=%s&limit=10&type=issues",
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues?state=open&labels=%s&limit=10&type=issues",
 		s.forgeURL, org, repo, label)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
@@ -137,7 +137,7 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listRepoIssues", fmt.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+		return nil, coreerr.E("listRepoIssues", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
 
 	var issues []struct {

@@ -6,11 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -77,10 +77,10 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		return nil, DispatchOutput{}, err
 	}
 	if issue.State != "open" {
-		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", fmt.Sprintf("issue %d is %s, not open", input.Issue, issue.State), nil)
+		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", core.Sprintf("issue %d is %s, not open", input.Issue, issue.State), nil)
 	}
 	if issue.Assignee != nil && issue.Assignee.Login != "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", fmt.Sprintf("issue %d is already assigned to %s", input.Issue, issue.Assignee.Login), nil)
+		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", core.Sprintf("issue %d is already assigned to %s", input.Issue, issue.Assignee.Login), nil)
 	}
 
 	if !input.DryRun {
@@ -124,7 +124,7 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue int, labels []struct {
 	Name string `json:"name"`
 }) error {
-	updateURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	updateURL := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	issueLabels := make([]string, 0, len(labels))
 	for _, label := range labels {
 		if label.Name == "in-progress" {
@@ -135,13 +135,14 @@ func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue
 	if issueLabels == nil {
 		issueLabels = []string{}
 	}
-	payload, err := json.Marshal(map[string]any{
+	r := core.JSONMarshal(map[string]any{
 		"assignees": []string{},
 		"labels":    issueLabels,
 	})
-	if err != nil {
-		return coreerr.E("unlockIssue", "failed to encode issue unlock", err)
+	if !r.OK {
+		return coreerr.E("unlockIssue", "failed to encode issue unlock", nil)
 	}
+	payload := r.Value.([]byte)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
 	if err != nil {
@@ -156,14 +157,14 @@ func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= http.StatusBadRequest {
-		return coreerr.E("unlockIssue", fmt.Sprintf("issue unlock returned %d", resp.StatusCode), nil)
+		return coreerr.E("unlockIssue", core.Sprintf("issue unlock returned %d", resp.StatusCode), nil)
 	}
 
 	return nil
 }
 
 func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue int) (*forgeIssue, error) {
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, coreerr.E("fetchIssue", "failed to build request", err)
@@ -176,7 +177,7 @@ func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, coreerr.E("fetchIssue", fmt.Sprintf("issue %d not found in %s/%s", issue, org, repo), nil)
+		return nil, coreerr.E("fetchIssue", core.Sprintf("issue %d not found in %s/%s", issue, org, repo), nil)
 	}
 
 	var out forgeIssue
@@ -187,14 +188,15 @@ func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue 
 }
 
 func (s *PrepSubsystem) lockIssue(ctx context.Context, org, repo string, issue int, assignee string) error {
-	updateURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
-	payload, err := json.Marshal(map[string]any{
+	updateURL := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	r := core.JSONMarshal(map[string]any{
 		"assignees": []string{assignee},
 		"labels":    []string{"in-progress"},
 	})
-	if err != nil {
-		return coreerr.E("lockIssue", "failed to encode issue update", err)
+	if !r.OK {
+		return coreerr.E("lockIssue", "failed to encode issue update", nil)
 	}
+	payload := r.Value.([]byte)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
 	if err != nil {
@@ -209,7 +211,7 @@ func (s *PrepSubsystem) lockIssue(ctx context.Context, org, repo string, issue i
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= http.StatusBadRequest {
-		return coreerr.E("lockIssue", fmt.Sprintf("issue update returned %d", resp.StatusCode), nil)
+		return coreerr.E("lockIssue", core.Sprintf("issue update returned %d", resp.StatusCode), nil)
 	}
 
 	return nil

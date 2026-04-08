@@ -4,8 +4,8 @@ package agentic
 
 import (
 	"os"
-	"path/filepath"
 
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 )
 
@@ -15,12 +15,12 @@ import (
 // This avoids exposing partially written workspace files to agents that may
 // read status, prompt, or plan documents while they are being updated.
 func writeAtomic(path, content string) error {
-	dir := filepath.Dir(path)
+	dir := core.PathDir(path)
 	if err := coreio.Local.EnsureDir(dir); err != nil {
 		return err
 	}
 
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	tmp, err := os.CreateTemp(dir, "."+core.PathBase(path)+".*.tmp")
 	if err != nil {
 		return err
 	}
