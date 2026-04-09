@@ -275,6 +275,15 @@ func (s *Service) debugNotify(msg string, args ...any) {
 	s.logger.Debug(msg, args...)
 }
 
+// NotifySession sends a raw JSON-RPC notification to a specific MCP session.
+//
+//	coremcp.NotifySession(ctx, session, "notifications/claude/channel", map[string]any{
+//	    "content": "build failed", "meta": map[string]string{"severity": "high"},
+//	})
+func NotifySession(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
+	return sendSessionNotification(ctx, session, method, payload)
+}
+
 func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
 	if session == nil {
 		return nil
