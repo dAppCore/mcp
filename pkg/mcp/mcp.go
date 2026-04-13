@@ -5,13 +5,13 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"iter"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"sync"
 
 	core "dappco.re/go/core"
@@ -542,8 +542,8 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
+	slices.SortFunc(entries, func(a, b os.DirEntry) int {
+		return cmp.Compare(a.Name(), b.Name())
 	})
 	result := make([]DirectoryEntry, 0, len(entries))
 	for _, e := range entries {

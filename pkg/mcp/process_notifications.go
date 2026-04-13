@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -58,12 +57,13 @@ func isTestProcess(command string, args []string) bool {
 
 	switch base {
 	case "go":
-		return len(args) > 0 && strings.EqualFold(args[0], "test")
+		return len(args) > 0 && core.Lower(args[0]) == "test"
 	case "cargo":
-		return len(args) > 0 && strings.EqualFold(args[0], "test")
+		return len(args) > 0 && core.Lower(args[0]) == "test"
 	case "npm", "pnpm", "yarn", "bun":
 		for _, arg := range args {
-			if strings.EqualFold(arg, "test") || core.HasPrefix(core.Lower(arg), "test:") {
+			lower := core.Lower(arg)
+			if lower == "test" || core.HasPrefix(lower, "test:") {
 				return true
 			}
 		}

@@ -7,13 +7,13 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"iter"
 	"os"
 	"reflect"
 	"slices"
-	"sort"
 	"sync"
 	"unsafe"
 
@@ -362,8 +362,8 @@ func snapshotSessions(server *mcp.Server) []*mcp.ServerSession {
 		}
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].ID() < sessions[j].ID()
+	slices.SortFunc(sessions, func(a, b *mcp.ServerSession) int {
+		return cmp.Compare(a.ID(), b.ID())
 	})
 
 	return sessions

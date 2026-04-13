@@ -15,6 +15,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// os.Stat and os.FindProcess are used for workspace age detection and PID
+// liveness checks — these are OS-level queries with no core equivalent.
+
 // Workspace status file convention:
 //
 //   {workspace}/status.json  — current state of the workspace

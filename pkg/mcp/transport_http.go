@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	core "dappco.re/go/core"
@@ -37,7 +36,7 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 		addr = DefaultHTTPAddr
 	}
 
-	authToken := os.Getenv("MCP_AUTH_TOKEN")
+	authToken := core.Env("MCP_AUTH_TOKEN")
 
 	handler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {

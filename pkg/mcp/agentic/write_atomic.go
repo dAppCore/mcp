@@ -9,6 +9,9 @@ import (
 	coreio "dappco.re/go/core/io"
 )
 
+// os.CreateTemp, os.Remove, os.Rename are framework-boundary calls for
+// atomic file writes — no core equivalent exists for temp file creation.
+
 // writeAtomic writes content to path by staging it in a temporary file and
 // renaming it into place.
 //

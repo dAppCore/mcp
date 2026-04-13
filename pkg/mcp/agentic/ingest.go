@@ -3,10 +3,8 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
 	"net/http"
-	"os"
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
@@ -96,26 +94,22 @@ func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, p
 	}
 
 	// Read the agent API key from file
-	home, _ := os.UserHomeDir()
+	home := core.Env("HOME")
 	apiKeyData, err := coreio.Local.Read(core.Path(home, ".claude", "agent-api.key"))
 	if err != nil {
 		return false
 	}
 	apiKey := core.Trim(apiKeyData)
 
-	r := core.JSONMarshal(map[string]string{
+	payloadStr := core.JSONMarshalString(map[string]string{
 		"title":       title,
 		"description": description,
 		"type":        issueType,
 		"priority":    priority,
 		"reporter":    "cladius",
 	})
-	if !r.OK {
-		return false
-	}
-	payload := r.Value.([]byte)
 
-	req, err := http.NewRequest("POST", s.brainURL+"/v1/issues", bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", s.brainURL+"/v1/issues", core.NewReader(payloadStr))
 	if err != nil {
 		return false
 	}
