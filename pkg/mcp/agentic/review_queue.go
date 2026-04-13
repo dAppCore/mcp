@@ -5,16 +5,14 @@ package agentic
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -93,7 +91,7 @@ func (s *PrepSubsystem) reviewQueue(ctx context.Context, _ *mcp.CallToolRequest,
 			continue
 		}
 
-		repoDir := filepath.Join(basePath, repo)
+		repoDir := core.Path(basePath, repo)
 		reviewer := input.Reviewer
 		if reviewer == "" {
 			reviewer = "coderabbit"
@@ -137,7 +135,7 @@ func (s *PrepSubsystem) findReviewCandidates(basePath string) []string {
 		if !entry.IsDir() {
 			continue
 		}
-		repoDir := filepath.Join(basePath, entry.Name())
+		repoDir := core.Path(basePath, entry.Name())
 		if !hasRemote(repoDir, "github") {
 			continue
 		}
@@ -154,22 +152,22 @@ func (s *PrepSubsystem) reviewRepo(ctx context.Context, repoDir, repo, reviewer 
 
 	if rl := s.loadRateLimitState(); rl != nil && rl.Limited && time.Now().Before(rl.RetryAt) {
 		result.Verdict = "rate_limited"
-		result.Detail = fmt.Sprintf("retry after %s", rl.RetryAt.Format(time.RFC3339))
+		result.Detail = core.Sprintf("retry after %s", rl.RetryAt.Format(time.RFC3339))
 		return result
 	}
 
 	cmd := reviewerCommand(ctx, repoDir, reviewer)
 	cmd.Dir = repoDir
 	out, err := cmd.CombinedOutput()
-	output := strings.TrimSpace(string(out))
+	output := core.Trim(string(out))
 
-	if strings.Contains(strings.ToLower(output), "rate limit") {
+	if core.Contains(core.Lower(output), "rate limit") {
 		result.Verdict = "rate_limited"
 		result.Detail = output
 		return result
 	}
 
-	if err != nil && !strings.Contains(output, "No findings") && !strings.Contains(output, "no issues") {
+	if err != nil && !core.Contains(output, "No findings") && !core.Contains(output, "no issues") {
 		result.Verdict = "error"
 		if output != "" {
 			result.Detail = output
@@ -182,7 +180,7 @@ func (s *PrepSubsystem) reviewRepo(ctx context.Context, repoDir, repo, reviewer 
 	s.storeReviewOutput(repoDir, repo, reviewer, output)
 	result.Findings = countFindingHints(output)
 
-	if strings.Contains(output, "No findings") || strings.Contains(output, "no issues") || strings.Contains(output, "LGTM") {
+	if core.Contains(output, "No findings") || core.Contains(output, "no issues") || core.Contains(output, "LGTM") {
 		result.Verdict = "clean"
 		if dryRun {
 			result.Action = "skipped (dry run)"
@@ -198,7 +196,7 @@ func (s *PrepSubsystem) reviewRepo(ctx context.Context, repoDir, repo, reviewer 
 			mergeCmd.Dir = repoDir
 			if mergeOut, err := mergeCmd.CombinedOutput(); err == nil {
 				result.Action = "merged"
-				result.Detail = strings.TrimSpace(string(mergeOut))
+				result.Detail = core.Trim(string(mergeOut))
 				return result
 			}
 		}
@@ -219,7 +217,7 @@ func (s *PrepSubsystem) reviewRepo(ctx context.Context, repoDir, repo, reviewer 
 
 func (s *PrepSubsystem) storeReviewOutput(repoDir, repo, reviewer, output string) {
 	home := reviewQueueHomeDir()
-	dataDir := filepath.Join(home, ".core", "training", "reviews")
+	dataDir := core.Path(home, ".core", "training", "reviews")
 	if err := coreio.Local.EnsureDir(dataDir); err != nil {
 		return
 	}
@@ -235,13 +233,13 @@ func (s *PrepSubsystem) storeReviewOutput(repoDir, repo, reviewer, output string
 		return
 	}
 
-	name := fmt.Sprintf("%s-%s-%d.json", repo, reviewer, time.Now().Unix())
-	_ = writeAtomic(filepath.Join(dataDir, name), string(data))
+	name := core.Sprintf("%s-%s-%d.json", repo, reviewer, time.Now().Unix())
+	_ = writeAtomic(core.Path(dataDir, name), string(data))
 }
 
 func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
 	home := reviewQueueHomeDir()
-	path := filepath.Join(home, ".core", "coderabbit-ratelimit.json")
+	path := core.Path(home, ".core", "coderabbit-ratelimit.json")
 	data, err := json.Marshal(info)
 	if err != nil {
 		return
@@ -251,7 +249,7 @@ func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
 
 func (s *PrepSubsystem) loadRateLimitState() *RateLimitInfo {
 	home := reviewQueueHomeDir()
-	path := filepath.Join(home, ".core", "coderabbit-ratelimit.json")
+	path := core.Path(home, ".core", "coderabbit-ratelimit.json")
 	data, err := coreio.Local.Read(path)
 	if err != nil {
 		return nil

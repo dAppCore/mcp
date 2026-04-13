@@ -3,20 +3,15 @@
 package brain
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	goio "io"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -58,15 +53,16 @@ func (s *DirectSubsystem) OnChannel(fn func(ctx context.Context, channel string,
 // Reads CORE_BRAIN_URL and CORE_BRAIN_KEY from environment, or falls back
 // to ~/.claude/brain.key for the API key.
 func NewDirect() *DirectSubsystem {
-	apiURL := os.Getenv("CORE_BRAIN_URL")
+	apiURL := core.Env("CORE_BRAIN_URL")
 	if apiURL == "" {
 		apiURL = "https://api.lthn.sh"
 	}
 
-	apiKey := os.Getenv("CORE_BRAIN_KEY")
+	apiKey := core.Env("CORE_BRAIN_KEY")
 	if apiKey == "" {
-		if data, err := coreio.Local.Read(os.ExpandEnv("$HOME/.claude/brain.key")); err == nil {
-			apiKey = strings.TrimSpace(data)
+		home := core.Env("HOME")
+		if data, err := coreio.Local.Read(core.Path(home, ".claude", "brain.key")); err == nil {
+			apiKey = core.Trim(data)
 		}
 	}
 
@@ -112,16 +108,12 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 		return nil, coreerr.E("brain.apiCall", "no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)", nil)
 	}
 
-	var reqBody goio.Reader
+	var bodyStr string
 	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, coreerr.E("brain.apiCall", "marshal request", err)
-		}
-		reqBody = bytes.NewReader(data)
+		bodyStr = core.JSONMarshalString(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, s.apiURL+path, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, s.apiURL+path, core.NewReader(bodyStr))
 	if err != nil {
 		return nil, coreerr.E("brain.apiCall", "create request", err)
 	}
@@ -135,18 +127,22 @@ func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body
 	}
 	defer resp.Body.Close()
 
-	respData, err := goio.ReadAll(resp.Body)
-	if err != nil {
-		return nil, coreerr.E("brain.apiCall", "read response", err)
+	r := core.ReadAll(resp.Body)
+	if !r.OK {
+		if readErr, ok := r.Value.(error); ok {
+			return nil, coreerr.E("brain.apiCall", "read response", readErr)
+		}
+		return nil, coreerr.E("brain.apiCall", "read response failed", nil)
 	}
+	respData := r.Value.(string)
 
 	if resp.StatusCode >= 400 {
-		return nil, coreerr.E("brain.apiCall", "API returned "+string(respData), nil)
+		return nil, coreerr.E("brain.apiCall", "API returned "+respData, nil)
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(respData, &result); err != nil {
-		return nil, coreerr.E("brain.apiCall", "parse response", err)
+	if ur := core.JSONUnmarshal([]byte(respData), &result); !ur.OK {
+		return nil, coreerr.E("brain.apiCall", "parse response", nil)
 	}
 
 	return result, nil
@@ -200,30 +196,7 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 		return nil, RecallOutput{}, err
 	}
 
-	var memories []Memory
-	if mems, ok := result["memories"].([]any); ok {
-		for _, m := range mems {
-			if mm, ok := m.(map[string]any); ok {
-				mem := Memory{
-					Content:   fmt.Sprintf("%v", mm["content"]),
-					Type:      fmt.Sprintf("%v", mm["type"]),
-					Project:   fmt.Sprintf("%v", mm["project"]),
-					AgentID:   fmt.Sprintf("%v", mm["agent_id"]),
-					CreatedAt: fmt.Sprintf("%v", mm["created_at"]),
-				}
-				if id, ok := mm["id"].(string); ok {
-					mem.ID = id
-				}
-				if score, ok := mm["score"].(float64); ok {
-					mem.Confidence = score
-				}
-				if source, ok := mm["source"].(string); ok {
-					mem.Tags = append(mem.Tags, "source:"+source)
-				}
-				memories = append(memories, mem)
-			}
-		}
-	}
+	memories := memoriesFromResult(result)
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
@@ -274,37 +247,14 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	if input.AgentID != "" {
 		values.Set("agent_id", input.AgentID)
 	}
-	values.Set("limit", fmt.Sprintf("%d", limit))
+	values.Set("limit", core.Sprintf("%d", limit))
 
 	result, err := s.apiCall(ctx, http.MethodGet, "/v1/brain/list?"+values.Encode(), nil)
 	if err != nil {
 		return nil, ListOutput{}, err
 	}
 
-	var memories []Memory
-	if mems, ok := result["memories"].([]any); ok {
-		for _, m := range mems {
-			if mm, ok := m.(map[string]any); ok {
-				mem := Memory{
-					Content:   fmt.Sprintf("%v", mm["content"]),
-					Type:      fmt.Sprintf("%v", mm["type"]),
-					Project:   fmt.Sprintf("%v", mm["project"]),
-					AgentID:   fmt.Sprintf("%v", mm["agent_id"]),
-					CreatedAt: fmt.Sprintf("%v", mm["created_at"]),
-				}
-				if id, ok := mm["id"].(string); ok {
-					mem.ID = id
-				}
-				if score, ok := mm["score"].(float64); ok {
-					mem.Confidence = score
-				}
-				if source, ok := mm["source"].(string); ok {
-					mem.Tags = append(mem.Tags, "source:"+source)
-				}
-				memories = append(memories, mem)
-			}
-		}
-	}
+	memories := memoriesFromResult(result)
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
@@ -320,4 +270,50 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		Count:    len(memories),
 		Memories: memories,
 	}, nil
+}
+
+// memoriesFromResult extracts Memory entries from an API response map.
+func memoriesFromResult(result map[string]any) []Memory {
+	var memories []Memory
+	mems, ok := result["memories"].([]any)
+	if !ok {
+		return memories
+	}
+	for _, m := range mems {
+		mm, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		mem := Memory{
+			Content:   stringFromMap(mm, "content"),
+			Type:      stringFromMap(mm, "type"),
+			Project:   stringFromMap(mm, "project"),
+			AgentID:   stringFromMap(mm, "agent_id"),
+			CreatedAt: stringFromMap(mm, "created_at"),
+		}
+		if id, ok := mm["id"].(string); ok {
+			mem.ID = id
+		}
+		if score, ok := mm["score"].(float64); ok {
+			mem.Confidence = score
+		}
+		if source, ok := mm["source"].(string); ok {
+			mem.Tags = append(mem.Tags, "source:"+source)
+		}
+		memories = append(memories, mem)
+	}
+	return memories
+}
+
+// stringFromMap extracts a string value from a map, returning "" if missing or wrong type.
+func stringFromMap(m map[string]any, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return core.Sprintf("%v", v)
+	}
+	return s
 }

@@ -4,17 +4,15 @@ package agentic
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -54,7 +52,7 @@ func (s *PrepSubsystem) registerDispatchTool(svc *coremcp.Service) {
 // agentCommand returns the command and args for a given agent type.
 // Supports model variants: "gemini", "gemini:flash", "gemini:pro", "claude", "claude:haiku".
 func agentCommand(agent, prompt string) (string, []string, error) {
-	parts := strings.SplitN(agent, ":", 2)
+	parts := core.SplitN(agent, ":", 2)
 	base := parts[0]
 	model := ""
 	if len(parts) > 1 {
@@ -78,7 +76,7 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 		return "claude", args, nil
 	case "local":
 		home, _ := os.UserHomeDir()
-		script := filepath.Join(home, "Code", "core", "agent", "scripts", "local-agent.sh")
+		script := core.Path(home, "Code", "core", "agent", "scripts", "local-agent.sh")
 		return "bash", []string{script, prompt}, nil
 	default:
 		return "", nil, coreerr.E("agentCommand", "unknown agent: "+agent, nil)
@@ -119,14 +117,14 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 
 	wsDir := prepOut.WorkspaceDir
-	srcDir := filepath.Join(wsDir, "src")
+	srcDir := core.Path(wsDir, "src")
 
 	// The prompt is just: read PROMPT.md and do the work
 	prompt := "Read PROMPT.md for instructions. All context files (CLAUDE.md, TODO.md, CONTEXT.md, CONSUMERS.md, RECENT.md) are in the parent directory. Work in this directory."
 
 	if input.DryRun {
 		// Read PROMPT.md for the dry run output
-		promptRaw, _ := coreio.Local.Read(filepath.Join(wsDir, "PROMPT.md"))
+		promptRaw, _ := coreio.Local.Read(core.Path(wsDir, "PROMPT.md"))
 		return nil, DispatchOutput{
 			Success:      true,
 			Agent:        input.Agent,
@@ -181,7 +179,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		return nil, DispatchOutput{}, err
 	}
 
-	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", input.Agent))
+	outputFile := core.Path(wsDir, core.Sprintf("agent-%s.log", input.Agent))
 	outFile, err := os.Create(outputFile)
 	if err != nil {
 		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to create log file", err)
@@ -247,7 +245,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		status := "completed"
 		channel := coremcp.ChannelAgentComplete
 		payload := map[string]any{
-			"workspace": filepath.Base(wsDir),
+			"workspace": core.PathBase(wsDir),
 			"repo":      input.Repo,
 			"org":       input.Org,
 			"agent":     input.Agent,
@@ -257,11 +255,11 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		// Update status to completed or blocked.
 		if st, err := readStatus(wsDir); err == nil {
 			st.PID = 0
-			if data, err := coreio.Local.Read(filepath.Join(wsDir, "src", "BLOCKED.md")); err == nil {
+			if data, err := coreio.Local.Read(core.Path(wsDir, "src", "BLOCKED.md")); err == nil {
 				status = "blocked"
 				channel = coremcp.ChannelAgentBlocked
 				st.Status = status
-				st.Question = strings.TrimSpace(data)
+				st.Question = core.Trim(data)
 				if st.Question != "" {
 					payload["question"] = st.Question
 				}

@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -430,33 +429,33 @@ func planPath(dir, id string) string {
 }
 
 func generatePlanID(title string) string {
-	slug := strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
-			return r
+	b := core.NewBuilder()
+	b.Grow(len(title))
+	for _, r := range title {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r + 32)
+		case r == ' ':
+			b.WriteByte('-')
 		}
-		if r >= 'A' && r <= 'Z' {
-			return r + 32
-		}
-		if r == ' ' {
-			return '-'
-		}
-		return -1
-	}, title)
+	}
+	slug := b.String()
 
-	// Trim consecutive dashes and cap length
+	// Collapse consecutive dashes and cap length
 	for core.Contains(slug, "--") {
 		slug = core.Replace(slug, "--", "-")
 	}
-	slug = strings.Trim(slug, "-")
+	slug = trimDashes(slug)
 	if len(slug) > 30 {
-		slug = slug[:30]
+		slug = trimDashes(slug[:30])
 	}
-	slug = strings.TrimRight(slug, "-")
 
 	// Append short random suffix for uniqueness
-	b := make([]byte, 3)
-	rand.Read(b)
-	return slug + "-" + hex.EncodeToString(b)
+	rnd := make([]byte, 3)
+	rand.Read(rnd)
+	return slug + "-" + hex.EncodeToString(rnd)
 }
 
 func readPlan(dir, id string) (*Plan, error) {
