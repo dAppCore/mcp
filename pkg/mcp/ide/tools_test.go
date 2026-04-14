@@ -949,3 +949,76 @@ func TestChatSend_Good_BridgeMessageType(t *testing.T) {
 		t.Fatal("timed out waiting for bridge message")
 	}
 }
+
+// TestToolsDashboard_DashboardState_Good returns an empty state when the
+// store has not been touched.
+func TestToolsDashboard_DashboardState_Good(t *testing.T) {
+	t.Cleanup(resetDashboardState)
+
+	sub := newNilBridgeSubsystem()
+	_, out, err := sub.dashboardState(context.Background(), nil, DashboardStateInput{})
+	if err != nil {
+		t.Fatalf("dashboardState failed: %v", err)
+	}
+	if len(out.State) != 0 {
+		t.Fatalf("expected empty state, got %v", out.State)
+	}
+}
+
+// TestToolsDashboard_DashboardUpdate_Good merges the supplied state into the
+// shared store and reflects it back on a subsequent dashboardState call.
+func TestToolsDashboard_DashboardUpdate_Good(t *testing.T) {
+	t.Cleanup(resetDashboardState)
+
+	sub := newNilBridgeSubsystem()
+
+	_, updateOut, err := sub.dashboardUpdate(context.Background(), nil, DashboardUpdateInput{
+		State: map[string]any{"theme": "dark"},
+	})
+	if err != nil {
+		t.Fatalf("dashboardUpdate failed: %v", err)
+	}
+	if updateOut.State["theme"] != "dark" {
+		t.Fatalf("expected theme 'dark', got %v", updateOut.State["theme"])
+	}
+
+	_, readOut, err := sub.dashboardState(context.Background(), nil, DashboardStateInput{})
+	if err != nil {
+		t.Fatalf("dashboardState failed: %v", err)
+	}
+	if readOut.State["theme"] != "dark" {
+		t.Fatalf("expected persisted theme 'dark', got %v", readOut.State["theme"])
+	}
+	if readOut.UpdatedAt.IsZero() {
+		t.Fatal("expected non-zero UpdatedAt after update")
+	}
+}
+
+// TestToolsDashboard_DashboardUpdate_Ugly replaces (not merges) prior state
+// when Replace=true.
+func TestToolsDashboard_DashboardUpdate_Ugly(t *testing.T) {
+	t.Cleanup(resetDashboardState)
+
+	sub := newNilBridgeSubsystem()
+
+	_, _, err := sub.dashboardUpdate(context.Background(), nil, DashboardUpdateInput{
+		State: map[string]any{"theme": "dark", "sidebar": true},
+	})
+	if err != nil {
+		t.Fatalf("seed dashboardUpdate failed: %v", err)
+	}
+
+	_, out, err := sub.dashboardUpdate(context.Background(), nil, DashboardUpdateInput{
+		State:   map[string]any{"theme": "light"},
+		Replace: true,
+	})
+	if err != nil {
+		t.Fatalf("replace dashboardUpdate failed: %v", err)
+	}
+	if _, ok := out.State["sidebar"]; ok {
+		t.Fatal("expected sidebar to be removed after replace")
+	}
+	if out.State["theme"] != "light" {
+		t.Fatalf("expected theme 'light', got %v", out.State["theme"])
+	}
+}

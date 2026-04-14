@@ -71,13 +71,19 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 	}
 
 	tools := svc.Tools()
-	// Built-in tools: file_read, file_write, file_delete, file_rename,
-	// file_exists, file_edit, dir_list, dir_create, lang_detect, lang_list,
-	// metrics_record, metrics_query, rag_query, rag_ingest, rag_collections,
-	// webview_connect, webview_disconnect, webview_navigate, webview_click,
-	// webview_type, webview_query, webview_console, webview_eval,
-	// webview_screenshot, webview_wait
-	const expectedCount = 25
+	// Built-in tools (no ProcessService / WSHub / Subsystems):
+	//   files (8):    file_read, file_write, file_delete, file_rename,
+	//                 file_exists, file_edit, dir_list, dir_create
+	//   language (2): lang_detect, lang_list
+	//   metrics (2):  metrics_record, metrics_query
+	//   rag (6):      rag_query, rag_search, rag_ingest, rag_index,
+	//                 rag_retrieve, rag_collections
+	//   webview (12): webview_connect, webview_disconnect, webview_navigate,
+	//                 webview_click, webview_type, webview_query,
+	//                 webview_console, webview_eval, webview_screenshot,
+	//                 webview_wait, webview_render, webview_update
+	//   ws (3):       ws_connect, ws_send, ws_close
+	const expectedCount = 33
 	if len(tools) != expectedCount {
 		t.Errorf("expected %d tools, got %d", expectedCount, len(tools))
 		for _, tr := range tools {
@@ -95,8 +101,8 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 	fileTools := []string{"file_read", "file_write", "file_delete", "file_rename", "file_exists", "file_edit", "dir_list", "dir_create"}
 	langTools := []string{"lang_detect", "lang_list"}
 	metricsTools := []string{"metrics_record", "metrics_query"}
-	ragTools := []string{"rag_query", "rag_ingest", "rag_collections"}
-	webviewTools := []string{"webview_connect", "webview_disconnect", "webview_navigate", "webview_click", "webview_type", "webview_query", "webview_console", "webview_eval", "webview_screenshot", "webview_wait"}
+	ragTools := []string{"rag_query", "rag_search", "rag_ingest", "rag_index", "rag_retrieve", "rag_collections"}
+	webviewTools := []string{"webview_connect", "webview_disconnect", "webview_navigate", "webview_click", "webview_type", "webview_query", "webview_console", "webview_eval", "webview_screenshot", "webview_wait", "webview_render", "webview_update"}
 
 	byName := make(map[string]ToolRecord)
 	for _, tr := range svc.Tools() {
@@ -155,6 +161,18 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 		}
 		if tr.Group != "webview" {
 			t.Errorf("tool %s: expected group 'webview', got %q", name, tr.Group)
+		}
+	}
+
+	wsClientTools := []string{"ws_connect", "ws_send", "ws_close"}
+	for _, name := range wsClientTools {
+		tr, ok := byName[name]
+		if !ok {
+			t.Errorf("tool %s not found in registry", name)
+			continue
+		}
+		if tr.Group != "ws" {
+			t.Errorf("tool %s: expected group 'ws', got %q", name, tr.Group)
 		}
 	}
 }

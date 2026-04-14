@@ -171,3 +171,66 @@ func TestRAGCollectionsInput_ShowStats(t *testing.T) {
 		t.Error("Expected ShowStats to be true")
 	}
 }
+
+// TestToolsRag_RAGRetrieveInput_Good exercises the rag_retrieve DTO defaults.
+func TestToolsRag_RAGRetrieveInput_Good(t *testing.T) {
+	input := RAGRetrieveInput{
+		Source:     "docs/index.md",
+		Collection: "core-docs",
+		Limit:      20,
+	}
+
+	if input.Source != "docs/index.md" {
+		t.Errorf("expected source docs/index.md, got %q", input.Source)
+	}
+	if input.Limit != 20 {
+		t.Errorf("expected limit 20, got %d", input.Limit)
+	}
+}
+
+// TestToolsRag_RAGRetrieveOutput_Good exercises the rag_retrieve output shape.
+func TestToolsRag_RAGRetrieveOutput_Good(t *testing.T) {
+	output := RAGRetrieveOutput{
+		Source:     "docs/index.md",
+		Collection: "core-docs",
+		Chunks: []RAGQueryResult{
+			{Content: "first", ChunkIndex: 0},
+			{Content: "second", ChunkIndex: 1},
+		},
+		Count: 2,
+	}
+	if output.Count != 2 {
+		t.Fatalf("expected count 2, got %d", output.Count)
+	}
+	if output.Chunks[1].ChunkIndex != 1 {
+		t.Fatalf("expected chunk 1, got %d", output.Chunks[1].ChunkIndex)
+	}
+}
+
+// TestToolsRag_SortChunksByIndex_Good verifies sort orders by chunk index ascending.
+func TestToolsRag_SortChunksByIndex_Good(t *testing.T) {
+	chunks := []RAGQueryResult{
+		{ChunkIndex: 3},
+		{ChunkIndex: 1},
+		{ChunkIndex: 2},
+	}
+	sortChunksByIndex(chunks)
+	for i, want := range []int{1, 2, 3} {
+		if chunks[i].ChunkIndex != want {
+			t.Fatalf("index %d: expected chunk %d, got %d", i, want, chunks[i].ChunkIndex)
+		}
+	}
+}
+
+// TestToolsRag_RagRetrieve_Bad rejects empty source paths.
+func TestToolsRag_RagRetrieve_Bad(t *testing.T) {
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err = svc.ragRetrieve(t.Context(), nil, RAGRetrieveInput{})
+	if err == nil {
+		t.Fatal("expected error for empty source")
+	}
+}

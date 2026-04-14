@@ -49,6 +49,12 @@ func (s *PrepSubsystem) registerIssueTools(svc *coremcp.Service) {
 		Description: "Dispatch an agent to work on a Forge issue. Assigns the issue as a lock, prepends the issue body to TODO.md, creates an issue-specific branch, and spawns the agent.",
 	}, s.dispatchIssue)
 
+	// agentic_issue_dispatch is the spec-aligned name for the same action.
+	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
+		Name:        "agentic_issue_dispatch",
+		Description: "Dispatch an agent to work on a Forge issue. Spec-aligned alias for agentic_dispatch_issue.",
+	}, s.dispatchIssue)
+
 	coremcp.AddToolRecorded(svc, server, "agentic", &mcp.Tool{
 		Name:        "agentic_pr",
 		Description: "Create a pull request from an agent workspace. Pushes the branch and creates a Forge PR linked to the tracked issue, if any.",

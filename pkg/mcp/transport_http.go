@@ -249,9 +249,30 @@ func handleMCPDiscovery(w http.ResponseWriter, r *http.Request) {
 					"command": "core-agent",
 					"args":    []string{"mcp"},
 				},
-				Capabilities:   []string{"tools", "resources"},
-				UseWhen:        []string{"Need to dispatch work to Codex/Claude/Gemini", "Need workspace status", "Need semantic search"},
+				Capabilities: []string{"tools", "resources"},
+				UseWhen: []string{
+					"Need to dispatch work to Codex/Claude/Gemini",
+					"Need workspace status",
+					"Need semantic search",
+				},
 				RelatedServers: []string{"core-mcp"},
+			},
+			{
+				ID:          "core-mcp",
+				Name:        "Core MCP",
+				Description: "File ops, process and build tools, RAG search, webview, dashboards — the agent-facing MCP framework.",
+				Connection: map[string]any{
+					"type":    "stdio",
+					"command": "core-mcp",
+				},
+				Capabilities: []string{"tools", "resources", "logging"},
+				UseWhen: []string{
+					"Need to read/write files inside a workspace",
+					"Need to start or monitor processes",
+					"Need to run RAG queries or index documents",
+					"Need to render or update an embedded dashboard view",
+				},
+				RelatedServers: []string{"core-agent"},
 			},
 		},
 	}
