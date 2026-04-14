@@ -270,6 +270,18 @@ func (s *Service) registerWebviewTools(server *mcp.Server) {
 		Name:        "webview_wait",
 		Description: "Wait for an element to appear by CSS selector.",
 	}, s.webviewWait)
+
+	// Embedded UI rendering — for pushing HTML/state to connected clients
+	// without requiring a Chrome DevTools connection.
+	addToolRecorded(s, server, "webview", &mcp.Tool{
+		Name:        "webview_render",
+		Description: "Render HTML in an embedded webview by ID. Broadcasts to connected clients via the webview.render channel.",
+	}, s.webviewRender)
+
+	addToolRecorded(s, server, "webview", &mcp.Tool{
+		Name:        "webview_update",
+		Description: "Update the HTML, title, or state of an embedded webview by ID. Broadcasts to connected clients via the webview.update channel.",
+	}, s.webviewUpdate)
 }
 
 // webviewConnect handles the webview_connect tool call.

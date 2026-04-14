@@ -301,3 +301,57 @@ func TestRegisterProcessTools_Bad_NilService(t *testing.T) {
 		t.Error("Expected registerProcessTools to return false when processService is nil")
 	}
 }
+
+// TestToolsProcess_ProcessRunInput_Good exercises the process_run input DTO shape.
+func TestToolsProcess_ProcessRunInput_Good(t *testing.T) {
+	input := ProcessRunInput{
+		Command: "echo",
+		Args:    []string{"hello"},
+		Dir:     "/tmp",
+		Env:     []string{"FOO=bar"},
+	}
+	if input.Command != "echo" {
+		t.Errorf("expected command 'echo', got %q", input.Command)
+	}
+	if len(input.Args) != 1 || input.Args[0] != "hello" {
+		t.Errorf("expected args [hello], got %v", input.Args)
+	}
+	if input.Dir != "/tmp" {
+		t.Errorf("expected dir '/tmp', got %q", input.Dir)
+	}
+	if len(input.Env) != 1 {
+		t.Errorf("expected 1 env, got %d", len(input.Env))
+	}
+}
+
+// TestToolsProcess_ProcessRunOutput_Good exercises the process_run output DTO shape.
+func TestToolsProcess_ProcessRunOutput_Good(t *testing.T) {
+	output := ProcessRunOutput{
+		ID:       "proc-1",
+		ExitCode: 0,
+		Output:   "hello\n",
+		Command:  "echo",
+	}
+	if output.ID != "proc-1" {
+		t.Errorf("expected id 'proc-1', got %q", output.ID)
+	}
+	if output.ExitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", output.ExitCode)
+	}
+	if output.Output != "hello\n" {
+		t.Errorf("expected output 'hello\\n', got %q", output.Output)
+	}
+}
+
+// TestToolsProcess_ProcessRun_Bad rejects calls without a process service.
+func TestToolsProcess_ProcessRun_Bad(t *testing.T) {
+	svc, err := New(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err = svc.processRun(t.Context(), nil, ProcessRunInput{Command: "echo", Args: []string{"hi"}})
+	if err == nil {
+		t.Fatal("expected error when process service is unavailable")
+	}
+}

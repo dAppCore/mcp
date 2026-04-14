@@ -316,6 +316,7 @@ func (s *Service) registerTools(server *mcp.Server) {
 	s.registerProcessTools(server)
 	s.registerWebviewTools(server)
 	s.registerWSTools(server)
+	s.registerWSClientTools(server)
 }
 
 // Tool input/output types for MCP file operations.
