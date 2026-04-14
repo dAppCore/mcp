@@ -69,6 +69,26 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, WatchOutput{Success: true, Duration: "0s"}, nil
 	}
 
+	progressToken := any(nil)
+	if req != nil && req.Params != nil {
+		progressToken = req.Params.GetProgressToken()
+	}
+
+	progress := float64(0)
+	total := float64(len(targets))
+
+	sendProgress := func(current float64, status WorkspaceStatus) {
+		if req == nil || req.Session == nil || progressToken == nil {
+			return
+		}
+		_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+			ProgressToken: progressToken,
+			Progress:      current,
+			Total:         total,
+			Message:       core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent),
+		})
+	}
+
 	remaining := make(map[string]struct{}, len(targets))
 	for _, workspace := range targets {
 		remaining[workspace] = struct{}{}
@@ -106,6 +126,11 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 
 			switch info.Status {
 			case "completed", "merged", "ready-for-review":
+				status := WorkspaceStatus{
+					Repo:   info.Repo,
+					Agent:  info.Agent,
+					Status: info.Status,
+				}
 				completed = append(completed, WatchResult{
 					Workspace: info.Name,
 					Agent:     info.Agent,
@@ -116,7 +141,14 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 					PRURL:     info.PRURL,
 				})
 				delete(remaining, info.Name)
+				progress++
+				sendProgress(progress, status)
 			case "failed", "blocked":
+				status := WorkspaceStatus{
+					Repo:   info.Repo,
+					Agent:  info.Agent,
+					Status: info.Status,
+				}
 				failed = append(failed, WatchResult{
 					Workspace: info.Name,
 					Agent:     info.Agent,
@@ -127,6 +159,8 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 					PRURL:     info.PRURL,
 				})
 				delete(remaining, info.Name)
+				progress++
+				sendProgress(progress, status)
 			}
 		}
 	}

@@ -84,6 +84,25 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 }
 
 func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
+	progressToken := any(nil)
+	if req != nil && req.Params != nil {
+		progressToken = req.Params.GetProgressToken()
+	}
+
+	sendProgress := func(progress float64, total float64, message string) {
+		if req == nil || req.Session == nil || progressToken == nil {
+			return
+		}
+		_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+			ProgressToken: progressToken,
+			Progress:      progress,
+			Total:         total,
+			Message:       message,
+		})
+	}
+
+	const dispatchProgressTotal = 4
+
 	if input.Repo == "" {
 		return nil, DispatchOutput{}, coreerr.E("dispatch", "repo is required", nil)
 	}
@@ -100,7 +119,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		input.Template = "coding"
 	}
 
+	sendProgress(1, dispatchProgressTotal, "validated dispatch request")
+
 	// Step 1: Prep the sandboxed workspace
+	sendProgress(2, dispatchProgressTotal, "preparing workspace")
 	prepInput := PrepInput{
 		Repo:         input.Repo,
 		Org:          input.Org,
@@ -115,6 +137,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	if err != nil {
 		return nil, DispatchOutput{}, coreerr.E("dispatch", "prep workspace failed", err)
 	}
+	sendProgress(3, dispatchProgressTotal, core.Sprintf("workspace prepared for %s", prepOut.Branch))
 
 	wsDir := prepOut.WorkspaceDir
 	srcDir := core.Path(wsDir, "src")
@@ -125,6 +148,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	if input.DryRun {
 		// Read PROMPT.md for the dry run output
 		promptRaw, _ := coreio.Local.Read(core.Path(wsDir, "PROMPT.md"))
+		sendProgress(dispatchProgressTotal, dispatchProgressTotal, "dry run complete")
 		return nil, DispatchOutput{
 			Success:      true,
 			Agent:        input.Agent,
@@ -148,6 +172,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			StartedAt: time.Now(),
 			Runs:      0,
 		})
+		sendProgress(dispatchProgressTotal, dispatchProgressTotal, "queued until an agent slot is available")
 		return nil, DispatchOutput{
 			Success:      true,
 			Agent:        input.Agent,
@@ -170,8 +195,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		StartedAt: time.Now(),
 		Runs:      1,
 	})
+	sendProgress(3.5, dispatchProgressTotal, "dispatch slot acquired")
 
 	// Step 4: Spawn agent as a detached process
+	sendProgress(4, dispatchProgressTotal, core.Sprintf("spawning agent %s", input.Agent))
 	// Uses Setpgid so the agent survives parent (MCP server) death.
 	// Output goes directly to log file (not buffered in memory).
 	command, args, err := agentCommand(input.Agent, prompt)
@@ -220,6 +247,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 
 	pid := cmd.Process.Pid
+	sendProgress(dispatchProgressTotal, dispatchProgressTotal, "agent process started")
 
 	// Update status with PID now that agent is running
 	s.saveStatus(wsDir, &WorkspaceStatus{
