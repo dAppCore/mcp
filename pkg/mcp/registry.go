@@ -99,6 +99,9 @@ func AddToolRecorded[In, Out any](s *Service, server *mcp.Server, group string, 
 				}
 			}
 		}
+		if err := s.authorizeToolAccess(ctx, req, t.Name, input); err != nil {
+			return nil, err
+		}
 		result, output, err := h(ctx, req, input)
 		if err != nil {
 			return nil, err
