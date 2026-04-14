@@ -1,7 +1,14 @@
-// Package mcpcmd provides the MCP server command.
+// SPDX-License-Identifier: EUPL-1.2
+
+// Package mcpcmd registers the `mcp` and `mcp serve` CLI commands.
+//
+// Wiring example:
+//
+//	cli.Main(cli.WithCommands("mcp", mcpcmd.AddMCPCommands))
 //
 // Commands:
-//   - mcp serve: Start the MCP server for AI tool integration
+//   - mcp           Start the MCP server on stdio (default transport).
+//   - mcp serve     Start the MCP server with auto-selected transport.
 package mcpcmd
 
 import (
@@ -10,75 +17,89 @@ import (
 	"os/signal"
 	"syscall"
 
+	core "dappco.re/go/core"
 	"dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
-	"dappco.re/go/core/cli/pkg/cli"
 )
 
-var workspaceFlag string
-var unrestrictedFlag bool
-
+// newMCPService is the service constructor, indirected for tests.
 var newMCPService = mcp.New
+
+// runMCPService starts the MCP server, indirected for tests.
 var runMCPService = func(svc *mcp.Service, ctx context.Context) error {
 	return svc.Run(ctx)
 }
+
+// shutdownMCPService performs graceful shutdown, indirected for tests.
 var shutdownMCPService = func(svc *mcp.Service, ctx context.Context) error {
 	return svc.Shutdown(ctx)
 }
 
-var mcpCmd = &cli.Command{
-	Use:   "mcp",
-	Short: "MCP server for AI tool integration",
-	Long:  "Model Context Protocol (MCP) server providing file operations, RAG, and metrics tools.",
+// workspaceFlag mirrors the --workspace CLI flag value.
+var workspaceFlag string
+
+// unrestrictedFlag mirrors the --unrestricted CLI flag value.
+var unrestrictedFlag bool
+
+// AddMCPCommands registers the `mcp` command tree on the Core instance.
+//
+//	cli.Main(cli.WithCommands("mcp", mcpcmd.AddMCPCommands))
+func AddMCPCommands(c *core.Core) {
+	c.Command("mcp", core.Command{
+		Description: "Model Context Protocol server (stdio, TCP, Unix socket, HTTP).",
+		Action:      runServeAction,
+		Flags: core.NewOptions(
+			core.Option{Key: "workspace", Value: ""},
+			core.Option{Key: "w", Value: ""},
+			core.Option{Key: "unrestricted", Value: false},
+		),
+	})
+
+	c.Command("mcp/serve", core.Command{
+		Description: "Start the MCP server with auto-selected transport (stdio, TCP, Unix, or HTTP).",
+		Action:      runServeAction,
+		Flags: core.NewOptions(
+			core.Option{Key: "workspace", Value: ""},
+			core.Option{Key: "w", Value: ""},
+			core.Option{Key: "unrestricted", Value: false},
+		),
+	})
 }
 
-var serveCmd = &cli.Command{
-	Use:   "serve",
-	Short: "Start the MCP server",
-	Long: `Start the MCP server on stdio (default), TCP, Unix socket, or HTTP.
+// runServeAction is the CLI entrypoint for `mcp` and `mcp serve`.
+//
+//	opts := core.NewOptions(core.Option{Key: "workspace", Value: "."})
+//	result := runServeAction(opts)
+func runServeAction(opts core.Options) core.Result {
+	workspaceFlag = core.Trim(firstNonEmpty(opts.String("workspace"), opts.String("w")))
+	unrestrictedFlag = opts.Bool("unrestricted")
 
-The server provides file operations plus the brain and agentic subsystems
-registered by this command.
-
-Environment variables:
-  MCP_ADDR    TCP address to listen on (e.g., "localhost:9999")
-  MCP_UNIX_SOCKET
-              Unix socket path to listen on (e.g., "/tmp/core-mcp.sock")
-              Selected after MCP_ADDR and before stdio.
-  MCP_HTTP_ADDR
-              HTTP address to listen on (e.g., "127.0.0.1:9101")
-              Selected before MCP_ADDR and stdio.
-
-Examples:
-  # Start with stdio transport (for Claude Code integration)
-  core mcp serve
-
-  # Start with workspace restriction
-  core mcp serve --workspace /path/to/project
-
-  # Start unrestricted (explicit opt-in)
-  core mcp serve --unrestricted
-
-  # Start TCP server
-  MCP_ADDR=localhost:9999 core mcp serve`,
-	RunE: func(cmd *cli.Command, args []string) error {
-		return runServe()
-	},
+	if err := runServe(); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
+	return core.Result{OK: true}
 }
 
-func initFlags() {
-	cli.StringFlag(serveCmd, &workspaceFlag, "workspace", "w", "", "Restrict file operations to this directory")
-	cli.BoolFlag(serveCmd, &unrestrictedFlag, "unrestricted", "", false, "Disable filesystem sandboxing entirely")
+// firstNonEmpty returns the first non-empty string argument.
+//
+//	firstNonEmpty("", "foo") == "foo"
+//	firstNonEmpty("bar", "baz") == "bar"
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
-// AddMCPCommands registers the 'mcp' command and all subcommands.
-func AddMCPCommands(root *cli.Command) {
-	initFlags()
-	mcpCmd.AddCommand(serveCmd)
-	root.AddCommand(mcpCmd)
-}
-
+// runServe wires the MCP service together and blocks until the context is
+// cancelled by SIGINT/SIGTERM or a transport error.
+//
+//	if err := runServe(); err != nil {
+//	    core.Error("mcp serve failed", "err", err)
+//	}
 func runServe() error {
 	opts := mcp.Options{}
 
@@ -88,22 +109,20 @@ func runServe() error {
 		opts.WorkspaceRoot = workspaceFlag
 	}
 
-	// Register OpenBrain and agentic subsystems
+	// Register OpenBrain and agentic subsystems.
 	opts.Subsystems = []mcp.Subsystem{
 		brain.NewDirect(),
 		agentic.NewPrep(),
 	}
 
-	// Create the MCP service
 	svc, err := newMCPService(opts)
 	if err != nil {
-		return cli.Wrap(err, "create MCP service")
+		return core.E("mcpcmd.runServe", "create MCP service", err)
 	}
 	defer func() {
 		_ = shutdownMCPService(svc, context.Background())
 	}()
 
-	// Set up signal handling for clean shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -111,10 +130,12 @@ func runServe() error {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		<-sigCh
-		cancel()
+		select {
+		case <-sigCh:
+			cancel()
+		case <-ctx.Done():
+		}
 	}()
 
-	// Run the server (blocks until context cancelled or error)
 	return runMCPService(svc, ctx)
 }

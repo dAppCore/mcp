@@ -81,13 +81,16 @@ func TestBridgeToAPI_Good_DescribableGroup(t *testing.T) {
 	var dg api.DescribableGroup = bridge
 	descs := dg.Describe()
 
-	if len(descs) != len(svc.Tools()) {
-		t.Fatalf("expected %d descriptions, got %d", len(svc.Tools()), len(descs))
+	// ToolBridge.Describe prepends a GET entry describing the tool listing
+	// endpoint, so the expected count is svc.Tools() + 1.
+	wantDescs := len(svc.Tools()) + 1
+	if len(descs) != wantDescs {
+		t.Fatalf("expected %d descriptions, got %d", wantDescs, len(descs))
 	}
 
 	for _, d := range descs {
-		if d.Method != "POST" {
-			t.Errorf("expected Method=POST for %s, got %q", d.Path, d.Method)
+		if d.Method != "POST" && d.Method != "GET" {
+			t.Errorf("expected Method=POST or GET for %s, got %q", d.Path, d.Method)
 		}
 		if d.Summary == "" {
 			t.Errorf("expected non-empty Summary for %s", d.Path)
