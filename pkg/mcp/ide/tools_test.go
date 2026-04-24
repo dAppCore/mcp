@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/ws"
 )
 
 // --- Helpers ---

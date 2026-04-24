@@ -7,8 +7,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/process"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 )
 
 // Register is the service factory for core.WithService.

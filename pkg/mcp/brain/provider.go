@@ -7,9 +7,9 @@ import (
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	"dappco.re/go/core/api"
-	"dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/api"
+	"dappco.re/go/api/pkg/provider"
+	"dappco.re/go/ws"
 	"github.com/gin-gonic/gin"
 )
 

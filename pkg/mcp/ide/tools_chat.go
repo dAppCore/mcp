@@ -7,7 +7,7 @@ import (
 	"time"
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

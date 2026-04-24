@@ -11,8 +11,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
-	api "dappco.re/go/core/api"
+	coreerr "dappco.re/go/log"
+	api "dappco.re/go/api"
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

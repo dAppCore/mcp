@@ -6,7 +6,7 @@ import (
 	"os"
 
 	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	coreio "dappco.re/go/io"
 )
 
 // os.CreateTemp, os.Remove, os.Rename are framework-boundary calls for

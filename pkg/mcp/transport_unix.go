@@ -6,8 +6,8 @@ import (
 	"context"
 	"net"
 
-	"dappco.re/go/core/io"
-	"dappco.re/go/core/log"
+	"dappco.re/go/io"
+	"dappco.re/go/log"
 )
 
 // ServeUnix starts a Unix domain socket server for the MCP service.

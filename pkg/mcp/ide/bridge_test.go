@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core/ws"
+	"dappco.re/go/ws"
 	"github.com/gorilla/websocket"
 )
 
