@@ -4,15 +4,17 @@ package mcp
 
 import (
 	"context"
+	// Note: AX-6 — HTTP transport boundary needs streaming JSON encode/decode against ResponseWriter and MaxBytesReader.
 	"encoding/json"
+	// Note: AX-6 — structural HTTP transport requires binding an explicit TCP listener.
 	"net"
+	// Note: AX-6 — structural HTTP transport boundary requires handlers, requests, status codes, and server lifecycle APIs.
 	"net/http"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
-	coreerr "dappco.re/go/core/log"
 	api "dappco.re/go/core/api"
+	coreerr "dappco.re/go/core/log"
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -172,9 +174,9 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 		return
 	}
 
-	providedToken := strings.TrimSpace(extractBearerToken(r.Header.Get("Authorization")))
+	providedToken := core.Trim(extractBearerToken(r.Header.Get("Authorization")))
 	if providedToken == "" {
-		providedToken = strings.TrimSpace(req.Token)
+		providedToken = core.Trim(req.Token)
 	}
 	if providedToken == "" {
 		w.Header().Set("Content-Type", "application/json")
@@ -193,11 +195,11 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	cfg := currentAuthConfig(apiToken)
 	now := time.Now()
 	claims := authClaims{
-		Workspace:    strings.TrimSpace(req.Workspace),
+		Workspace:    core.Trim(req.Workspace),
 		Entitlements: dedupeEntitlements(req.Entitlements),
 		Subject:      core.Trim(req.Sub),
 		IssuedAt:     now.Unix(),
-		ExpiresAt:     now.Unix() + int64(cfg.ttl.Seconds()),
+		ExpiresAt:    now.Unix() + int64(cfg.ttl.Seconds()),
 	}
 
 	minted, err := mintJWTToken(claims, cfg)
@@ -224,7 +226,7 @@ func dedupeEntitlements(entitlements []string) []string {
 	seen := make(map[string]struct{}, len(entitlements))
 	out := make([]string, 0, len(entitlements))
 	for _, ent := range entitlements {
-		e := strings.TrimSpace(ent)
+		e := core.Trim(ent)
 		if e == "" {
 			continue
 		}
