@@ -14,7 +14,8 @@ import (
 
 const (
 	defaultWatchPollInterval = 5 * time.Second
-	defaultWatchTimeout      = 30 * time.Minute
+	defaultWatchTimeout      = 60 * time.Second
+	maxWatchTimeout          = 30 * time.Minute
 )
 
 // WatchInput is the input for agentic_watch.
@@ -57,10 +58,7 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 		pollInterval = defaultWatchPollInterval
 	}
 
-	timeout := time.Duration(input.Timeout) * time.Second
-	if timeout <= 0 {
-		timeout = defaultWatchTimeout
-	}
+	timeout := resolveWatchTimeout(input)
 
 	start := time.Now()
 	deadline := start.Add(timeout)
@@ -164,6 +162,19 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 		Failed:    failed,
 		Duration:  time.Since(start).Round(time.Second).String(),
 	}, nil
+}
+
+func resolveWatchTimeout(input WatchInput) time.Duration {
+	if input.Timeout <= 0 {
+		return defaultWatchTimeout
+	}
+
+	maxSeconds := int(maxWatchTimeout / time.Second)
+	if input.Timeout > maxSeconds {
+		return maxWatchTimeout
+	}
+
+	return time.Duration(input.Timeout) * time.Second
 }
 
 func (s *PrepSubsystem) findActiveWorkspaces() []string {
