@@ -88,7 +88,9 @@ func TestSubsystem_Good_BridgeRecallNotification(t *testing.T) {
 	sub.handleBridgeMessage(ide.BridgeMessage{
 		Type: "brain_recall",
 		Data: map[string]any{
-			"query": "how does scoring work?",
+			"query":   "how does scoring work?",
+			"org":     "core",
+			"project": "eaas",
 			"memories": []any{
 				map[string]any{"id": "m1"},
 				map[string]any{"id": "m2"},
@@ -110,6 +112,9 @@ func TestSubsystem_Good_BridgeRecallNotification(t *testing.T) {
 	if payload["query"] != "how does scoring work?" {
 		t.Fatalf("expected query to be forwarded, got %v", payload["query"])
 	}
+	if payload["org"] != "core" {
+		t.Fatalf("expected org to be forwarded, got %v", payload["org"])
+	}
 }
 
 // --- Struct round-trip tests ---
@@ -119,6 +124,7 @@ func TestRememberInput_Good_RoundTrip(t *testing.T) {
 		Content:    "LEM scoring was blind to negative emotions",
 		Type:       "bug",
 		Tags:       []string{"scoring", "lem"},
+		Org:        "core",
 		Project:    "eaas",
 		Confidence: 0.95,
 		Supersedes: "550e8400-e29b-41d4-a716-446655440000",
@@ -137,6 +143,9 @@ func TestRememberInput_Good_RoundTrip(t *testing.T) {
 	}
 	if len(out.Tags) != 2 || out.Tags[0] != "scoring" {
 		t.Errorf("round-trip mismatch: tags")
+	}
+	if out.Org != "core" {
+		t.Errorf("round-trip mismatch: org %q != core", out.Org)
 	}
 	if out.Confidence != 0.95 {
 		t.Errorf("round-trip mismatch: confidence %f != 0.95", out.Confidence)
@@ -167,6 +176,7 @@ func TestRecallInput_Good_RoundTrip(t *testing.T) {
 		Query: "how does verdict classification work?",
 		TopK:  5,
 		Filter: RecallFilter{
+			Org:           "core",
 			Project:       "eaas",
 			MinConfidence: 0.5,
 		},
@@ -182,7 +192,7 @@ func TestRecallInput_Good_RoundTrip(t *testing.T) {
 	if out.Query != in.Query || out.TopK != 5 {
 		t.Errorf("round-trip mismatch: query or topK")
 	}
-	if out.Filter.Project != "eaas" || out.Filter.MinConfidence != 0.5 {
+	if out.Filter.Org != "core" || out.Filter.Project != "eaas" || out.Filter.MinConfidence != 0.5 {
 		t.Errorf("round-trip mismatch: filter")
 	}
 }
@@ -194,6 +204,7 @@ func TestMemory_Good_RoundTrip(t *testing.T) {
 		Type:       "decision",
 		Content:    "Use Qdrant for vector search",
 		Tags:       []string{"architecture", "openbrain"},
+		Org:        "core",
 		Project:    "php-agentic",
 		Confidence: 0.9,
 		CreatedAt:  "2026-03-03T12:00:00+00:00",
@@ -207,7 +218,7 @@ func TestMemory_Good_RoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &out); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
-	if out.ID != in.ID || out.AgentID != "virgil" || out.Type != "decision" {
+	if out.ID != in.ID || out.AgentID != "virgil" || out.Type != "decision" || out.Org != "core" {
 		t.Errorf("round-trip mismatch: %+v", out)
 	}
 }
@@ -232,6 +243,7 @@ func TestForgetInput_Good_RoundTrip(t *testing.T) {
 
 func TestListInput_Good_RoundTrip(t *testing.T) {
 	in := ListInput{
+		Org:     "core",
 		Project: "eaas",
 		Type:    "decision",
 		AgentID: "charon",
@@ -245,7 +257,7 @@ func TestListInput_Good_RoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &out); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
-	if out.Project != "eaas" || out.Type != "decision" || out.AgentID != "charon" || out.Limit != 20 {
+	if out.Org != "core" || out.Project != "eaas" || out.Type != "decision" || out.AgentID != "charon" || out.Limit != 20 {
 		t.Errorf("round-trip mismatch: %+v", out)
 	}
 }

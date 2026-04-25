@@ -12,6 +12,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const (
+	defaultWatchPollInterval = 5 * time.Second
+	defaultWatchTimeout      = 30 * time.Minute
+)
+
 // WatchInput is the input for agentic_watch.
 type WatchInput struct {
 	Workspaces   []string `json:"workspaces,omitempty"`
@@ -49,12 +54,12 @@ func (s *PrepSubsystem) registerWatchTool(svc *coremcp.Service) {
 func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, input WatchInput) (*mcp.CallToolResult, WatchOutput, error) {
 	pollInterval := time.Duration(input.PollInterval) * time.Second
 	if pollInterval <= 0 {
-		pollInterval = 5 * time.Second
+		pollInterval = defaultWatchPollInterval
 	}
 
 	timeout := time.Duration(input.Timeout) * time.Second
 	if timeout <= 0 {
-		timeout = 10 * time.Minute
+		timeout = defaultWatchTimeout
 	}
 
 	start := time.Now()
@@ -69,24 +74,12 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, WatchOutput{Success: true, Duration: "0s"}, nil
 	}
 
-	progressToken := any(nil)
-	if req != nil && req.Params != nil {
-		progressToken = req.Params.GetProgressToken()
-	}
-
+	notifier := coremcp.NewProgressNotifier(ctx, req)
 	progress := float64(0)
 	total := float64(len(targets))
 
 	sendProgress := func(current float64, status WorkspaceStatus) {
-		if req == nil || req.Session == nil || progressToken == nil {
-			return
-		}
-		_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
-			ProgressToken: progressToken,
-			Progress:      current,
-			Total:         total,
-			Message:       core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent),
-		})
+		_ = notifier.Send(current, total, core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent))
 	}
 
 	remaining := make(map[string]struct{}, len(targets))

@@ -6,9 +6,9 @@ import (
 	"context"
 	"time"
 
+	coreerr "dappco.re/go/core/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	coreerr "dappco.re/go/core/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -23,11 +23,12 @@ func (s *Subsystem) emitChannel(ctx context.Context, channel string, data any) {
 
 // RememberInput is the input for brain_remember.
 //
-//	input := RememberInput{Content: "Use Qdrant for vector search", Type: "decision"}
+//	input := RememberInput{Content: "Use Qdrant for vector search", Type: "decision", Org: "core"}
 type RememberInput struct {
 	Content    string   `json:"content"`
 	Type       string   `json:"type"`
 	Tags       []string `json:"tags,omitempty"`
+	Org        string   `json:"org,omitempty"`
 	Project    string   `json:"project,omitempty"`
 	Confidence float64  `json:"confidence,omitempty"`
 	Supersedes string   `json:"supersedes,omitempty"`
@@ -54,8 +55,9 @@ type RecallInput struct {
 
 // RecallFilter holds optional filter criteria for brain_recall.
 //
-//	filter := RecallFilter{Project: "core/mcp", MinConfidence: 0.5}
+//	filter := RecallFilter{Org: "core", Project: "core/mcp", MinConfidence: 0.5}
 type RecallFilter struct {
+	Org           string  `json:"org,omitempty"`
 	Project       string  `json:"project,omitempty"`
 	Type          any     `json:"type,omitempty"`
 	AgentID       string  `json:"agent_id,omitempty"`
@@ -80,6 +82,7 @@ type Memory struct {
 	Type         string   `json:"type"`
 	Content      string   `json:"content"`
 	Tags         []string `json:"tags,omitempty"`
+	Org          string   `json:"org,omitempty"`
 	Project      string   `json:"project,omitempty"`
 	Confidence   float64  `json:"confidence"`
 	SupersedesID string   `json:"supersedes_id,omitempty"`
@@ -107,8 +110,9 @@ type ForgetOutput struct {
 
 // ListInput is the input for brain_list.
 //
-//	input := ListInput{Project: "core/mcp", Limit: 50}
+//	input := ListInput{Org: "core", Project: "core/mcp", Limit: 50}
 type ListInput struct {
+	Org     string `json:"org,omitempty"`
 	Project string `json:"project,omitempty"`
 	Type    string `json:"type,omitempty"`
 	AgentID string `json:"agent_id,omitempty"`
@@ -145,7 +149,7 @@ func (s *Subsystem) registerBrainTools(svc *coremcp.Service) {
 
 	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_list",
-		Description: "List memories in the shared OpenBrain knowledge store. Supports filtering by project, type, and agent. No vector search -- use brain_recall for semantic queries.",
+		Description: "List memories in the shared OpenBrain knowledge store. Supports filtering by org, project, type, and agent. No vector search -- use brain_recall for semantic queries.",
 	}, s.brainList)
 }
 
@@ -162,6 +166,7 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 			"content":    input.Content,
 			"type":       input.Type,
 			"tags":       input.Tags,
+			"org":        input.Org,
 			"project":    input.Project,
 			"confidence": input.Confidence,
 			"supersedes": input.Supersedes,
@@ -173,6 +178,7 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
+		"org":     input.Org,
 		"type":    input.Type,
 		"project": input.Project,
 	})
@@ -245,6 +251,7 @@ func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input
 	err := s.bridge.Send(ide.BridgeMessage{
 		Type: "brain_list",
 		Data: map[string]any{
+			"org":      input.Org,
 			"project":  input.Project,
 			"type":     input.Type,
 			"agent_id": input.AgentID,
@@ -256,6 +263,7 @@ func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
+		"org":      input.Org,
 		"project":  input.Project,
 		"type":     input.Type,
 		"agent_id": input.AgentID,

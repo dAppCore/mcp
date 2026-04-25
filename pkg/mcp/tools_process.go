@@ -262,6 +262,7 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 		return nil, ProcessRunOutput{}, log.E("processRun", "process service unavailable", nil)
 	}
 
+	progress := NewProgressNotifier(ctx, req)
 	s.logger.Security("MCP tool execution", "tool", "process_run", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
 
 	if input.Command == "" {
@@ -275,11 +276,13 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 		Env:     input.Env,
 	}
 
+	_ = progress.Send(0, 2, "starting process")
 	proc, err := s.processService.StartWithOptions(ctx, opts)
 	if err != nil {
 		log.Error("mcp: process run start failed", "command", input.Command, "err", err)
 		return nil, ProcessRunOutput{}, log.E("processRun", "failed to start process", err)
 	}
+	_ = progress.Send(1, 2, "process started")
 
 	info := proc.Info()
 	s.recordProcessRuntime(proc.ID, processRuntime{
@@ -300,9 +303,11 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 	// Wait for completion (context-aware).
 	select {
 	case <-ctx.Done():
+		_ = progress.Send(2, 2, "process cancelled")
 		return nil, ProcessRunOutput{}, log.E("processRun", "cancelled", ctx.Err())
 	case <-proc.Done():
 	}
+	_ = progress.Send(2, 2, "process completed")
 
 	return nil, ProcessRunOutput{
 		ID:       proc.ID,

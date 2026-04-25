@@ -5,11 +5,11 @@ package brain
 import (
 	"net/http"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/mcp/pkg/mcp/ide"
 	"dappco.re/go/core/api"
 	"dappco.re/go/core/api/pkg/provider"
 	"dappco.re/go/core/ws"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
+	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"
 )
 
@@ -91,6 +91,7 @@ func (p *BrainProvider) Describe() []api.RouteDescription {
 					"content":    map[string]any{"type": "string"},
 					"type":       map[string]any{"type": "string"},
 					"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"org":        map[string]any{"type": "string"},
 					"project":    map[string]any{"type": "string"},
 					"confidence": map[string]any{"type": "number"},
 				},
@@ -119,6 +120,7 @@ func (p *BrainProvider) Describe() []api.RouteDescription {
 					"filter": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
+							"org":     map[string]any{"type": "string"},
 							"project": map[string]any{"type": "string"},
 							"type":    map[string]any{"type": "string"},
 						},
@@ -161,7 +163,7 @@ func (p *BrainProvider) Describe() []api.RouteDescription {
 			Method:      "GET",
 			Path:        "/list",
 			Summary:     "List memories",
-			Description: "List memories with optional filtering by project, type, and agent.",
+			Description: "List memories with optional filtering by org, project, type, and agent.",
 			Tags:        []string{"brain"},
 			Response: map[string]any{
 				"type": "object",
@@ -208,6 +210,7 @@ func (p *BrainProvider) remember(c *gin.Context) {
 			"content":    input.Content,
 			"type":       input.Type,
 			"tags":       input.Tags,
+			"org":        input.Org,
 			"project":    input.Project,
 			"confidence": input.Confidence,
 			"supersedes": input.Supersedes,
@@ -220,6 +223,7 @@ func (p *BrainProvider) remember(c *gin.Context) {
 	}
 
 	p.emitEvent(coremcp.ChannelBrainRememberDone, map[string]any{
+		"org":     input.Org,
 		"type":    input.Type,
 		"project": input.Project,
 	})
@@ -299,6 +303,7 @@ func (p *BrainProvider) list(c *gin.Context) {
 	}
 
 	project := c.Query("project")
+	org := c.Query("org")
 	typ := c.Query("type")
 	agentID := c.Query("agent_id")
 	limit := c.Query("limit")
@@ -306,6 +311,7 @@ func (p *BrainProvider) list(c *gin.Context) {
 	err := p.bridge.Send(ide.BridgeMessage{
 		Type: "brain_list",
 		Data: map[string]any{
+			"org":      org,
 			"project":  project,
 			"type":     typ,
 			"agent_id": agentID,
@@ -318,6 +324,7 @@ func (p *BrainProvider) list(c *gin.Context) {
 	}
 
 	p.emitEvent(coremcp.ChannelBrainListDone, map[string]any{
+		"org":      org,
 		"project":  project,
 		"type":     typ,
 		"agent_id": agentID,
@@ -354,14 +361,14 @@ func (p *BrainProvider) emitEvent(channel string, data any) {
 func (p *BrainProvider) handleBridgeMessage(msg ide.BridgeMessage) {
 	switch msg.Type {
 	case "brain_remember":
-		p.emitEvent(coremcp.ChannelBrainRememberDone, bridgePayload(msg.Data, "type", "project"))
+		p.emitEvent(coremcp.ChannelBrainRememberDone, bridgePayload(msg.Data, "org", "type", "project"))
 	case "brain_recall":
-		payload := bridgePayload(msg.Data, "query", "project", "type", "agent_id")
+		payload := bridgePayload(msg.Data, "query", "org", "project", "type", "agent_id")
 		payload["count"] = bridgeCount(msg.Data)
 		p.emitEvent(coremcp.ChannelBrainRecallDone, payload)
 	case "brain_forget":
 		p.emitEvent(coremcp.ChannelBrainForgetDone, bridgePayload(msg.Data, "id", "reason"))
 	case "brain_list":
-		p.emitEvent(coremcp.ChannelBrainListDone, bridgePayload(msg.Data, "project", "type", "agent_id", "limit"))
+		p.emitEvent(coremcp.ChannelBrainListDone, bridgePayload(msg.Data, "org", "project", "type", "agent_id", "limit"))
 	}
 }

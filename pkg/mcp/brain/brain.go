@@ -7,9 +7,9 @@ package brain
 import (
 	"context"
 
+	coreerr "dappco.re/go/core/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	coreerr "dappco.re/go/core/log"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
@@ -60,15 +60,15 @@ func (s *Subsystem) RegisterTools(svc *coremcp.Service) {
 func (s *Subsystem) handleBridgeMessage(msg ide.BridgeMessage) {
 	switch msg.Type {
 	case "brain_remember":
-		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainRememberDone, bridgePayload(msg.Data, "type", "project"))
+		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainRememberDone, bridgePayload(msg.Data, "org", "type", "project"))
 	case "brain_recall":
-		payload := bridgePayload(msg.Data, "query", "project", "type", "agent_id")
+		payload := bridgePayload(msg.Data, "query", "org", "project", "type", "agent_id")
 		payload["count"] = bridgeCount(msg.Data)
 		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainRecallDone, payload)
 	case "brain_forget":
 		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainForgetDone, bridgePayload(msg.Data, "id", "reason"))
 	case "brain_list":
-		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainListDone, bridgePayload(msg.Data, "project", "type", "agent_id", "limit"))
+		emitBridgeChannel(context.Background(), s.notifier, coremcp.ChannelBrainListDone, bridgePayload(msg.Data, "org", "project", "type", "agent_id", "limit"))
 	}
 }
 

@@ -143,6 +143,9 @@ func TestDirectRemember_Good(t *testing.T) {
 		if body["agent_id"] != "cladius" {
 			t.Errorf("expected agent_id=cladius, got %v", body["agent_id"])
 		}
+		if body["org"] != "core" {
+			t.Errorf("expected org=core, got %v", body["org"])
+		}
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(map[string]any{"id": "mem-456"})
 	}))
@@ -152,6 +155,7 @@ func TestDirectRemember_Good(t *testing.T) {
 	_, out, err := s.remember(context.Background(), nil, RememberInput{
 		Content: "test memory",
 		Type:    "observation",
+		Org:     "core",
 		Project: "test-project",
 	})
 	if err != nil {
@@ -188,6 +192,9 @@ func TestDirectRecall_Good(t *testing.T) {
 		if body["query"] != "scoring algorithm" {
 			t.Errorf("unexpected query: %v", body["query"])
 		}
+		if body["org"] != "core" {
+			t.Errorf("expected org=core, got %v", body["org"])
+		}
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(map[string]any{
 			"memories": []any{
@@ -195,6 +202,7 @@ func TestDirectRecall_Good(t *testing.T) {
 					"id":         "mem-1",
 					"content":    "scoring uses weighted average",
 					"type":       "architecture",
+					"org":        "core",
 					"project":    "eaas",
 					"agent_id":   "virgil",
 					"score":      0.92,
@@ -209,7 +217,7 @@ func TestDirectRecall_Good(t *testing.T) {
 	_, out, err := s.recall(context.Background(), nil, RecallInput{
 		Query:  "scoring algorithm",
 		TopK:   5,
-		Filter: RecallFilter{Project: "eaas"},
+		Filter: RecallFilter{Org: "core", Project: "eaas"},
 	})
 	if err != nil {
 		t.Fatalf("recall failed: %v", err)
@@ -219,6 +227,9 @@ func TestDirectRecall_Good(t *testing.T) {
 	}
 	if out.Memories[0].ID != "mem-1" {
 		t.Errorf("expected id=mem-1, got %q", out.Memories[0].ID)
+	}
+	if out.Memories[0].Org != "core" {
+		t.Errorf("expected org=core, got %q", out.Memories[0].Org)
 	}
 	if out.Memories[0].Confidence != 0.92 {
 		t.Errorf("expected score=0.92, got %f", out.Memories[0].Confidence)
@@ -356,6 +367,9 @@ func TestDirectList_Good(t *testing.T) {
 		if got := r.URL.Query().Get("project"); got != "eaas" {
 			t.Errorf("expected project=eaas, got %q", got)
 		}
+		if got := r.URL.Query().Get("org"); got != "core" {
+			t.Errorf("expected org=core, got %q", got)
+		}
 		if got := r.URL.Query().Get("type"); got != "decision" {
 			t.Errorf("expected type=decision, got %q", got)
 		}
@@ -372,6 +386,7 @@ func TestDirectList_Good(t *testing.T) {
 					"id":         "mem-1",
 					"content":    "use qdrant",
 					"type":       "decision",
+					"org":        "core",
 					"project":    "eaas",
 					"agent_id":   "virgil",
 					"score":      0.88,
@@ -384,6 +399,7 @@ func TestDirectList_Good(t *testing.T) {
 
 	s := newTestDirect(srv.URL)
 	_, out, err := s.list(context.Background(), nil, ListInput{
+		Org:     "core",
 		Project: "eaas",
 		Type:    "decision",
 		AgentID: "virgil",
@@ -400,6 +416,9 @@ func TestDirectList_Good(t *testing.T) {
 	}
 	if out.Memories[0].Confidence != 0.88 {
 		t.Errorf("expected score=0.88, got %f", out.Memories[0].Confidence)
+	}
+	if out.Memories[0].Org != "core" {
+		t.Errorf("expected org=core, got %q", out.Memories[0].Org)
 	}
 }
 
@@ -422,6 +441,7 @@ func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
 	}
 
 	_, out, err := s.list(context.Background(), nil, ListInput{
+		Org:     "core",
 		Project: "eaas",
 		Type:    "decision",
 		AgentID: "virgil",
@@ -444,6 +464,9 @@ func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
 	}
 	if gotPayload["project"] != "eaas" {
 		t.Fatalf("expected project=eaas, got %v", gotPayload["project"])
+	}
+	if gotPayload["org"] != "core" {
+		t.Fatalf("expected org=core, got %v", gotPayload["org"])
 	}
 }
 

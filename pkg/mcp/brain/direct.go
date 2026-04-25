@@ -96,7 +96,7 @@ func (s *DirectSubsystem) RegisterTools(svc *coremcp.Service) {
 
 	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_list",
-		Description: "List memories in OpenBrain with optional filtering by project, type, and agent.",
+		Description: "List memories in OpenBrain with optional filtering by org, project, type, and agent.",
 	}, s.list)
 }
 
@@ -153,6 +153,7 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 		"content":  input.Content,
 		"type":     input.Type,
 		"tags":     input.Tags,
+		"org":      input.Org,
 		"project":  input.Project,
 		"agent_id": "cladius",
 	})
@@ -164,6 +165,7 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
 			"id":      id,
+			"org":     input.Org,
 			"type":    input.Type,
 			"project": input.Project,
 		})
@@ -184,6 +186,9 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 	if input.Filter.Project != "" {
 		body["project"] = input.Filter.Project
 	}
+	if input.Filter.Org != "" {
+		body["org"] = input.Filter.Org
+	}
 	if input.Filter.Type != nil {
 		body["type"] = input.Filter.Type
 	}
@@ -200,8 +205,10 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
-			"query": input.Query,
-			"count": len(memories),
+			"query":   input.Query,
+			"org":     input.Filter.Org,
+			"project": input.Filter.Project,
+			"count":   len(memories),
 		})
 	}
 	return nil, RecallOutput{
@@ -238,6 +245,9 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	}
 
 	values := url.Values{}
+	if input.Org != "" {
+		values.Set("org", input.Org)
+	}
 	if input.Project != "" {
 		values.Set("project", input.Project)
 	}
@@ -258,6 +268,7 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
+			"org":      input.Org,
 			"project":  input.Project,
 			"type":     input.Type,
 			"agent_id": input.AgentID,
@@ -287,6 +298,7 @@ func memoriesFromResult(result map[string]any) []Memory {
 		mem := Memory{
 			Content:   stringFromMap(mm, "content"),
 			Type:      stringFromMap(mm, "type"),
+			Org:       stringFromMap(mm, "org"),
 			Project:   stringFromMap(mm, "project"),
 			AgentID:   stringFromMap(mm, "agent_id"),
 			CreatedAt: stringFromMap(mm, "created_at"),
