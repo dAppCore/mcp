@@ -11,7 +11,7 @@ import (
 	"context"
 	"io"
 	"iter"
-	"os"
+	"os" // Note: required for process stdout; core Fs/Env do not expose a stdio writer.
 	"reflect"
 	"slices"
 	"sync"

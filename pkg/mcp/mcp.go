@@ -15,10 +15,10 @@ import (
 	"sync"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
-	"dappco.re/go/core/log"
-	"dappco.re/go/core/process"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/io"
+	"dappco.re/go/log"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

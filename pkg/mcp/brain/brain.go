@@ -7,7 +7,7 @@ package brain
 import (
 	"context"
 
-	coreerr "dappco.re/go/core/log"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 )

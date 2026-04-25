@@ -5,9 +5,9 @@ package brain
 import (
 	"net/http"
 
-	"dappco.re/go/core/api"
+	"dappco.re/go/api"
 	"dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/ws"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"

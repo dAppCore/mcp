@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/process"
+	"dappco.re/go/process"
 )
 
 // newTestProcessService creates a real process.Service backed by a core.Core for CI tests.

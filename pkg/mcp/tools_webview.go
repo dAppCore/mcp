@@ -13,8 +13,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/log"
-	"dappco.re/go/core/webview"
+	"dappco.re/go/log"
+	"dappco.re/go/webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

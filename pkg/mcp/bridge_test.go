@@ -17,7 +17,7 @@ import (
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	api "dappco.re/go/core/api"
+	api "dappco.re/go/api"
 )
 
 func init() {

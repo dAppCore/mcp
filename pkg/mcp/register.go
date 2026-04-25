@@ -7,8 +7,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/process"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 )
 
 // Register is the service factory for core.WithService.
@@ -98,6 +98,7 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 // HandleIPCEvents implements Core's IPC handler interface.
 //
 //	c.ACTION(mcp.ChannelPush{Channel: "agent.status", Data: statusMap})
+//
 // Catches ChannelPush messages from other services and pushes them to Claude Code sessions.
 func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 	ctx := context.Background()
@@ -109,7 +110,7 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 
 	switch ev := msg.(type) {
 	case ChannelPush:
-		s.ChannelSend(ctx, ev.Channel, ev.Data)
+		return s.handleChannelPushIPC(ctx, ev)
 	case process.ActionProcessStarted:
 		startedAt := time.Now()
 		s.recordProcessRuntime(ev.ID, processRuntime{

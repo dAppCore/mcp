@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	coreerr "dappco.re/go/core/log"
-	"dappco.re/go/core/ws"
+	coreerr "dappco.re/go/log"
+	"dappco.re/go/ws"
 	"github.com/gorilla/websocket"
 )
 
