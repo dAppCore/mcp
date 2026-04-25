@@ -5,12 +5,15 @@ package brain
 import (
 	"context"
 	"time"
+	"unicode/utf8"
 
 	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+const brainOrgMaxLength = 128
 
 // emitChannel pushes a brain event through the shared notifier.
 func (s *Subsystem) emitChannel(ctx context.Context, channel string, data any) {
@@ -128,6 +131,25 @@ type ListOutput struct {
 	Memories []Memory `json:"memories"`
 }
 
+func validateBrainOrg(org string) error {
+	if utf8.RuneCountInString(org) > brainOrgMaxLength {
+		return coreerr.E("brain.validate", "org exceeds maximum length of 128 characters", nil)
+	}
+	return nil
+}
+
+func validateRememberInput(input RememberInput) error {
+	return validateBrainOrg(input.Org)
+}
+
+func validateRecallInput(input RecallInput) error {
+	return validateBrainOrg(input.Filter.Org)
+}
+
+func validateListInput(input ListInput) error {
+	return validateBrainOrg(input.Org)
+}
+
 // -- Tool registration --------------------------------------------------------
 
 func (s *Subsystem) registerBrainTools(svc *coremcp.Service) {
@@ -156,6 +178,9 @@ func (s *Subsystem) registerBrainTools(svc *coremcp.Service) {
 // -- Tool handlers ------------------------------------------------------------
 
 func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
+	if err := validateRememberInput(input); err != nil {
+		return nil, RememberOutput{}, err
+	}
 	if s.bridge == nil {
 		return nil, RememberOutput{}, errBridgeNotAvailable
 	}
@@ -190,6 +215,9 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 }
 
 func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
+	if err := validateRecallInput(input); err != nil {
+		return nil, RecallOutput{}, err
+	}
 	if s.bridge == nil {
 		return nil, RecallOutput{}, errBridgeNotAvailable
 	}
@@ -240,6 +268,9 @@ func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, inp
 }
 
 func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+	if err := validateListInput(input); err != nil {
+		return nil, ListOutput{}, err
+	}
 	if s.bridge == nil {
 		return nil, ListOutput{}, errBridgeNotAvailable
 	}
