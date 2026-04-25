@@ -8,14 +8,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
 // newTestDirect creates a DirectSubsystem pointing at a test server.
 func newTestDirect(url string) *DirectSubsystem {
 	return &DirectSubsystem{
-		apiURL: url,
-		apiKey: "test-key",
-		client: http.DefaultClient,
+		apiClient: brainclient.New(brainclient.Options{
+			URL:         url,
+			Key:         "test-key",
+			HTTPClient:  http.DefaultClient,
+			MaxAttempts: 1,
+			BaseDelay:   time.Nanosecond,
+		}),
 	}
 }
 
@@ -84,7 +91,12 @@ func TestApiCall_Good_GetNilBody(t *testing.T) {
 }
 
 func TestApiCall_Bad_NoApiKey(t *testing.T) {
-	s := &DirectSubsystem{apiKey: "", client: http.DefaultClient}
+	s := &DirectSubsystem{apiClient: brainclient.New(brainclient.Options{
+		URL:         "http://example.test",
+		Key:         "",
+		HTTPClient:  http.DefaultClient,
+		MaxAttempts: 1,
+	})}
 	_, err := s.apiCall(context.Background(), "GET", "/test", nil)
 	if err == nil {
 		t.Error("expected error when apiKey is empty")
@@ -121,9 +133,12 @@ func TestApiCall_Bad_InvalidJson(t *testing.T) {
 
 func TestApiCall_Bad_Unreachable(t *testing.T) {
 	s := &DirectSubsystem{
-		apiURL: "http://127.0.0.1:1", // nothing listening
-		apiKey: "key",
-		client: http.DefaultClient,
+		apiClient: brainclient.New(brainclient.Options{
+			URL:         "http://127.0.0.1:1", // nothing listening
+			Key:         "key",
+			HTTPClient:  http.DefaultClient,
+			MaxAttempts: 1,
+		}),
 	}
 	_, err := s.apiCall(context.Background(), "GET", "/test", nil)
 	if err == nil {

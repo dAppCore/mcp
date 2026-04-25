@@ -1,40 +1,38 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 // brain-seed imports Claude Code MEMORY.md files into the OpenBrain knowledge
-// store via the MCP HTTP API (brain_remember tool). The Laravel app handles
+// store via the shared OpenBrain HTTP client. The Laravel app handles
 // embedding, Qdrant storage, and MariaDB dual-write internally.
 //
 // Usage:
 //
 //	go run ./cmd/brain-seed -api-key YOUR_KEY
-//	go run ./cmd/brain-seed -api-key YOUR_KEY -api https://lthn.sh/api/v1/mcp
+//	go run ./cmd/brain-seed -api-key YOUR_KEY -api https://api.lthn.sh
 //	go run ./cmd/brain-seed -api-key YOUR_KEY -dry-run
 //	go run ./cmd/brain-seed -api-key YOUR_KEY -plans
 //	go run ./cmd/brain-seed -api-key YOUR_KEY -claude-md  # Also import CLAUDE.md files
 package main
 
 import (
-	"crypto/tls"
-	"encoding/json"
+	"context"
 	"flag"
-	goio "io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
 	coreerr "dappco.re/go/core/log"
+	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
 const seedDivider = "======================================================="
 
 var (
-	apiURL     = flag.String("api", "https://lthn.sh/api/v1/mcp", "MCP API base URL")
-	apiKey     = flag.String("api-key", "", "MCP API key (Bearer token)")
-	server     = flag.String("server", "hosthub-agent", "MCP server ID")
+	apiURL     = flag.String("api", brainclient.DefaultURL, "OpenBrain API base URL")
+	apiKey     = flag.String("api-key", core.Env("CORE_BRAIN_KEY"), "OpenBrain API key (Bearer token)")
+	server     = flag.String("server", "hosthub-agent", "Legacy MCP server ID flag; accepted for compatibility")
+	org        = flag.String("org", core.Env("CORE_BRAIN_ORG"), "OpenBrain org for seeded memories")
 	agent      = flag.String("agent", "charon", "Agent ID for attribution")
 	dryRun     = flag.Bool("dry-run", false, "Preview without storing")
 	plans      = flag.Bool("plans", false, "Also import plan documents")
@@ -45,19 +43,12 @@ var (
 	maxChars   = flag.Int("max-chars", 3800, "Max chars per section (embeddinggemma limit ~4000)")
 )
 
-// httpClient with TLS skip for non-public TLDs (.lthn.sh has real certs, but
-// allow .lan/.local if someone has legacy config).
-var httpClient = &http.Client{
-	Timeout: 30 * time.Second,
-	Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
-	},
-}
+var openbrain *brainclient.Client
 
 func main() {
 	flag.Parse()
 
-	core.Println("OpenBrain Seed — MCP API Client")
+	core.Println("OpenBrain Seed — API Client")
 	core.Println(seedDivider)
 
 	if *apiKey == "" && !*dryRun {
@@ -71,7 +62,14 @@ func main() {
 	}
 
 	core.Print(nil, "API: %s", *apiURL)
-	core.Print(nil, "Server: %s | Agent: %s", *server, *agent)
+	core.Print(nil, "Org: %s | Agent: %s", *org, *agent)
+
+	openbrain = brainclient.New(brainclient.Options{
+		URL:     *apiURL,
+		Key:     *apiKey,
+		Org:     *org,
+		AgentID: *agent,
+	})
 
 	// Discover memory files
 	memPath := *memoryPath
@@ -255,60 +253,30 @@ func main() {
 	core.Print(nil, "%sImported: %d | Skipped: %d | Errors: %d", prefix, imported, skipped, errors)
 }
 
-// callBrainRemember sends a memory to the MCP API via brain_remember tool.
+// callBrainRemember sends a memory to OpenBrain via /v1/brain/remember.
 func callBrainRemember(content, memType string, tags []string, project string, confidence float64) error {
-	args := map[string]any{
-		"content":    content,
-		"type":       memType,
-		"tags":       tags,
-		"confidence": confidence,
+	if openbrain == nil {
+		openbrain = brainclient.New(brainclient.Options{
+			URL:     *apiURL,
+			Key:     *apiKey,
+			Org:     *org,
+			AgentID: *agent,
+		})
+	}
+
+	input := brainclient.RememberInput{
+		Content:    content,
+		Type:       memType,
+		Tags:       tags,
+		Org:        *org,
+		AgentID:    *agent,
+		Confidence: confidence,
 	}
 	if project != "" && project != "unknown" {
-		args["project"] = project
+		input.Project = project
 	}
-
-	payload := map[string]any{
-		"server":    *server,
-		"tool":      "brain_remember",
-		"arguments": args,
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return coreerr.E("callBrainRemember", "marshal", err)
-	}
-
-	req, err := http.NewRequest("POST", *apiURL+"/tools/call", core.NewBuffer(body))
-	if err != nil {
-		return coreerr.E("callBrainRemember", "request", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+*apiKey)
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return coreerr.E("callBrainRemember", "http", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := goio.ReadAll(resp.Body)
-
-	if resp.StatusCode != 200 {
-		return coreerr.E("callBrainRemember", "HTTP "+string(respBody), nil)
-	}
-
-	var result struct {
-		Success bool   `json:"success"`
-		Error   string `json:"error"`
-	}
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return coreerr.E("callBrainRemember", "decode", err)
-	}
-	if !result.Success {
-		return coreerr.E("callBrainRemember", "API: "+result.Error, nil)
-	}
-
-	return nil
+	_, err := openbrain.Remember(context.Background(), input)
+	return coreerr.Wrap(err, "callBrainRemember", "remember")
 }
 
 // truncate caps content to maxLen chars, appending an ellipsis if truncated.
