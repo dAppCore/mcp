@@ -28,6 +28,7 @@ import (
 
 const (
 	DefaultURL              = "https://api.lthn.sh"
+	insecureBrainEnv        = "CORE_BRAIN_INSECURE"
 	brainKeyFileMode        = fs.FileMode(0o600)
 	defaultAgentID          = "cladius"
 	defaultTimeout          = 30 * time.Second
@@ -147,6 +148,7 @@ func New(options Options) *Client {
 	if apiURL == "" {
 		apiURL = DefaultURL
 	}
+	configErr := validateAPIURL(apiURL)
 	agentID := core.Trim(options.AgentID)
 	if agentID == "" {
 		agentID = defaultAgentID
@@ -182,6 +184,7 @@ func New(options Options) *Client {
 		baseDelay:        baseDelay,
 		maxResponseBytes: maxResponseBytes,
 		circuitBreaker:   breaker,
+		configErr:        configErr,
 		sleepFunc:        sleepDuration,
 	}
 }
@@ -195,8 +198,24 @@ func NewFromEnvironment() *Client {
 		Org:     core.Env("CORE_BRAIN_ORG"),
 		AgentID: core.Env("CORE_BRAIN_AGENT_ID"),
 	})
-	client.configErr = configErr
+	if configErr != nil {
+		client.configErr = configErr
+	}
 	return client
+}
+
+func validateAPIURL(apiURL string) error {
+	parsed, err := url.Parse(apiURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return core.E("brain.client", "invalid API URL", err)
+	}
+	if parsed.Scheme == "https" {
+		return nil
+	}
+	if parsed.Scheme == "http" && core.Trim(core.Env(insecureBrainEnv)) == "true" {
+		return nil
+	}
+	return core.E("brain.client", "API URL must use https unless CORE_BRAIN_INSECURE=true", nil)
 }
 
 // WriteBrainKey stores the OpenBrain API key at ~/.claude/brain.key with owner-only permissions.
@@ -339,7 +358,11 @@ func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, ha
 	if hasBody {
 		reader = core.NewReader(bodyString)
 	}
-	request, err := http.NewRequestWithContext(ctx, method, c.requestURL(path), reader)
+	requestURL, err := c.requestURL(path)
+	if err != nil {
+		return nil, false, 0, false, err
+	}
+	request, err := http.NewRequestWithContext(ctx, method, requestURL, reader)
 	if err != nil {
 		return nil, false, 0, false, core.E("brain.client", "create request", err)
 	}
@@ -385,14 +408,15 @@ func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, ha
 	return result, false, 0, false, nil
 }
 
-func (c *Client) requestURL(path string) string {
-	if core.HasPrefix(path, "http://") || core.HasPrefix(path, "https://") {
-		return path
+func (c *Client) requestURL(path string) (string, error) {
+	parsed, err := url.Parse(path)
+	if err == nil && (parsed.IsAbs() || parsed.Host != "") {
+		return "", core.E("brain.client", "absolute request URL rejected", nil)
 	}
 	if !core.HasPrefix(path, "/") {
 		path = core.Concat("/", path)
 	}
-	return core.Concat(c.apiURL, path)
+	return core.Concat(c.apiURL, path), nil
 }
 
 func (c *Client) sleep(ctx context.Context, attempt int) error {

@@ -18,7 +18,7 @@ import (
 func TestClientRemember_Good_SendsOrgAndAuth(t *testing.T) {
 	var gotBody map[string]any
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", r.Method)
 		}
@@ -64,7 +64,7 @@ func TestClientRemember_Good_SendsOrgAndAuth(t *testing.T) {
 }
 
 func TestClientList_Good_SendsOrgURLParam(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Fatalf("expected GET, got %s", r.Method)
 		}
@@ -90,9 +90,91 @@ func TestClientList_Good_SendsOrgURLParam(t *testing.T) {
 	}
 }
 
+func TestClientCall_Good_BuildsRequestAgainstAPIURL(t *testing.T) {
+	gotHost := ""
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/brain/remember" {
+			t.Fatalf("expected /v1/brain/remember, got %s", r.URL.Path)
+		}
+		gotHost = r.Host
+		writeJSON(t, w, http.StatusOK, map[string]any{"id": "mem-1"})
+	}))
+	defer server.Close()
+
+	c := New(Options{
+		URL:         server.URL,
+		Key:         "test-key",
+		HTTPClient:  server.Client(),
+		MaxAttempts: 1,
+	})
+
+	result, err := c.Call(context.Background(), http.MethodPost, "/v1/brain/remember", map[string]any{"content": "safe"})
+	if err != nil {
+		t.Fatalf("Call failed: %v", err)
+	}
+	if result["id"] != "mem-1" {
+		t.Fatalf("expected id mem-1, got %v", result["id"])
+	}
+	if gotHost != strings.TrimPrefix(server.URL, "https://") {
+		t.Fatalf("expected host %s, got %s", strings.TrimPrefix(server.URL, "https://"), gotHost)
+	}
+}
+
+func TestClientCall_Bad_RejectsAbsoluteRequestURL(t *testing.T) {
+	for _, requestPath := range []string{"http://attacker.com/leak", "https://attacker.com/leak"} {
+		t.Run(requestPath, func(t *testing.T) {
+			calls := 0
+			c := New(Options{
+				URL: "https://brain.test",
+				Key: "test-key",
+				HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					calls++
+					return nil, core.E("test", "unexpected HTTP request", nil)
+				})},
+				MaxAttempts: 1,
+			})
+
+			_, err := c.Call(context.Background(), http.MethodPost, requestPath, map[string]any{"content": "leak"})
+			if err == nil {
+				t.Fatal("expected absolute URL error")
+			}
+			if !strings.Contains(err.Error(), "absolute request URL rejected") {
+				t.Fatalf("expected absolute URL rejection, got %v", err)
+			}
+			if calls != 0 {
+				t.Fatalf("expected no HTTP requests, got %d", calls)
+			}
+		})
+	}
+}
+
+func TestClientNew_Bad_RejectsHTTPAPIURLWithoutInsecureEnv(t *testing.T) {
+	t.Setenv(insecureBrainEnv, "")
+
+	c := New(Options{URL: "http://internal/", Key: "test-key"})
+	if c.configErr == nil {
+		t.Fatal("expected insecure HTTP API URL to be rejected")
+	}
+	if !strings.Contains(c.configErr.Error(), "API URL must use https unless CORE_BRAIN_INSECURE=true") {
+		t.Fatalf("expected insecure API URL error, got %v", c.configErr)
+	}
+}
+
+func TestClientNew_Good_AllowsHTTPAPIURLWithInsecureEnv(t *testing.T) {
+	t.Setenv(insecureBrainEnv, "true")
+
+	c := New(Options{URL: "http://internal/", Key: "test-key"})
+	if c.configErr != nil {
+		t.Fatalf("expected insecure HTTP API URL to be allowed, got %v", c.configErr)
+	}
+}
+
 func TestClientCall_Good_Retries503ThenSucceeds(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
 			writeJSON(t, w, http.StatusServiceUnavailable, map[string]any{"error": "down"})
@@ -119,7 +201,7 @@ func TestClientCall_Good_Retries503ThenSucceeds(t *testing.T) {
 
 func TestClientCall_Good_Retries408ThenSucceeds(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
 			writeJSON(t, w, http.StatusRequestTimeout, map[string]any{"error": "timeout"})
@@ -146,7 +228,7 @@ func TestClientCall_Good_Retries408ThenSucceeds(t *testing.T) {
 
 func TestClientCall_Good_Retries429ThenSucceeds(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
 			writeJSON(t, w, http.StatusTooManyRequests, map[string]any{"error": "rate limited"})
@@ -173,7 +255,7 @@ func TestClientCall_Good_Retries429ThenSucceeds(t *testing.T) {
 
 func TestClientCall_Good_Retries429UsingRetryAfterSeconds(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
 			w.Header().Set("Retry-After", "1")
@@ -213,7 +295,7 @@ func TestClientCall_Good_Retries429UsingRetryAfterSeconds(t *testing.T) {
 
 func TestClientCall_Good_Retries429WithPastRetryAfterDateWithoutNegativeSleep(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
 			w.Header().Set("Retry-After", "Wed, 21 Oct 2015 07:28:00 GMT")
@@ -253,7 +335,7 @@ func TestClientCall_Good_Retries429WithPastRetryAfterDateWithoutNegativeSleep(t 
 
 func TestClientCall_Good_CapsRetryAfterDelay(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
 			w.Header().Set("Retry-After", "9999")
@@ -293,7 +375,7 @@ func TestClientCall_Good_CapsRetryAfterDelay(t *testing.T) {
 
 func TestClientCall_Bad_DoesNotRetry400(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		writeJSON(t, w, http.StatusBadRequest, map[string]any{"error": "bad request"})
 	}))
@@ -316,7 +398,7 @@ func TestClientCall_Bad_DoesNotRetry400(t *testing.T) {
 
 func TestClientCall_Bad_Continuous503OpensCircuit(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		writeJSON(t, w, http.StatusServiceUnavailable, map[string]any{"error": "down"})
 	}))
@@ -352,7 +434,7 @@ func TestClientCall_Bad_Continuous503OpensCircuit(t *testing.T) {
 
 func TestClientCall_Bad_ContextCancellation(t *testing.T) {
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		writeJSON(t, w, http.StatusOK, map[string]any{"ok": true})
 	}))
@@ -445,4 +527,10 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, payload any) {
 	if _, err := w.Write([]byte(core.JSONMarshalString(payload))); err != nil {
 		t.Fatalf("failed to write response: %v", err)
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
 }
