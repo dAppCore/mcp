@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"dappco.re/go/core/process"
+	"dappco.re/go/process"
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {

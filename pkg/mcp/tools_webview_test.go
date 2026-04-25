@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core/webview"
+	"dappco.re/go/webview"
 )
 
 // skipIfShort skips webview tests in short mode (go test -short).

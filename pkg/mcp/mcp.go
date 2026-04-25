@@ -7,18 +7,18 @@ package mcp
 import (
 	"cmp"
 	"context"
+	"io/fs" // Note: io.Medium exposes fs.DirEntry/FileInfo and fs.ErrNotExist.
 	"iter"
 	"net/http"
-	"os"
 	"path/filepath"
 	"slices"
 	"sync"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
-	"dappco.re/go/core/log"
-	"dappco.re/go/core/process"
-	"dappco.re/go/core/ws"
+	"dappco.re/go/io"
+	"dappco.re/go/log"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -94,9 +94,9 @@ func New(opts Options) (*Service, error) {
 	} else {
 		root := opts.WorkspaceRoot
 		if root == "" {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return nil, core.E("mcp.New", "failed to get working directory", err)
+			cwd := core.Env("DIR_CWD")
+			if cwd == "" {
+				return nil, core.E("mcp.New", "failed to get working directory", nil)
 			}
 			root = cwd
 		}
@@ -139,7 +139,7 @@ func New(opts Options) (*Service, error) {
 // Subsystems returns the registered subsystems.
 //
 //	for _, sub := range svc.Subsystems() {
-//	    fmt.Println(sub.Name())
+//	    core.Println(sub.Name())
 //	}
 func (s *Service) Subsystems() []Subsystem {
 	return slices.Clone(s.subsystems)
@@ -148,7 +148,7 @@ func (s *Service) Subsystems() []Subsystem {
 // SubsystemsSeq returns an iterator over the registered subsystems.
 //
 //	for sub := range svc.SubsystemsSeq() {
-//	    fmt.Println(sub.Name())
+//	    core.Println(sub.Name())
 //	}
 func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
 	return slices.Values(slices.Clone(s.subsystems))
@@ -157,7 +157,7 @@ func (s *Service) SubsystemsSeq() iter.Seq[Subsystem] {
 // Tools returns all recorded tool metadata.
 //
 //	for _, t := range svc.Tools() {
-//	    fmt.Printf("%s (%s): %s\n", t.Name, t.Group, t.Description)
+//	    core.Println(core.Sprintf("%s (%s): %s", t.Name, t.Group, t.Description))
 //	}
 func (s *Service) Tools() []ToolRecord {
 	return slices.Clone(s.tools)
@@ -166,7 +166,7 @@ func (s *Service) Tools() []ToolRecord {
 // ToolsSeq returns an iterator over all recorded tool metadata.
 //
 //	for rec := range svc.ToolsSeq() {
-//	    fmt.Println(rec.Name)
+//	    core.Println(rec.Name)
 //	}
 func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
 	return slices.Values(slices.Clone(s.tools))
@@ -485,8 +485,8 @@ type LanguageInfo struct {
 //
 //	input := EditDiffInput{
 //	    Path:      "main.go",
-//	    OldString: "fmt.Println(\"hello\")",
-//	    NewString: "fmt.Println(\"world\")",
+//	    OldString: "core.Println(\"hello\")",
+//	    NewString: "core.Println(\"world\")",
 //	}
 type EditDiffInput struct {
 	Path       string `json:"path"`                  // e.g. "main.go"
@@ -543,7 +543,7 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
 	}
-	slices.SortFunc(entries, func(a, b os.DirEntry) int {
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int {
 		return cmp.Compare(a.Name(), b.Name())
 	})
 	result := make([]DirectoryEntry, 0, len(entries))
@@ -615,7 +615,7 @@ func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, inpu
 
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		if core.Is(err, os.ErrNotExist) {
+		if core.Is(err, fs.ErrNotExist) {
 			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
 		}
 		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "failed to stat path", err)
@@ -760,15 +760,15 @@ func supportedLanguages() []LanguageInfo {
 //	svc.Run(ctx)
 //
 //	// TCP (set MCP_ADDR):
-//	os.Setenv("MCP_ADDR", "127.0.0.1:9100")
+//	// MCP_ADDR=127.0.0.1:9100
 //	svc.Run(ctx)
 //
 //	// Unix socket (set MCP_UNIX_SOCKET):
-//	os.Setenv("MCP_UNIX_SOCKET", "/tmp/core-mcp.sock")
+//	// MCP_UNIX_SOCKET=/tmp/core-mcp.sock
 //	svc.Run(ctx)
 //
 //	// HTTP (set MCP_HTTP_ADDR):
-//	os.Setenv("MCP_HTTP_ADDR", "127.0.0.1:9101")
+//	// MCP_HTTP_ADDR=127.0.0.1:9101
 //	svc.Run(ctx)
 func (s *Service) Run(ctx context.Context) error {
 	if httpAddr := core.Env("MCP_HTTP_ADDR"); httpAddr != "" {
