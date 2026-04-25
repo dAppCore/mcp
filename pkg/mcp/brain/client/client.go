@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ const (
 	defaultSuccessThreshold = 1
 	defaultCircuitCooldown  = 30 * time.Second
 	defaultMaxResponseBytes = int64(1 << 20)
+	maxRetryAfterDelay      = 60 * time.Second
 	defaultRecallTopK       = 10
 	defaultListLimit        = 50
 )
@@ -68,6 +70,7 @@ type Client struct {
 	maxResponseBytes int64
 	circuitBreaker   *CircuitBreaker
 	configErr        error
+	sleepFunc        func(context.Context, time.Duration) error
 }
 
 // RememberInput is the request body for POST /v1/brain/remember.
@@ -179,6 +182,7 @@ func New(options Options) *Client {
 		baseDelay:        baseDelay,
 		maxResponseBytes: maxResponseBytes,
 		circuitBreaker:   breaker,
+		sleepFunc:        sleepDuration,
 	}
 }
 
@@ -300,7 +304,7 @@ func (c *Client) Call(ctx context.Context, method, path string, body any) (map[s
 
 	var lastErr error
 	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
-		payload, retryable, err := c.doOnce(ctx, method, path, bodyString, body != nil)
+		payload, retryable, retryAfter, hasRetryAfter, err := c.doOnce(ctx, method, path, bodyString, body != nil)
 		if err == nil {
 			c.circuitBreaker.recordSuccess()
 			return payload, nil
@@ -315,7 +319,13 @@ func (c *Client) Call(ctx context.Context, method, path string, body any) (map[s
 		if c.circuitBreaker.State() == CircuitOpen || attempt == c.maxAttempts {
 			break
 		}
-		if sleepErr := c.sleep(ctx, attempt); sleepErr != nil {
+		var sleepErr error
+		if hasRetryAfter {
+			sleepErr = c.sleepFor(ctx, retryAfter)
+		} else {
+			sleepErr = c.sleep(ctx, attempt)
+		}
+		if sleepErr != nil {
 			lastErr = sleepErr
 			break
 		}
@@ -324,14 +334,14 @@ func (c *Client) Call(ctx context.Context, method, path string, body any) (map[s
 	return nil, lastErr
 }
 
-func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, hasBody bool) (map[string]any, bool, error) {
+func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, hasBody bool) (map[string]any, bool, time.Duration, bool, error) {
 	var reader io.Reader
 	if hasBody {
 		reader = core.NewReader(bodyString)
 	}
 	request, err := http.NewRequestWithContext(ctx, method, c.requestURL(path), reader)
 	if err != nil {
-		return nil, false, core.E("brain.client", "create request", err)
+		return nil, false, 0, false, core.E("brain.client", "create request", err)
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Authorization", core.Concat("Bearer ", c.apiKey))
@@ -342,36 +352,37 @@ func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, ha
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, false, core.E("brain.client", "request cancelled", ctx.Err())
+			return nil, false, 0, false, core.E("brain.client", "request cancelled", ctx.Err())
 		}
-		return nil, true, core.E("brain.client", "request failed", err)
+		return nil, true, 0, false, core.E("brain.client", "request failed", err)
 	}
 	defer response.Body.Close()
 
 	readResult := core.ReadAll(io.LimitReader(response.Body, c.maxResponseBytes+1))
 	if !readResult.OK {
 		if readErr, ok := readResult.Value.(error); ok {
-			return nil, false, core.E("brain.client", "read response", readErr)
+			return nil, false, 0, false, core.E("brain.client", "read response", readErr)
 		}
-		return nil, false, core.E("brain.client", "read response", nil)
+		return nil, false, 0, false, core.E("brain.client", "read response", nil)
 	}
 	raw := readResult.Value.(string)
 	if int64(len(raw)) > c.maxResponseBytes {
-		return nil, false, core.E("brain.client", "response too large", nil)
+		return nil, false, 0, false, core.E("brain.client", "response too large", nil)
 	}
 
 	if response.StatusCode >= http.StatusBadRequest {
-		return nil, retryableStatus(response.StatusCode), core.E("brain.client", core.Concat("upstream returned ", response.Status, ": ", core.Trim(raw)), nil)
+		retryAfter, hasRetryAfter := parseRetryAfter(response.Header.Get("Retry-After"), time.Now())
+		return nil, retryableStatus(response.StatusCode), retryAfter, hasRetryAfter, core.E("brain.client", core.Concat("upstream returned ", response.Status, ": ", core.Trim(raw)), nil)
 	}
 
 	result := map[string]any{}
 	if parseResult := core.JSONUnmarshalString(raw, &result); !parseResult.OK {
 		if parseErr, ok := parseResult.Value.(error); ok {
-			return nil, false, core.E("brain.client", "parse response", parseErr)
+			return nil, false, 0, false, core.E("brain.client", "parse response", parseErr)
 		}
-		return nil, false, core.E("brain.client", "parse response", nil)
+		return nil, false, 0, false, core.E("brain.client", "parse response", nil)
 	}
-	return result, false, nil
+	return result, false, 0, false, nil
 }
 
 func (c *Client) requestURL(path string) string {
@@ -388,6 +399,20 @@ func (c *Client) sleep(ctx context.Context, attempt int) error {
 	delay := c.baseDelay
 	for i := 1; i < attempt; i++ {
 		delay *= 3
+	}
+	return c.sleepFor(ctx, delay)
+}
+
+func (c *Client) sleepFor(ctx context.Context, delay time.Duration) error {
+	if c.sleepFunc != nil {
+		return c.sleepFunc(ctx, delay)
+	}
+	return sleepDuration(ctx, delay)
+}
+
+func sleepDuration(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
 	}
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
@@ -493,7 +518,38 @@ func (breaker *CircuitBreaker) stateNow(now time.Time) CircuitState {
 }
 
 func retryableStatus(statusCode int) bool {
-	return statusCode >= http.StatusInternalServerError
+	return statusCode == http.StatusRequestTimeout || statusCode == http.StatusTooManyRequests || statusCode >= http.StatusInternalServerError
+}
+
+func parseRetryAfter(value string, now time.Time) (time.Duration, bool) {
+	value = core.Trim(value)
+	if value == "" {
+		return 0, false
+	}
+
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		if seconds <= 0 {
+			return 0, true
+		}
+		maxSeconds := int64(maxRetryAfterDelay / time.Second)
+		if seconds > maxSeconds {
+			return maxRetryAfterDelay, true
+		}
+		return time.Duration(seconds) * time.Second, true
+	}
+
+	retryAt, err := http.ParseTime(value)
+	if err != nil {
+		return 0, false
+	}
+	delay := retryAt.Sub(now)
+	if delay <= 0 {
+		return 0, true
+	}
+	if delay > maxRetryAfterDelay {
+		return maxRetryAfterDelay, true
+	}
+	return delay, true
 }
 
 func envOr(key, fallback string) string {

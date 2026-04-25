@@ -117,6 +117,180 @@ func TestClientCall_Good_Retries503ThenSucceeds(t *testing.T) {
 	}
 }
 
+func TestClientCall_Good_Retries408ThenSucceeds(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			writeJSON(t, w, http.StatusRequestTimeout, map[string]any{"error": "timeout"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	}))
+	defer server.Close()
+
+	c := New(Options{
+		URL:         server.URL,
+		Key:         "test-key",
+		HTTPClient:  server.Client(),
+		MaxAttempts: 3,
+		BaseDelay:   time.Nanosecond,
+	})
+	if _, err := c.Recall(context.Background(), RecallInput{Query: "retry"}); err != nil {
+		t.Fatalf("Recall failed after retry: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+}
+
+func TestClientCall_Good_Retries429ThenSucceeds(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			writeJSON(t, w, http.StatusTooManyRequests, map[string]any{"error": "rate limited"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	}))
+	defer server.Close()
+
+	c := New(Options{
+		URL:         server.URL,
+		Key:         "test-key",
+		HTTPClient:  server.Client(),
+		MaxAttempts: 3,
+		BaseDelay:   time.Nanosecond,
+	})
+	if _, err := c.Recall(context.Background(), RecallInput{Query: "retry"}); err != nil {
+		t.Fatalf("Recall failed after retry: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+}
+
+func TestClientCall_Good_Retries429UsingRetryAfterSeconds(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("Retry-After", "1")
+			writeJSON(t, w, http.StatusTooManyRequests, map[string]any{"error": "rate limited"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	}))
+	defer server.Close()
+
+	c := New(Options{
+		URL:         server.URL,
+		Key:         "test-key",
+		HTTPClient:  server.Client(),
+		MaxAttempts: 3,
+		BaseDelay:   time.Nanosecond,
+	})
+	sleeps := []time.Duration{}
+	c.sleepFunc = func(ctx context.Context, delay time.Duration) error {
+		sleeps = append(sleeps, delay)
+		return nil
+	}
+
+	if _, err := c.Recall(context.Background(), RecallInput{Query: "retry"}); err != nil {
+		t.Fatalf("Recall failed after retry: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if len(sleeps) != 1 {
+		t.Fatalf("expected one retry sleep, got %d", len(sleeps))
+	}
+	if sleeps[0] != time.Second {
+		t.Fatalf("expected Retry-After sleep of 1s, got %v", sleeps[0])
+	}
+}
+
+func TestClientCall_Good_Retries429WithPastRetryAfterDateWithoutNegativeSleep(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("Retry-After", "Wed, 21 Oct 2015 07:28:00 GMT")
+			writeJSON(t, w, http.StatusTooManyRequests, map[string]any{"error": "rate limited"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	}))
+	defer server.Close()
+
+	c := New(Options{
+		URL:         server.URL,
+		Key:         "test-key",
+		HTTPClient:  server.Client(),
+		MaxAttempts: 3,
+		BaseDelay:   time.Nanosecond,
+	})
+	sleeps := []time.Duration{}
+	c.sleepFunc = func(ctx context.Context, delay time.Duration) error {
+		sleeps = append(sleeps, delay)
+		return nil
+	}
+
+	if _, err := c.Recall(context.Background(), RecallInput{Query: "retry"}); err != nil {
+		t.Fatalf("Recall failed after retry: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if len(sleeps) != 1 {
+		t.Fatalf("expected one retry sleep, got %d", len(sleeps))
+	}
+	if sleeps[0] != 0 {
+		t.Fatalf("expected past Retry-After date to sleep zero, got %v", sleeps[0])
+	}
+}
+
+func TestClientCall_Good_CapsRetryAfterDelay(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("Retry-After", "9999")
+			writeJSON(t, w, http.StatusServiceUnavailable, map[string]any{"error": "down"})
+			return
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	}))
+	defer server.Close()
+
+	c := New(Options{
+		URL:         server.URL,
+		Key:         "test-key",
+		HTTPClient:  server.Client(),
+		MaxAttempts: 3,
+		BaseDelay:   time.Nanosecond,
+	})
+	sleeps := []time.Duration{}
+	c.sleepFunc = func(ctx context.Context, delay time.Duration) error {
+		sleeps = append(sleeps, delay)
+		return nil
+	}
+
+	if _, err := c.Recall(context.Background(), RecallInput{Query: "retry"}); err != nil {
+		t.Fatalf("Recall failed after retry: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if len(sleeps) != 1 {
+		t.Fatalf("expected one retry sleep, got %d", len(sleeps))
+	}
+	if sleeps[0] != maxRetryAfterDelay {
+		t.Fatalf("expected capped Retry-After sleep of %v, got %v", maxRetryAfterDelay, sleeps[0])
+	}
+}
+
 func TestClientCall_Bad_DoesNotRetry400(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
