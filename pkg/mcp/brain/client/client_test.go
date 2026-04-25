@@ -258,7 +258,7 @@ func TestClientCall_Good_Retries429UsingRetryAfterSeconds(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts == 1 {
-			w.Header().Set("Retry-After", "1")
+			w.Header().Set("Retry-After", "2")
 			writeJSON(t, w, http.StatusTooManyRequests, map[string]any{"error": "rate limited"})
 			return
 		}
@@ -288,8 +288,67 @@ func TestClientCall_Good_Retries429UsingRetryAfterSeconds(t *testing.T) {
 	if len(sleeps) != 1 {
 		t.Fatalf("expected one retry sleep, got %d", len(sleeps))
 	}
-	if sleeps[0] != time.Second {
-		t.Fatalf("expected Retry-After sleep of 1s, got %v", sleeps[0])
+	if sleeps[0] != 2*time.Second {
+		t.Fatalf("expected Retry-After sleep of 2s, got %v", sleeps[0])
+	}
+}
+
+func TestClientSleep_Good_AppliesJitterAcrossClients(t *testing.T) {
+	ctx := context.Background()
+	c1 := New(Options{URL: "https://brain.test", Key: "test-key", BaseDelay: 10 * time.Second})
+	c2 := New(Options{URL: "https://brain.test", Key: "test-key", BaseDelay: 10 * time.Second})
+
+	var delay1 time.Duration
+	var delay2 time.Duration
+	c1.sleepFunc = func(ctx context.Context, delay time.Duration) error {
+		delay1 = delay
+		return nil
+	}
+	c2.sleepFunc = func(ctx context.Context, delay time.Duration) error {
+		delay2 = delay
+		return nil
+	}
+
+	for i := 0; i < 10; i++ {
+		if err := c1.sleep(ctx, 3); err != nil {
+			t.Fatalf("first client sleep failed: %v", err)
+		}
+		if err := c2.sleep(ctx, 3); err != nil {
+			t.Fatalf("second client sleep failed: %v", err)
+		}
+		if delay1 < 0 || delay1 > maxBackoffDelay {
+			t.Fatalf("first client delay out of range: %v", delay1)
+		}
+		if delay2 < 0 || delay2 > maxBackoffDelay {
+			t.Fatalf("second client delay out of range: %v", delay2)
+		}
+		if delay1 != delay2 {
+			return
+		}
+	}
+	t.Fatalf("expected jitter to produce different delays for two clients, both got %v", delay1)
+}
+
+func TestJitteredBackoffDelay_Good_CapsHighAttempt(t *testing.T) {
+	if limit := backoffDelayLimit(defaultBaseDelay, 20); limit != maxBackoffDelay {
+		t.Fatalf("expected high-attempt backoff limit %v, got %v", maxBackoffDelay, limit)
+	}
+	for i := 0; i < 10; i++ {
+		if delay := jitteredBackoffDelay(defaultBaseDelay, 20); delay < 0 || delay > maxBackoffDelay {
+			t.Fatalf("expected high-attempt jitter <= %v, got %v", maxBackoffDelay, delay)
+		}
+	}
+}
+
+func TestJitteredBackoffDelay_Good_UsesFullJitterRange(t *testing.T) {
+	limit := 800 * time.Millisecond
+	if got := backoffDelayLimit(100*time.Millisecond, 3); got != limit {
+		t.Fatalf("expected attempt 3 backoff limit %v, got %v", limit, got)
+	}
+	for i := 0; i < 10; i++ {
+		if delay := jitteredBackoffDelay(100*time.Millisecond, 3); delay < 0 || delay > limit {
+			t.Fatalf("expected jitter in [0, %v], got %v", limit, delay)
+		}
 	}
 }
 

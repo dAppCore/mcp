@@ -13,8 +13,10 @@ package client
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"io"
 	"io/fs"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,6 +40,7 @@ const (
 	defaultSuccessThreshold = 1
 	defaultCircuitCooldown  = 30 * time.Second
 	defaultMaxResponseBytes = int64(1 << 20)
+	maxBackoffDelay         = 30 * time.Second
 	maxRetryAfterDelay      = 60 * time.Second
 	defaultRecallTopK       = 10
 	defaultListLimit        = 50
@@ -420,10 +423,8 @@ func (c *Client) requestURL(path string) (string, error) {
 }
 
 func (c *Client) sleep(ctx context.Context, attempt int) error {
-	delay := c.baseDelay
-	for i := 1; i < attempt; i++ {
-		delay *= 3
-	}
+	retryAttempt := attempt - 1
+	delay := jitteredBackoffDelay(c.baseDelay, retryAttempt)
 	return c.sleepFor(ctx, delay)
 }
 
@@ -446,6 +447,42 @@ func sleepDuration(ctx context.Context, delay time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func jitteredBackoffDelay(baseDelay time.Duration, attempt int) time.Duration {
+	limit := backoffDelayLimit(baseDelay, attempt)
+	if limit <= 0 {
+		return 0
+	}
+	jitter, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(limit)))
+	if err != nil {
+		return limit
+	}
+	return time.Duration(jitter.Int64())
+}
+
+func backoffDelayLimit(baseDelay time.Duration, attempt int) time.Duration {
+	if baseDelay <= 0 {
+		return 0
+	}
+	if baseDelay >= maxBackoffDelay {
+		return maxBackoffDelay
+	}
+	if attempt <= 0 {
+		return baseDelay
+	}
+
+	delay := baseDelay
+	for i := 0; i < attempt; i++ {
+		if delay >= maxBackoffDelay/2 {
+			return maxBackoffDelay
+		}
+		delay *= 2
+	}
+	if delay > maxBackoffDelay {
+		return maxBackoffDelay
+	}
+	return delay
 }
 
 func (c *Client) orgFor(org string) string {
