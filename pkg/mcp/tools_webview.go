@@ -3,13 +3,13 @@
 package mcp
 
 import (
+	// Note: AX-6 — screenshot normalization needs bytes.NewReader for image.Decode on captured byte slices.
 	"bytes"
 	"context"
 	"encoding/base64"
 	"image"
 	"image/jpeg"
 	_ "image/png"
-	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -19,7 +19,7 @@ import (
 )
 
 // webviewMu protects webviewInstance from concurrent access.
-var webviewMu sync.Mutex
+var webviewMu core.Mutex
 
 // webviewInstance holds the current webview connection.
 // This is managed by the MCP service.
@@ -597,8 +597,8 @@ func normalizeScreenshotData(data []byte, format string) ([]byte, string, error)
 		if err != nil {
 			return nil, "", err
 		}
-		var buf bytes.Buffer
-		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+		buf := core.NewBuffer()
+		if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 90}); err != nil {
 			return nil, "", err
 		}
 		return buf.Bytes(), "jpeg", nil
