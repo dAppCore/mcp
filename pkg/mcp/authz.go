@@ -9,11 +9,8 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	core "dappco.re/go/core"
@@ -88,9 +85,9 @@ func currentAuthConfig(apiToken string) authConfig {
 }
 
 func extractBearerToken(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if strings.HasPrefix(raw, authTokenPrefix) {
-		return strings.TrimSpace(strings.TrimPrefix(raw, authTokenPrefix))
+	raw = core.Trim(raw)
+	if core.HasPrefix(raw, authTokenPrefix) {
+		return core.Trim(core.TrimPrefix(raw, authTokenPrefix))
 	}
 	return ""
 }
@@ -102,23 +99,23 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 	}
 	tkn := extractBearerToken(authToken)
 	if tkn == "" {
-		return nil, errors.New("missing bearer token")
+		return nil, coreerr.E("", "missing bearer token", nil)
 	}
 
 	if subtle.ConstantTimeCompare([]byte(tkn), []byte(cfg.apiToken)) == 1 {
 		return &authClaims{
-			Subject: "api-key",
+			Subject:  "api-key",
 			IssuedAt: time.Now().Unix(),
 		}, nil
 	}
 
 	if len(cfg.secret) == 0 {
-		return nil, errors.New("jwt secret is not configured")
+		return nil, coreerr.E("", "jwt secret is not configured", nil)
 	}
 
-	parts := strings.Split(tkn, ".")
+	parts := core.Split(tkn, ".")
 	if len(parts) != 3 {
-		return nil, errors.New("invalid token format")
+		return nil, coreerr.E("", "invalid token format", nil)
 	}
 
 	headerJSON, err := decodeJWTSection(parts[0])
@@ -130,7 +127,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 		return nil, err
 	}
 	if alg, _ := header["alg"].(string); alg != "" && alg != "HS256" {
-		return nil, fmt.Errorf("unsupported jwt algorithm: %s", alg)
+		return nil, coreerr.E("", core.Sprintf("unsupported jwt algorithm: %s", alg), nil)
 	}
 
 	signatureBase := parts[0] + "." + parts[1]
@@ -142,7 +139,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 		return nil, err
 	}
 	if !hmac.Equal(expectedSig, actualSig) {
-		return nil, errors.New("invalid token signature")
+		return nil, coreerr.E("", "invalid token signature", nil)
 	}
 
 	payloadJSON, err := decodeJWTSection(parts[1])
@@ -156,7 +153,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 
 	now := time.Now().Unix()
 	if claims.ExpiresAt > 0 && claims.ExpiresAt < now {
-		return nil, errors.New("token has expired")
+		return nil, coreerr.E("", "token has expired", nil)
 	}
 
 	return &claims, nil
@@ -210,7 +207,7 @@ func authClaimsFromToolRequest(ctx context.Context, req *mcp.CallToolRequest, ap
 	if req != nil {
 		extra := req.GetExtra()
 		if extra == nil || extra.Header == nil {
-			return nil, true, errors.New("missing request auth metadata")
+			return nil, true, coreerr.E("", "missing request auth metadata", nil)
 		}
 		raw := extra.Header.Get("Authorization")
 		parsed, err := parseAuthClaims(raw, apiToken)
@@ -244,13 +241,13 @@ func (s *Service) authorizeToolAccess(ctx context.Context, req *mcp.CallToolRequ
 		return nil
 	}
 	if claims == nil {
-		return coreerr.E("auth", "unauthorized", errors.New("missing auth claims"))
+		return coreerr.E("auth", "unauthorized", coreerr.E("", "missing auth claims", nil))
 	}
 	if !claims.canRunTool(tool) {
-		return coreerr.E("auth", "forbidden", errors.New("tool not allowed for token"))
+		return coreerr.E("auth", "forbidden", coreerr.E("", "tool not allowed for token", nil))
 	}
 	if !claims.canAccessWorkspaceFromInput(input) {
-		return coreerr.E("auth", "forbidden", errors.New("workspace scope mismatch"))
+		return coreerr.E("auth", "forbidden", coreerr.E("", "workspace scope mismatch", nil))
 	}
 	return nil
 }
@@ -291,20 +288,20 @@ func (c *authClaims) canAccessWorkspaceFromInput(input any) bool {
 }
 
 func workspaceMatch(claimed, target string) bool {
-	if strings.TrimSpace(claimed) == "" {
+	if core.Trim(claimed) == "" {
 		return true
 	}
-	if strings.TrimSpace(target) == "" {
+	if core.Trim(target) == "" {
 		return true
 	}
 	if claimed == target {
 		return true
 	}
-	if strings.HasSuffix(claimed, "*") {
-		prefix := strings.TrimSuffix(claimed, "*")
-		return strings.HasPrefix(target, prefix)
+	if core.HasSuffix(claimed, "*") {
+		prefix := core.TrimSuffix(claimed, "*")
+		return core.HasPrefix(target, prefix)
 	}
-	return strings.HasPrefix(target, claimed+"/")
+	return core.HasPrefix(target, claimed+"/")
 }
 
 func inputWorkspaceFromValue(input any) string {
@@ -355,7 +352,7 @@ func workspaceFromMap(v reflect.Value) string {
 		if mapKey.IsValid() {
 			raw := v.MapIndex(mapKey)
 			if raw.IsValid() && raw.Kind() == reflect.String {
-				return strings.TrimSpace(raw.String())
+				return core.Trim(raw.String())
 			}
 		}
 	}
@@ -371,9 +368,9 @@ func workspaceFromStruct(v reflect.Value) string {
 			continue
 		}
 
-		keys := []string{strings.ToLower(ft.Name)}
+		keys := []string{core.Lower(ft.Name)}
 		if tag := ft.Tag.Get("json"); tag != "" {
-			keys = append(keys, strings.ToLower(strings.Split(tag, ",")[0]))
+			keys = append(keys, core.Lower(core.Split(tag, ",")[0]))
 		}
 		for _, candidate := range keys {
 			if candidate != "workspace" && candidate != "repo" && candidate != "repository" {
@@ -381,7 +378,7 @@ func workspaceFromStruct(v reflect.Value) string {
 			}
 			switch f.Kind() {
 			case reflect.String:
-				if s := strings.TrimSpace(f.String()); s != "" {
+				if s := core.Trim(f.String()); s != "" {
 					return s
 				}
 			case reflect.Pointer:
@@ -389,7 +386,7 @@ func workspaceFromStruct(v reflect.Value) string {
 					continue
 				}
 				if f.Elem().Kind() == reflect.String {
-					if s := strings.TrimSpace(f.Elem().String()); s != "" {
+					if s := core.Trim(f.Elem().String()); s != "" {
 						return s
 					}
 				}
