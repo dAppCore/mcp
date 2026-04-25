@@ -14,8 +14,10 @@ package client
 import (
 	"context"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 
 const (
 	DefaultURL              = "https://api.lthn.sh"
+	brainKeyFileMode        = fs.FileMode(0o600)
 	defaultAgentID          = "cladius"
 	defaultTimeout          = 30 * time.Second
 	defaultMaxAttempts      = 3
@@ -64,6 +67,7 @@ type Client struct {
 	baseDelay        time.Duration
 	maxResponseBytes int64
 	circuitBreaker   *CircuitBreaker
+	configErr        error
 }
 
 // RememberInput is the request body for POST /v1/brain/remember.
@@ -180,12 +184,24 @@ func New(options Options) *Client {
 
 // NewFromEnvironment reads CORE_BRAIN_* settings and ~/.claude/brain.key.
 func NewFromEnvironment() *Client {
-	return New(Options{
+	apiKey, configErr := apiKeyFromEnvironment()
+	client := New(Options{
 		URL:     envOr("CORE_BRAIN_URL", DefaultURL),
-		Key:     apiKeyFromEnvironment(),
+		Key:     apiKey,
 		Org:     core.Env("CORE_BRAIN_ORG"),
 		AgentID: core.Env("CORE_BRAIN_AGENT_ID"),
 	})
+	client.configErr = configErr
+	return client
+}
+
+// WriteBrainKey stores the OpenBrain API key at ~/.claude/brain.key with owner-only permissions.
+func WriteBrainKey(apiKey string) error {
+	home := core.Env("HOME")
+	if home == "" {
+		return core.E("brain.client", "HOME not set", nil)
+	}
+	return writeBrainKeyFile(brainKeyPath(home), apiKey)
 }
 
 // NewCircuitBreaker creates a circuit breaker with OpenBrain defaults.
@@ -267,6 +283,9 @@ func (c *Client) List(ctx context.Context, input ListInput) (map[string]any, err
 
 // Call performs one OpenBrain API request through retry and circuit-breaker policy.
 func (c *Client) Call(ctx context.Context, method, path string, body any) (map[string]any, error) {
+	if c.configErr != nil {
+		return nil, c.configErr
+	}
 	if c.apiKey == "" {
 		return nil, core.E("brain.client", "no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)", nil)
 	}
@@ -485,16 +504,53 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-func apiKeyFromEnvironment() string {
+func apiKeyFromEnvironment() (string, error) {
 	if apiKey := core.Trim(core.Env("CORE_BRAIN_KEY")); apiKey != "" {
-		return apiKey
+		return apiKey, nil
 	}
 	home := core.Env("HOME")
 	if home == "" {
-		return ""
+		return "", nil
 	}
-	if data, err := coreio.Local.Read(core.JoinPath(home, ".claude", "brain.key")); err == nil {
-		return core.Trim(data)
+	apiKey, err := readBrainKeyFile(brainKeyPath(home))
+	if err != nil {
+		if core.Is(err, fs.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
 	}
-	return ""
+	return apiKey, nil
+}
+
+func brainKeyPath(home string) string {
+	return core.JoinPath(home, ".claude", "brain.key")
+}
+
+func readBrainKeyFile(path string) (string, error) {
+	info, err := coreio.Local.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if brainKeyModeInsecure(info.Mode().Perm()) {
+		return "", core.E("brain.client", "brain.key has insecure permissions, expected 0600", nil)
+	}
+	data, err := coreio.Local.Read(path)
+	if err != nil {
+		return "", err
+	}
+	return core.Trim(data), nil
+}
+
+func writeBrainKeyFile(path, apiKey string) error {
+	if err := coreio.Local.WriteMode(path, core.Trim(apiKey)+"\n", brainKeyFileMode); err != nil {
+		return err
+	}
+	if err := os.Chmod(path, brainKeyFileMode); err != nil {
+		return core.E("brain.client", "chmod brain.key", err)
+	}
+	return nil
+}
+
+func brainKeyModeInsecure(mode fs.FileMode) bool {
+	return mode.Perm()&^brainKeyFileMode != 0
 }

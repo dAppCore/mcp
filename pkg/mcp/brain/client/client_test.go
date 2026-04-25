@@ -6,6 +6,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,6 +193,59 @@ func TestClientCall_Bad_ContextCancellation(t *testing.T) {
 	}
 	if attempts != 0 {
 		t.Fatalf("expected cancelled request to avoid network, got %d attempts", attempts)
+	}
+}
+
+func TestWriteBrainKey_Good_Uses0600(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, ".claude", "brain.key")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create fixture dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("old-key\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	t.Setenv("HOME", home)
+
+	if err := WriteBrainKey("test-key"); err != nil {
+		t.Fatalf("WriteBrainKey failed: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat brain key: %v", err)
+	}
+	if got := info.Mode().Perm(); got != brainKeyFileMode {
+		t.Fatalf("expected brain.key mode %v, got %v", brainKeyFileMode, got)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read brain key: %v", err)
+	}
+	if got := string(data); got != "test-key\n" {
+		t.Fatalf("expected written key, got %q", got)
+	}
+}
+
+func TestBrainKeyFile_Bad_RejectsInsecurePermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "brain.key")
+	if err := os.WriteFile(path, []byte("test-key\n"), brainKeyFileMode); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatalf("chmod fixture: %v", err)
+	}
+
+	if _, err := readBrainKeyFile(path); err == nil {
+		t.Fatal("expected insecure permissions error")
+	} else if !strings.Contains(err.Error(), "brain.key has insecure permissions, expected 0600") {
+		t.Fatalf("expected insecure permissions error, got %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat brain key: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Fatalf("read should not chmod brain.key, got mode %v", got)
 	}
 }
 
