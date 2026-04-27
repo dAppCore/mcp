@@ -3,20 +3,12 @@
 package brain
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	goio "io"
-	"net/http"
-	"net/url"
-	"os"
-	"strings"
 	"time"
 
+	core "dappco.re/go/core"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -29,9 +21,7 @@ type channelSender func(ctx context.Context, channel string, data any)
 // Unlike Subsystem (which uses the IDE WebSocket bridge), this calls the
 // Laravel API directly — suitable for standalone core-mcp usage.
 type DirectSubsystem struct {
-	apiURL    string
-	apiKey    string
-	client    *http.Client
+	apiClient *brainclient.Client
 	onChannel channelSender
 }
 
@@ -58,23 +48,17 @@ func (s *DirectSubsystem) OnChannel(fn func(ctx context.Context, channel string,
 // Reads CORE_BRAIN_URL and CORE_BRAIN_KEY from environment, or falls back
 // to ~/.claude/brain.key for the API key.
 func NewDirect() *DirectSubsystem {
-	apiURL := os.Getenv("CORE_BRAIN_URL")
-	if apiURL == "" {
-		apiURL = "https://api.lthn.sh"
-	}
+	return NewDirectWithClient(brainclient.NewFromEnvironment())
+}
 
-	apiKey := os.Getenv("CORE_BRAIN_KEY")
-	if apiKey == "" {
-		if data, err := coreio.Local.Read(os.ExpandEnv("$HOME/.claude/brain.key")); err == nil {
-			apiKey = strings.TrimSpace(data)
-		}
+// NewDirectWithClient creates a direct brain subsystem using the shared client.
+//
+//	brain := NewDirectWithClient(client.New(client.Options{URL: "http://127.0.0.1:8080", Key: "test"}))
+func NewDirectWithClient(apiClient *brainclient.Client) *DirectSubsystem {
+	if apiClient == nil {
+		apiClient = brainclient.NewFromEnvironment()
 	}
-
-	return &DirectSubsystem{
-		apiURL: apiURL,
-		apiKey: apiKey,
-		client: &http.Client{Timeout: 30 * time.Second},
-	}
+	return &DirectSubsystem{apiClient: apiClient}
 }
 
 // Name implements mcp.Subsystem.
@@ -100,7 +84,7 @@ func (s *DirectSubsystem) RegisterTools(svc *coremcp.Service) {
 
 	coremcp.AddToolRecorded(svc, server, "brain", &mcp.Tool{
 		Name:        "brain_list",
-		Description: "List memories in OpenBrain with optional filtering by project, type, and agent.",
+		Description: "List memories in OpenBrain with optional filtering by org, project, type, and agent.",
 	}, s.list)
 }
 
@@ -108,57 +92,19 @@ func (s *DirectSubsystem) RegisterTools(svc *coremcp.Service) {
 func (s *DirectSubsystem) Shutdown(_ context.Context) error { return nil }
 
 func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body any) (map[string]any, error) {
-	if s.apiKey == "" {
-		return nil, coreerr.E("brain.apiCall", "no API key (set CORE_BRAIN_KEY or create ~/.claude/brain.key)", nil)
-	}
-
-	var reqBody goio.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, coreerr.E("brain.apiCall", "marshal request", err)
-		}
-		reqBody = bytes.NewReader(data)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, s.apiURL+path, reqBody)
-	if err != nil {
-		return nil, coreerr.E("brain.apiCall", "create request", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, coreerr.E("brain.apiCall", "API call failed", err)
-	}
-	defer resp.Body.Close()
-
-	respData, err := goio.ReadAll(resp.Body)
-	if err != nil {
-		return nil, coreerr.E("brain.apiCall", "read response", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, coreerr.E("brain.apiCall", "API returned "+string(respData), nil)
-	}
-
-	var result map[string]any
-	if err := json.Unmarshal(respData, &result); err != nil {
-		return nil, coreerr.E("brain.apiCall", "parse response", err)
-	}
-
-	return result, nil
+	return s.client().Call(ctx, method, path, body)
 }
 
 func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
-	result, err := s.apiCall(ctx, "POST", "/v1/brain/remember", map[string]any{
-		"content":  input.Content,
-		"type":     input.Type,
-		"tags":     input.Tags,
-		"project":  input.Project,
-		"agent_id": "cladius",
+	result, err := s.client().Remember(ctx, brainclient.RememberInput{
+		Content:    input.Content,
+		Type:       input.Type,
+		Tags:       input.Tags,
+		Org:        input.Org,
+		Project:    input.Project,
+		Confidence: input.Confidence,
+		Supersedes: input.Supersedes,
+		ExpiresIn:  input.ExpiresIn,
 	})
 	if err != nil {
 		return nil, RememberOutput{}, err
@@ -168,6 +114,7 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
 			"id":      id,
+			"org":     input.Org,
 			"type":    input.Type,
 			"project": input.Project,
 		})
@@ -180,55 +127,27 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 }
 
 func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
-	body := map[string]any{
-		"query":    input.Query,
-		"top_k":    input.TopK,
-		"agent_id": "cladius",
-	}
-	if input.Filter.Project != "" {
-		body["project"] = input.Filter.Project
-	}
-	if input.Filter.Type != nil {
-		body["type"] = input.Filter.Type
-	}
-	if input.TopK == 0 {
-		body["top_k"] = 10
-	}
-
-	result, err := s.apiCall(ctx, "POST", "/v1/brain/recall", body)
+	result, err := s.client().Recall(ctx, brainclient.RecallInput{
+		Query:         input.Query,
+		TopK:          input.TopK,
+		Org:           input.Filter.Org,
+		Project:       input.Filter.Project,
+		Type:          input.Filter.Type,
+		AgentID:       input.Filter.AgentID,
+		MinConfidence: input.Filter.MinConfidence,
+	})
 	if err != nil {
 		return nil, RecallOutput{}, err
 	}
 
-	var memories []Memory
-	if mems, ok := result["memories"].([]any); ok {
-		for _, m := range mems {
-			if mm, ok := m.(map[string]any); ok {
-				mem := Memory{
-					Content:   fmt.Sprintf("%v", mm["content"]),
-					Type:      fmt.Sprintf("%v", mm["type"]),
-					Project:   fmt.Sprintf("%v", mm["project"]),
-					AgentID:   fmt.Sprintf("%v", mm["agent_id"]),
-					CreatedAt: fmt.Sprintf("%v", mm["created_at"]),
-				}
-				if id, ok := mm["id"].(string); ok {
-					mem.ID = id
-				}
-				if score, ok := mm["score"].(float64); ok {
-					mem.Confidence = score
-				}
-				if source, ok := mm["source"].(string); ok {
-					mem.Tags = append(mem.Tags, "source:"+source)
-				}
-				memories = append(memories, mem)
-			}
-		}
-	}
+	memories := memoriesFromResult(result)
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainRecallDone, map[string]any{
-			"query": input.Query,
-			"count": len(memories),
+			"query":   input.Query,
+			"org":     input.Filter.Org,
+			"project": input.Filter.Project,
+			"count":   len(memories),
 		})
 	}
 	return nil, RecallOutput{
@@ -239,7 +158,7 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 }
 
 func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (*mcp.CallToolResult, ForgetOutput, error) {
-	_, err := s.apiCall(ctx, "DELETE", "/v1/brain/forget/"+input.ID, nil)
+	_, err := s.client().Forget(ctx, brainclient.ForgetInput{ID: input.ID, Reason: input.Reason})
 	if err != nil {
 		return nil, ForgetOutput{}, err
 	}
@@ -263,51 +182,22 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	if limit == 0 {
 		limit = 50
 	}
-
-	values := url.Values{}
-	if input.Project != "" {
-		values.Set("project", input.Project)
-	}
-	if input.Type != "" {
-		values.Set("type", input.Type)
-	}
-	if input.AgentID != "" {
-		values.Set("agent_id", input.AgentID)
-	}
-	values.Set("limit", fmt.Sprintf("%d", limit))
-
-	result, err := s.apiCall(ctx, http.MethodGet, "/v1/brain/list?"+values.Encode(), nil)
+	result, err := s.client().List(ctx, brainclient.ListInput{
+		Org:     input.Org,
+		Project: input.Project,
+		Type:    input.Type,
+		AgentID: input.AgentID,
+		Limit:   limit,
+	})
 	if err != nil {
 		return nil, ListOutput{}, err
 	}
 
-	var memories []Memory
-	if mems, ok := result["memories"].([]any); ok {
-		for _, m := range mems {
-			if mm, ok := m.(map[string]any); ok {
-				mem := Memory{
-					Content:   fmt.Sprintf("%v", mm["content"]),
-					Type:      fmt.Sprintf("%v", mm["type"]),
-					Project:   fmt.Sprintf("%v", mm["project"]),
-					AgentID:   fmt.Sprintf("%v", mm["agent_id"]),
-					CreatedAt: fmt.Sprintf("%v", mm["created_at"]),
-				}
-				if id, ok := mm["id"].(string); ok {
-					mem.ID = id
-				}
-				if score, ok := mm["score"].(float64); ok {
-					mem.Confidence = score
-				}
-				if source, ok := mm["source"].(string); ok {
-					mem.Tags = append(mem.Tags, "source:"+source)
-				}
-				memories = append(memories, mem)
-			}
-		}
-	}
+	memories := memoriesFromResult(result)
 
 	if s.onChannel != nil {
 		s.onChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{
+			"org":      input.Org,
 			"project":  input.Project,
 			"type":     input.Type,
 			"agent_id": input.AgentID,
@@ -320,4 +210,58 @@ func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		Count:    len(memories),
 		Memories: memories,
 	}, nil
+}
+
+func (s *DirectSubsystem) client() *brainclient.Client {
+	if s.apiClient == nil {
+		s.apiClient = brainclient.NewFromEnvironment()
+	}
+	return s.apiClient
+}
+
+// memoriesFromResult extracts Memory entries from an API response map.
+func memoriesFromResult(result map[string]any) []Memory {
+	var memories []Memory
+	mems, ok := result["memories"].([]any)
+	if !ok {
+		return memories
+	}
+	for _, m := range mems {
+		mm, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		mem := Memory{
+			Content:   stringFromMap(mm, "content"),
+			Type:      stringFromMap(mm, "type"),
+			Org:       stringFromMap(mm, "org"),
+			Project:   stringFromMap(mm, "project"),
+			AgentID:   stringFromMap(mm, "agent_id"),
+			CreatedAt: stringFromMap(mm, "created_at"),
+		}
+		if id, ok := mm["id"].(string); ok {
+			mem.ID = id
+		}
+		if score, ok := mm["score"].(float64); ok {
+			mem.Confidence = score
+		}
+		if source, ok := mm["source"].(string); ok {
+			mem.Tags = append(mem.Tags, "source:"+source)
+		}
+		memories = append(memories, mem)
+	}
+	return memories
+}
+
+// stringFromMap extracts a string value from a map, returning "" if missing or wrong type.
+func stringFromMap(m map[string]any, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return core.Sprintf("%v", v)
+	}
+	return s
 }

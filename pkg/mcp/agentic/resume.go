@@ -4,16 +4,14 @@ package agentic
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"syscall"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -52,8 +50,8 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, coreerr.E("resume", "workspace is required", nil)
 	}
 
-	wsDir := filepath.Join(s.workspaceRoot(), input.Workspace)
-	srcDir := filepath.Join(wsDir, "src")
+	wsDir := core.Path(s.workspaceRoot(), input.Workspace)
+	srcDir := core.Path(wsDir, "src")
 
 	// Verify workspace exists
 	if _, err := coreio.Local.List(srcDir); err != nil {
@@ -78,8 +76,8 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	// Write ANSWER.md if answer provided
 	if input.Answer != "" {
-		answerPath := filepath.Join(srcDir, "ANSWER.md")
-		content := fmt.Sprintf("# Answer\n\n%s\n", input.Answer)
+		answerPath := core.Path(srcDir, "ANSWER.md")
+		content := core.Sprintf("# Answer\n\n%s\n", input.Answer)
 		if err := writeAtomic(answerPath, content); err != nil {
 			return nil, ResumeOutput{}, coreerr.E("resume", "failed to write ANSWER.md", err)
 		}
@@ -102,7 +100,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	}
 
 	// Spawn agent as detached process (survives parent death)
-	outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s-run%d.log", agent, st.Runs+1))
+	outputFile := core.Path(wsDir, core.Sprintf("agent-%s-run%d.log", agent, st.Runs+1))
 
 	command, args, err := agentCommand(agent, prompt)
 	if err != nil {
@@ -154,10 +152,10 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			"branch":    st.Branch,
 		}
 
-		if data, err := coreio.Local.Read(filepath.Join(srcDir, "BLOCKED.md")); err == nil {
+		if data, err := coreio.Local.Read(core.Path(srcDir, "BLOCKED.md")); err == nil {
 			status = "blocked"
 			channel = coremcp.ChannelAgentBlocked
-			st.Question = strings.TrimSpace(data)
+			st.Question = core.Trim(data)
 			if st.Question != "" {
 				payload["question"] = st.Question
 			}

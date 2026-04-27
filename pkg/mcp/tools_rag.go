@@ -6,8 +6,8 @@ import (
 	"context"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-rag"
+	"dappco.re/go/log"
+	"dappco.re/go/rag"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -83,6 +83,30 @@ type RAGCollectionsInput struct {
 	ShowStats bool `json:"show_stats,omitempty"` // true to include point counts and status
 }
 
+// RAGRetrieveInput contains parameters for retrieving chunks from a specific
+// document source (rather than running a semantic query).
+//
+//	input := RAGRetrieveInput{
+//	    Source:     "docs/services.md",
+//	    Collection: "core-docs",
+//	    Limit:      20,
+//	}
+type RAGRetrieveInput struct {
+	Source     string `json:"source"`               // e.g. "docs/services.md"
+	Collection string `json:"collection,omitempty"` // e.g. "core-docs" (default: "hostuk-docs")
+	Limit      int    `json:"limit,omitempty"`      // e.g. 20 (default: 50)
+}
+
+// RAGRetrieveOutput contains document chunks for a specific source.
+//
+//	// len(out.Chunks) == 12, out.Source == "docs/services.md"
+type RAGRetrieveOutput struct {
+	Source     string           `json:"source"`     // e.g. "docs/services.md"
+	Collection string           `json:"collection"` // collection searched
+	Chunks     []RAGQueryResult `json:"chunks"`     // chunks for the source, ordered by chunkIndex
+	Count      int              `json:"count"`      // number of chunks returned
+}
+
 // CollectionInfo contains information about a Qdrant collection.
 //
 //	// ci.Name == "core-docs", ci.PointsCount == 1500, ci.Status == "green"
@@ -106,10 +130,27 @@ func (s *Service) registerRAGTools(server *mcp.Server) {
 		Description: "Query the RAG vector database for relevant documentation. Returns semantically similar content based on the query.",
 	}, s.ragQuery)
 
+	// rag_search is the spec-aligned alias for rag_query.
+	addToolRecorded(s, server, "rag", &mcp.Tool{
+		Name:        "rag_search",
+		Description: "Semantic search across documents in the RAG vector database. Returns chunks ranked by similarity.",
+	}, s.ragQuery)
+
 	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_ingest",
 		Description: "Ingest documents into the RAG vector database. Supports both single files and directories.",
 	}, s.ragIngest)
+
+	// rag_index is the spec-aligned alias for rag_ingest.
+	addToolRecorded(s, server, "rag", &mcp.Tool{
+		Name:        "rag_index",
+		Description: "Index a document or directory into the RAG vector database.",
+	}, s.ragIngest)
+
+	addToolRecorded(s, server, "rag", &mcp.Tool{
+		Name:        "rag_retrieve",
+		Description: "Retrieve chunks for a specific document source from the RAG vector database.",
+	}, s.ragRetrieve)
 
 	addToolRecorded(s, server, "rag", &mcp.Tool{
 		Name:        "rag_collections",
@@ -214,6 +255,86 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		Chunks:     chunks,
 		Message:    message,
 	}, nil
+}
+
+// ragRetrieve handles the rag_retrieve tool call.
+// Returns chunks for a specific source path by querying the collection with
+// the source path as the query text and then filtering results down to the
+// matching source. This preserves the transport abstraction that the rest of
+// the RAG tools use while producing the document-scoped view callers expect.
+func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, input RAGRetrieveInput) (*mcp.CallToolResult, RAGRetrieveOutput, error) {
+	collection := input.Collection
+	if collection == "" {
+		collection = DefaultRAGCollection
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+
+	s.logger.Info("MCP tool execution", "tool", "rag_retrieve", "source", input.Source, "collection", collection, "limit", limit, "user", log.Username())
+
+	if input.Source == "" {
+		return nil, RAGRetrieveOutput{}, log.E("ragRetrieve", "source cannot be empty", nil)
+	}
+
+	// Use the source path as the query text — semantically related chunks
+	// will rank highly, and we then keep only chunks whose Source matches.
+	// Over-fetch by an order of magnitude so document-level limits are met
+	// even when the source appears beyond the top-K of the raw query.
+	overfetch := limit * 10
+	if overfetch < 100 {
+		overfetch = 100
+	}
+
+	results, err := rag.QueryDocs(ctx, input.Source, collection, overfetch)
+	if err != nil {
+		log.Error("mcp: rag retrieve query failed", "source", input.Source, "collection", collection, "err", err)
+		return nil, RAGRetrieveOutput{}, log.E("ragRetrieve", "failed to retrieve chunks", err)
+	}
+
+	chunks := make([]RAGQueryResult, 0, limit)
+	for _, r := range results {
+		if r.Source != input.Source {
+			continue
+		}
+		chunks = append(chunks, RAGQueryResult{
+			Content:    r.Text,
+			Source:     r.Source,
+			Section:    r.Section,
+			Category:   r.Category,
+			ChunkIndex: r.ChunkIndex,
+			Score:      r.Score,
+		})
+		if len(chunks) >= limit {
+			break
+		}
+	}
+	sortChunksByIndex(chunks)
+
+	return nil, RAGRetrieveOutput{
+		Source:     input.Source,
+		Collection: collection,
+		Chunks:     chunks,
+		Count:      len(chunks),
+	}, nil
+}
+
+// sortChunksByIndex sorts chunks in ascending order of chunk index.
+// Stable ordering keeps ties by their original position.
+func sortChunksByIndex(chunks []RAGQueryResult) {
+	if len(chunks) <= 1 {
+		return
+	}
+	// Insertion sort keeps the code dependency-free and is fast enough
+	// for the small result sets rag_retrieve is designed for.
+	for i := 1; i < len(chunks); i++ {
+		j := i
+		for j > 0 && chunks[j-1].ChunkIndex > chunks[j].ChunkIndex {
+			chunks[j-1], chunks[j] = chunks[j], chunks[j-1]
+			j--
+		}
+	}
 }
 
 // ragCollections handles the rag_collections tool call.

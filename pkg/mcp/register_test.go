@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"forge.lthn.ai/core/go-process"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 )
 
 func TestRegister_Good_WiresOptionalServices(t *testing.T) {

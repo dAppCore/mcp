@@ -8,18 +8,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	goio "io"
 	"net/http"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"time"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
 )
@@ -46,17 +42,17 @@ var (
 //
 //	prep := NewPrep()
 func NewPrep() *PrepSubsystem {
-	home, _ := os.UserHomeDir()
+	home := core.Env("HOME")
 
-	forgeToken := os.Getenv("FORGE_TOKEN")
+	forgeToken := core.Env("FORGE_TOKEN")
 	if forgeToken == "" {
-		forgeToken = os.Getenv("GITEA_TOKEN")
+		forgeToken = core.Env("GITEA_TOKEN")
 	}
 
-	brainKey := os.Getenv("CORE_BRAIN_KEY")
+	brainKey := core.Env("CORE_BRAIN_KEY")
 	if brainKey == "" {
-		if data, err := coreio.Local.Read(filepath.Join(home, ".claude", "brain.key")); err == nil {
-			brainKey = strings.TrimSpace(data)
+		if data, err := coreio.Local.Read(core.Path(home, ".claude", "brain.key")); err == nil {
+			brainKey = core.Trim(data)
 		}
 	}
 
@@ -65,8 +61,8 @@ func NewPrep() *PrepSubsystem {
 		forgeToken: forgeToken,
 		brainURL:   envOr("CORE_BRAIN_URL", "https://api.lthn.sh"),
 		brainKey:   brainKey,
-		specsPath:  envOr("SPECS_PATH", filepath.Join(home, "Code", "host-uk", "specs")),
-		codePath:   envOr("CODE_PATH", filepath.Join(home, "Code")),
+		specsPath:  envOr("SPECS_PATH", core.Path(home, "Code", "host-uk", "specs")),
+		codePath:   envOr("CODE_PATH", core.Path(home, "Code")),
 		client:     &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -84,24 +80,24 @@ func (s *PrepSubsystem) emitChannel(ctx context.Context, channel string, data an
 }
 
 func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+	if v := core.Env(key); v != "" {
 		return v
 	}
 	return fallback
 }
 
 func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, error) {
-	if strings.TrimSpace(value) != value {
+	if core.Trim(value) != value {
 		return "", coreerr.E("prepWorkspace", field+" contains whitespace", nil)
 	}
 	if value == "" {
 		return "", nil
 	}
-	if strings.Contains(value, "\\") {
+	if core.Contains(value, "\\") {
 		return "", coreerr.E("prepWorkspace", field+" contains invalid path separator", nil)
 	}
 
-	parts := strings.Split(value, "/")
+	parts := core.Split(value, "/")
 	if !allowSubdirs && len(parts) != 1 {
 		return "", coreerr.E("prepWorkspace", field+" may not contain subdirectories", nil)
 	}
@@ -161,7 +157,7 @@ func (s *PrepSubsystem) Shutdown(_ context.Context) error { return nil }
 
 // workspaceRoot returns the base directory for agent workspaces.
 func (s *PrepSubsystem) workspaceRoot() string {
-	return filepath.Join(s.codePath, ".core", "workspace")
+	return core.Path(s.codePath, ".core", "workspace")
 }
 
 // --- Input/Output types ---
@@ -227,8 +223,8 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// Workspace root: .core/workspace/{repo}-{timestamp}/
 	wsRoot := s.workspaceRoot()
 	coreio.Local.EnsureDir(wsRoot)
-	wsName := fmt.Sprintf("%s-%d", input.Repo, time.Now().Unix())
-	wsDir := filepath.Join(wsRoot, wsName)
+	wsName := core.Sprintf("%s-%d", input.Repo, time.Now().Unix())
+	wsDir := core.Path(wsRoot, wsName)
 
 	// Create workspace structure
 	// kb/ and specs/ will be created inside src/ after clone
@@ -236,10 +232,10 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	out := PrepOutput{WorkspaceDir: wsDir}
 
 	// Source repo path
-	repoPath := filepath.Join(s.codePath, "core", input.Repo)
+	repoPath := core.Path(s.codePath, "core", input.Repo)
 
 	// 1. Clone repo into src/ and create feature branch
-	srcDir := filepath.Join(wsDir, "src")
+	srcDir := core.Path(wsDir, "src")
 	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
 	if err := cloneCmd.Run(); err != nil {
 		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
@@ -251,12 +247,12 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		taskSlug := branchSlug(input.Task)
 		if input.Issue > 0 {
 			issueSlug := branchSlug(input.Task)
-			branchName = fmt.Sprintf("agent/issue-%d", input.Issue)
+			branchName = core.Sprintf("agent/issue-%d", input.Issue)
 			if issueSlug != "" {
 				branchName += "-" + issueSlug
 			}
 		} else if taskSlug != "" {
-			branchName = fmt.Sprintf("agent/%s", taskSlug)
+			branchName = core.Sprintf("agent/%s", taskSlug)
 		}
 	}
 	if branchName != "" {
@@ -269,29 +265,29 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	}
 
 	// Create context dirs inside src/
-	coreio.Local.EnsureDir(filepath.Join(srcDir, "kb"))
-	coreio.Local.EnsureDir(filepath.Join(srcDir, "specs"))
+	coreio.Local.EnsureDir(core.Path(srcDir, "kb"))
+	coreio.Local.EnsureDir(core.Path(srcDir, "specs"))
 
 	// Remote stays as local clone origin — agent cannot push to forge.
 	// Reviewer pulls changes from workspace and pushes after verification.
 
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
-	claudeMdPath := filepath.Join(repoPath, "CLAUDE.md")
+	claudeMdPath := core.Path(repoPath, "CLAUDE.md")
 	if data, err := coreio.Local.Read(claudeMdPath); err == nil {
-		_ = writeAtomic(filepath.Join(wsDir, "src", "CLAUDE.md"), data)
+		_ = writeAtomic(core.Path(wsDir, "src", "CLAUDE.md"), data)
 		out.ClaudeMd = true
 	}
 	// Copy GEMINI.md from core/agent (ethics framework for all agents)
-	agentGeminiMd := filepath.Join(s.codePath, "core", "agent", "GEMINI.md")
+	agentGeminiMd := core.Path(s.codePath, "core", "agent", "GEMINI.md")
 	if data, err := coreio.Local.Read(agentGeminiMd); err == nil {
-		_ = writeAtomic(filepath.Join(wsDir, "src", "GEMINI.md"), data)
+		_ = writeAtomic(core.Path(wsDir, "src", "GEMINI.md"), data)
 	}
 
 	// Copy persona if specified
 	if persona != "" {
-		personaPath := filepath.Join(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
+		personaPath := core.Path(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
-			_ = writeAtomic(filepath.Join(wsDir, "src", "PERSONA.md"), data)
+			_ = writeAtomic(core.Path(wsDir, "src", "PERSONA.md"), data)
 		}
 	}
 
@@ -299,9 +295,9 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	if input.Issue > 0 {
 		s.generateTodo(ctx, input.Org, input.Repo, input.Issue, wsDir)
 	} else if input.Task != "" {
-		todo := fmt.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
+		todo := core.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		_ = writeAtomic(filepath.Join(wsDir, "src", "TODO.md"), todo)
+		_ = writeAtomic(core.Path(wsDir, "src", "TODO.md"), todo)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -333,12 +329,12 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 // branchSlug converts a free-form string into a git-friendly branch suffix.
 func branchSlug(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
+	value = core.Lower(core.Trim(value))
 	if value == "" {
 		return ""
 	}
 
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.Grow(len(value))
 	lastDash := false
 	for _, r := range value {
@@ -359,12 +355,40 @@ func branchSlug(value string) string {
 		}
 	}
 
-	slug := strings.Trim(b.String(), "-")
+	slug := trimDashes(b.String())
 	if len(slug) > 40 {
-		slug = slug[:40]
-		slug = strings.Trim(slug, "-")
+		slug = trimDashes(slug[:40])
 	}
 	return slug
+}
+
+// sanitizeFilename replaces non-alphanumeric characters (except - _ .) with dashes.
+func sanitizeFilename(title string) string {
+	b := core.NewBuilder()
+	b.Grow(len(title))
+	for _, r := range title {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	return b.String()
+}
+
+// trimDashes strips leading and trailing dash characters from a string.
+func trimDashes(s string) string {
+	start := 0
+	for start < len(s) && s[start] == '-' {
+		start++
+	}
+	end := len(s)
+	for end > start && s[end-1] == '-' {
+		end--
+	}
+	return s[start:end]
 }
 
 // --- Prompt templates ---
@@ -434,7 +458,7 @@ Do NOT push. Commit only — a reviewer will verify and push.
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	_ = writeAtomic(filepath.Join(wsDir, "src", "PROMPT.md"), prompt)
+	_ = writeAtomic(core.Path(wsDir, "src", "PROMPT.md"), prompt)
 }
 
 // --- Plan template rendering ---
@@ -443,11 +467,11 @@ Do NOT push. Commit only — a reviewer will verify and push.
 // and writes PLAN.md into the workspace src/ directory.
 func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map[string]string, task string, wsDir string) {
 	// Look for template in core/agent/prompts/templates/
-	templatePath := filepath.Join(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yaml")
+	templatePath := core.Path(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yaml")
 	content, err := coreio.Local.Read(templatePath)
 	if err != nil {
 		// Try .yml extension
-		templatePath = filepath.Join(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yml")
+		templatePath = core.Path(s.codePath, "core", "agent", "prompts", "templates", templateSlug+".yml")
 		content, err = coreio.Local.Read(templatePath)
 		if err != nil {
 			return // Template not found, skip silently
@@ -456,8 +480,8 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 
 	// Substitute variables ({{variable_name}} → value)
 	for key, value := range variables {
-		content = strings.ReplaceAll(content, "{{"+key+"}}", value)
-		content = strings.ReplaceAll(content, "{{ "+key+" }}", value)
+		content = core.Replace(content, "{{"+key+"}}", value)
+		content = core.Replace(content, "{{ "+key+" }}", value)
 	}
 
 	// Parse the YAML to render as markdown
@@ -477,7 +501,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 	}
 
 	// Render as PLAN.md
-	var plan strings.Builder
+	plan := core.NewBuilder()
 	plan.WriteString("# Plan: " + tmpl.Name + "\n\n")
 	if task != "" {
 		plan.WriteString("**Task:** " + task + "\n\n")
@@ -495,7 +519,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 	}
 
 	for i, phase := range tmpl.Phases {
-		plan.WriteString(fmt.Sprintf("## Phase %d: %s\n\n", i+1, phase.Name))
+		plan.WriteString(core.Sprintf("## Phase %d: %s\n\n", i+1, phase.Name))
 		if phase.Description != "" {
 			plan.WriteString(phase.Description + "\n\n")
 		}
@@ -512,7 +536,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
 	}
 
-	_ = writeAtomic(filepath.Join(wsDir, "src", "PLAN.md"), plan.String())
+	_ = writeAtomic(core.Path(wsDir, "src", "PLAN.md"), plan.String())
 }
 
 // --- Helpers (unchanged) ---
@@ -522,7 +546,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		return 0
 	}
 
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/wiki/pages", s.forgeURL, org, repo)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/wiki/pages", s.forgeURL, org, repo)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return 0
@@ -553,7 +577,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 			subURL = page.Title
 		}
 
-		pageURL := fmt.Sprintf("%s/api/v1/repos/%s/%s/wiki/page/%s", s.forgeURL, org, repo, subURL)
+		pageURL := core.Sprintf("%s/api/v1/repos/%s/%s/wiki/page/%s", s.forgeURL, org, repo, subURL)
 		pageReq, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
 		if err != nil {
 			continue
@@ -585,14 +609,9 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		if err != nil {
 			continue
 		}
-		filename := strings.Map(func(r rune) rune {
-			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
-				return r
-			}
-			return '-'
-		}, page.Title) + ".md"
+		filename := sanitizeFilename(page.Title) + ".md"
 
-		_ = writeAtomic(filepath.Join(wsDir, "src", "kb", filename), string(content))
+		_ = writeAtomic(core.Path(wsDir, "src", "kb", filename), string(content))
 		count++
 	}
 
@@ -604,9 +623,9 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	count := 0
 
 	for _, file := range specFiles {
-		src := filepath.Join(s.specsPath, file)
+		src := core.Path(s.specsPath, file)
 		if data, err := coreio.Local.Read(src); err == nil {
-			_ = writeAtomic(filepath.Join(wsDir, "src", "specs", file), data)
+			_ = writeAtomic(core.Path(wsDir, "src", "specs", file), data)
 			count++
 		}
 	}
@@ -629,7 +648,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.brainURL+"/v1/brain/recall", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(ctx, "POST", s.brainURL+"/v1/brain/recall", core.NewReader(string(body)))
 	if err != nil {
 		return 0
 	}
@@ -646,18 +665,18 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		return 0
 	}
 
-	respData, err := goio.ReadAll(resp.Body)
-	if err != nil {
+	readResult := core.ReadAll(resp.Body)
+	if !readResult.OK {
 		return 0
 	}
 	var result struct {
 		Memories []map[string]any `json:"memories"`
 	}
-	if err := json.Unmarshal(respData, &result); err != nil {
+	if ur := core.JSONUnmarshal([]byte(readResult.Value.(string)), &result); !ur.OK {
 		return 0
 	}
 
-	var content strings.Builder
+	content := core.NewBuilder()
 	content.WriteString("# Context — " + repo + "\n\n")
 	content.WriteString("> Relevant knowledge from OpenBrain.\n\n")
 
@@ -666,15 +685,15 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		memContent, _ := mem["content"].(string)
 		memProject, _ := mem["project"].(string)
 		score, _ := mem["score"].(float64)
-		content.WriteString(fmt.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
+		content.WriteString(core.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	_ = writeAtomic(filepath.Join(wsDir, "src", "CONTEXT.md"), content.String())
+	_ = writeAtomic(core.Path(wsDir, "src", "CONTEXT.md"), content.String())
 	return len(result.Memories)
 }
 
 func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
-	goWorkPath := filepath.Join(s.codePath, "go.work")
+	goWorkPath := core.Path(s.codePath, "go.work")
 	modulePath := "forge.lthn.ai/core/" + repo
 
 	workData, err := coreio.Local.Read(goWorkPath)
@@ -683,19 +702,19 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 	}
 
 	var consumers []string
-	for _, line := range strings.Split(workData, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "./") {
+	for _, line := range core.Split(workData, "\n") {
+		line = core.Trim(line)
+		if !core.HasPrefix(line, "./") {
 			continue
 		}
-		dir := filepath.Join(s.codePath, strings.TrimPrefix(line, "./"))
-		goMod := filepath.Join(dir, "go.mod")
+		dir := core.Path(s.codePath, core.TrimPrefix(line, "./"))
+		goMod := core.Path(dir, "go.mod")
 		modData, err := coreio.Local.Read(goMod)
 		if err != nil {
 			continue
 		}
-		if strings.Contains(modData, modulePath) && !strings.HasPrefix(modData, "module "+modulePath) {
-			consumers = append(consumers, filepath.Base(dir))
+		if core.Contains(modData, modulePath) && !core.HasPrefix(modData, "module "+modulePath) {
+			consumers = append(consumers, core.PathBase(dir))
 		}
 	}
 
@@ -705,8 +724,8 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 		for _, c := range consumers {
 			content += "- " + c + "\n"
 		}
-		content += fmt.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		_ = writeAtomic(filepath.Join(wsDir, "src", "CONSUMERS.md"), content)
+		content += core.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
+		_ = writeAtomic(core.Path(wsDir, "src", "CONSUMERS.md"), content)
 	}
 
 	return len(consumers)
@@ -720,10 +739,10 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 		return 0
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	lines := core.Split(core.Trim(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		_ = writeAtomic(filepath.Join(wsDir, "src", "RECENT.md"), content)
+		_ = writeAtomic(core.Path(wsDir, "src", "RECENT.md"), content)
 	}
 
 	return len(lines)
@@ -734,7 +753,7 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -753,11 +772,11 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	}
 	json.NewDecoder(resp.Body).Decode(&issueData)
 
-	content := fmt.Sprintf("# TASK: %s\n\n", issueData.Title)
-	content += fmt.Sprintf("**Status:** ready\n")
-	content += fmt.Sprintf("**Source:** %s/%s/%s/issues/%d\n", s.forgeURL, org, repo, issue)
-	content += fmt.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
+	content := core.Sprintf("# TASK: %s\n\n", issueData.Title)
+	content += core.Sprintf("**Status:** ready\n")
+	content += core.Sprintf("**Source:** %s/%s/%s/issues/%d\n", s.forgeURL, org, repo, issue)
+	content += core.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	_ = writeAtomic(filepath.Join(wsDir, "src", "TODO.md"), content)
+	_ = writeAtomic(core.Path(wsDir, "src", "TODO.md"), content)
 }

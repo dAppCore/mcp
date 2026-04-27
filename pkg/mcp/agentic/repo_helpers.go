@@ -5,19 +5,18 @@ package agentic
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 )
 
 func listLocalRepos(basePath string) []string {
-	entries, err := os.ReadDir(basePath)
+	entries, err := coreio.Local.List(basePath)
 	if err != nil {
 		return nil
 	}
@@ -35,7 +34,7 @@ func hasRemote(repoDir, remote string) bool {
 	cmd := exec.Command("git", "remote", "get-url", remote)
 	cmd.Dir = repoDir
 	if out, err := cmd.Output(); err == nil {
-		return strings.TrimSpace(string(out)) != ""
+		return core.Trim(string(out)) != ""
 	}
 	return false
 }
@@ -48,7 +47,7 @@ func commitsAhead(repoDir, baseRef, headRef string) int {
 		return 0
 	}
 
-	count, err := parsePositiveInt(strings.TrimSpace(string(out)))
+	count, err := parsePositiveInt(core.Trim(string(out)))
 	if err != nil {
 		return 0
 	}
@@ -64,8 +63,8 @@ func filesChanged(repoDir, baseRef, headRef string) int {
 	}
 
 	count := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if strings.TrimSpace(line) != "" {
+	for _, line := range core.Split(core.Trim(string(out)), "\n") {
+		if core.Trim(line) != "" {
 			count++
 		}
 	}
@@ -79,11 +78,11 @@ func gitOutput(repoDir string, args ...string) (string, error) {
 	if err != nil {
 		return "", coreerr.E("gitOutput", string(out), err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return core.Trim(string(out)), nil
 }
 
 func parsePositiveInt(value string) (int, error) {
-	value = strings.TrimSpace(value)
+	value = core.Trim(value)
 	if value == "" {
 		return 0, coreerr.E("parsePositiveInt", "empty value", nil)
 	}
@@ -148,11 +147,11 @@ func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files in
 		return "", coreerr.E("createGitHubPR", string(out), err)
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	lines := core.Split(core.Trim(string(out)), "\n")
 	if len(lines) == 0 {
 		return "", nil
 	}
-	return strings.TrimSpace(lines[len(lines)-1]), nil
+	return core.Trim(lines[len(lines)-1]), nil
 }
 
 func ensureDevBranch(repoDir string) error {
@@ -194,7 +193,7 @@ func parseRetryAfter(detail string) time.Duration {
 		return 5 * time.Minute
 	}
 
-	switch strings.ToLower(match[2]) {
+	switch core.Lower(match[2]) {
 	case "hour", "hours":
 		return time.Duration(n) * time.Hour
 	case "second", "seconds":
@@ -205,5 +204,5 @@ func parseRetryAfter(detail string) time.Duration {
 }
 
 func repoRootFromCodePath(codePath string) string {
-	return filepath.Join(codePath, "core")
+	return core.Path(codePath, "core")
 }

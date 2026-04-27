@@ -7,13 +7,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"path/filepath"
-	"strings"
 	"time"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -349,11 +348,11 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 
 	var plans []Plan
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+		if entry.IsDir() || !core.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
 
-		id := strings.TrimSuffix(entry.Name(), ".json")
+		id := core.TrimSuffix(entry.Name(), ".json")
 		plan, err := readPlan(dir, id)
 		if err != nil {
 			continue
@@ -422,41 +421,41 @@ func (s *PrepSubsystem) planCheckpoint(_ context.Context, _ *mcp.CallToolRequest
 // --- Helpers ---
 
 func (s *PrepSubsystem) plansDir() string {
-	return filepath.Join(s.codePath, ".core", "plans")
+	return core.Path(s.codePath, ".core", "plans")
 }
 
 func planPath(dir, id string) string {
-	return filepath.Join(dir, id+".json")
+	return core.Path(dir, id+".json")
 }
 
 func generatePlanID(title string) string {
-	slug := strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
-			return r
+	b := core.NewBuilder()
+	b.Grow(len(title))
+	for _, r := range title {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r + 32)
+		case r == ' ':
+			b.WriteByte('-')
 		}
-		if r >= 'A' && r <= 'Z' {
-			return r + 32
-		}
-		if r == ' ' {
-			return '-'
-		}
-		return -1
-	}, title)
+	}
+	slug := b.String()
 
-	// Trim consecutive dashes and cap length
-	for strings.Contains(slug, "--") {
-		slug = strings.ReplaceAll(slug, "--", "-")
+	// Collapse consecutive dashes and cap length
+	for core.Contains(slug, "--") {
+		slug = core.Replace(slug, "--", "-")
 	}
-	slug = strings.Trim(slug, "-")
+	slug = trimDashes(slug)
 	if len(slug) > 30 {
-		slug = slug[:30]
+		slug = trimDashes(slug[:30])
 	}
-	slug = strings.TrimRight(slug, "-")
 
 	// Append short random suffix for uniqueness
-	b := make([]byte, 3)
-	rand.Read(b)
-	return slug + "-" + hex.EncodeToString(b)
+	rnd := make([]byte, 3)
+	rand.Read(rnd)
+	return slug + "-" + hex.EncodeToString(rnd)
 }
 
 func readPlan(dir, id string) (*Plan, error) {
@@ -466,8 +465,8 @@ func readPlan(dir, id string) (*Plan, error) {
 	}
 
 	var plan Plan
-	if err := json.Unmarshal([]byte(data), &plan); err != nil {
-		return nil, coreerr.E("readPlan", "failed to parse plan "+id, err)
+	if r := core.JSONUnmarshal([]byte(data), &plan); !r.OK {
+		return nil, coreerr.E("readPlan", "failed to parse plan "+id, nil)
 	}
 	return &plan, nil
 }

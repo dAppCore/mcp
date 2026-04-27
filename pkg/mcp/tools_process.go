@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-process"
+	"dappco.re/go/log"
+	"dappco.re/go/process"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -27,6 +27,32 @@ type ProcessStartInput struct {
 	Args    []string `json:"args,omitempty"` // e.g. ["test", "./..."]
 	Dir     string   `json:"dir,omitempty"`  // e.g. "/home/user/project"
 	Env     []string `json:"env,omitempty"`  // e.g. ["CGO_ENABLED=0"]
+}
+
+// ProcessRunInput contains parameters for running a command to completion
+// and returning its captured output.
+//
+//	input := ProcessRunInput{
+//	    Command: "go",
+//	    Args:    []string{"test", "./..."},
+//	    Dir:     "/home/user/project",
+//	    Env:     []string{"CGO_ENABLED=0"},
+//	}
+type ProcessRunInput struct {
+	Command string   `json:"command"`        // e.g. "go"
+	Args    []string `json:"args,omitempty"` // e.g. ["test", "./..."]
+	Dir     string   `json:"dir,omitempty"`  // e.g. "/home/user/project"
+	Env     []string `json:"env,omitempty"`  // e.g. ["CGO_ENABLED=0"]
+}
+
+// ProcessRunOutput contains the result of running a process to completion.
+//
+//	// out.ID == "proc-abc123", out.ExitCode == 0, out.Output == "PASS\n..."
+type ProcessRunOutput struct {
+	ID       string `json:"id"`       // e.g. "proc-abc123"
+	ExitCode int    `json:"exitCode"` // 0 on success
+	Output   string `json:"output"`   // combined stdout/stderr
+	Command  string `json:"command"`  // e.g. "go"
 }
 
 // ProcessStartOutput contains the result of starting a process.
@@ -147,6 +173,11 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 	}, s.processStart)
 
 	addToolRecorded(s, server, "process", &mcp.Tool{
+		Name:        "process_run",
+		Description: "Run a command to completion and return the captured output. Blocks until the process exits.",
+	}, s.processRun)
+
+	addToolRecorded(s, server, "process", &mcp.Tool{
 		Name:        "process_stop",
 		Description: "Gracefully stop a running process by ID.",
 	}, s.processStop)
@@ -222,6 +253,68 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 		"startedAt": output.StartedAt,
 	})
 	return nil, output, nil
+}
+
+// processRun handles the process_run tool call.
+// Executes the command to completion and returns the captured output.
+func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, input ProcessRunInput) (*mcp.CallToolResult, ProcessRunOutput, error) {
+	if s.processService == nil {
+		return nil, ProcessRunOutput{}, log.E("processRun", "process service unavailable", nil)
+	}
+
+	progress := NewProgressNotifier(ctx, req)
+	s.logger.Security("MCP tool execution", "tool", "process_run", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
+
+	if input.Command == "" {
+		return nil, ProcessRunOutput{}, log.E("processRun", "command cannot be empty", nil)
+	}
+
+	opts := process.RunOptions{
+		Command: input.Command,
+		Args:    input.Args,
+		Dir:     s.resolveWorkspacePath(input.Dir),
+		Env:     input.Env,
+	}
+
+	_ = progress.Send(0, 2, "starting process")
+	proc, err := s.processService.StartWithOptions(ctx, opts)
+	if err != nil {
+		log.Error("mcp: process run start failed", "command", input.Command, "err", err)
+		return nil, ProcessRunOutput{}, log.E("processRun", "failed to start process", err)
+	}
+	_ = progress.Send(1, 2, "process started")
+
+	info := proc.Info()
+	s.recordProcessRuntime(proc.ID, processRuntime{
+		Command:   proc.Command,
+		Args:      proc.Args,
+		Dir:       info.Dir,
+		StartedAt: proc.StartedAt,
+	})
+	s.ChannelSend(ctx, ChannelProcessStart, map[string]any{
+		"id":        proc.ID,
+		"pid":       info.PID,
+		"command":   proc.Command,
+		"args":      proc.Args,
+		"dir":       info.Dir,
+		"startedAt": proc.StartedAt,
+	})
+
+	// Wait for completion (context-aware).
+	select {
+	case <-ctx.Done():
+		_ = progress.Send(2, 2, "process cancelled")
+		return nil, ProcessRunOutput{}, log.E("processRun", "cancelled", ctx.Err())
+	case <-proc.Done():
+	}
+	_ = progress.Send(2, 2, "process completed")
+
+	return nil, ProcessRunOutput{
+		ID:       proc.ID,
+		ExitCode: proc.ExitCode,
+		Output:   proc.Output(),
+		Command:  proc.Command,
+	}, nil
 }
 
 // processStop handles the process_stop tool call.

@@ -4,12 +4,11 @@ package agentic
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
-	"path/filepath"
 
+	core "dappco.re/go/core"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -64,7 +63,7 @@ func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	skipped := make([]string, 0)
 
 	for _, repo := range repos {
-		repoDir := filepath.Join(basePath, repo)
+		repoDir := core.Path(basePath, repo)
 		if !hasRemote(repoDir, "github") {
 			skipped = append(skipped, repo+": no github remote")
 			continue
@@ -88,7 +87,7 @@ func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		}
 
 		if files > maxFiles {
-			sync.Skipped = fmt.Sprintf("%d files exceeds limit of %d", files, maxFiles)
+			sync.Skipped = core.Sprintf("%d files exceeds limit of %d", files, maxFiles)
 			synced = append(synced, sync)
 			continue
 		}

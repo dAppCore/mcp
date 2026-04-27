@@ -3,17 +3,12 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
 )
 
 // ingestFindings reads the agent output log and creates issues via the API
@@ -25,10 +20,7 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 	}
 
 	// Read the log file
-	logFiles, err := filepath.Glob(filepath.Join(wsDir, "agent-*.log"))
-	if err != nil {
-		return
-	}
+	logFiles := core.PathGlob(core.Path(wsDir, "agent-*.log"))
 	if len(logFiles) == 0 {
 		return
 	}
@@ -41,7 +33,7 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 	body := contentStr
 
 	// Skip quota errors
-	if strings.Contains(body, "QUOTA_EXHAUSTED") || strings.Contains(body, "QuotaError") {
+	if core.Contains(body, "QUOTA_EXHAUSTED") || core.Contains(body, "QuotaError") {
 		return
 	}
 
@@ -56,13 +48,13 @@ func (s *PrepSubsystem) ingestFindings(wsDir string) {
 	// Determine issue type from the template used
 	issueType := "task"
 	priority := "normal"
-	if strings.Contains(body, "security") || strings.Contains(body, "Security") {
+	if core.Contains(body, "security") || core.Contains(body, "Security") {
 		issueType = "bug"
 		priority = "high"
 	}
 
 	// Create a single issue per repo with all findings in the body
-	title := fmt.Sprintf("Scan findings for %s (%d items)", st.Repo, findings)
+	title := core.Sprintf("Scan findings for %s (%d items)", st.Repo, findings)
 
 	// Truncate body to reasonable size for issue description
 	description := body
@@ -86,7 +78,7 @@ func countFileRefs(body string) int {
 			}
 			if j < len(body) && body[j] == '`' {
 				ref := body[i+1 : j]
-				if strings.Contains(ref, ".go:") || strings.Contains(ref, ".php:") {
+				if core.Contains(ref, ".go:") || core.Contains(ref, ".php:") {
 					count++
 				}
 			}
@@ -102,25 +94,22 @@ func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, p
 	}
 
 	// Read the agent API key from file
-	home, _ := os.UserHomeDir()
-	apiKeyData, err := coreio.Local.Read(filepath.Join(home, ".claude", "agent-api.key"))
+	home := core.Env("HOME")
+	apiKeyData, err := coreio.Local.Read(core.Path(home, ".claude", "agent-api.key"))
 	if err != nil {
 		return false
 	}
-	apiKey := strings.TrimSpace(apiKeyData)
+	apiKey := core.Trim(apiKeyData)
 
-	payload, err := json.Marshal(map[string]string{
+	payloadStr := core.JSONMarshalString(map[string]string{
 		"title":       title,
 		"description": description,
 		"type":        issueType,
 		"priority":    priority,
 		"reporter":    "cladius",
 	})
-	if err != nil {
-		return false
-	}
 
-	req, err := http.NewRequest("POST", s.brainURL+"/v1/issues", bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", s.brainURL+"/v1/issues", core.NewReader(payloadStr))
 	if err != nil {
 		return false
 	}

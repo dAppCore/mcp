@@ -6,15 +6,17 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// os.Stat and os.FindProcess are used for workspace age detection and PID
+// liveness checks — these are OS-level queries with no core equivalent.
 
 // Workspace status file convention:
 //
@@ -57,23 +59,23 @@ func writeStatus(wsDir string, status *WorkspaceStatus) error {
 	if err != nil {
 		return err
 	}
-	return writeAtomic(filepath.Join(wsDir, "status.json"), string(data))
+	return writeAtomic(core.JoinPath(wsDir, "status.json"), string(data))
 }
 
 func (s *PrepSubsystem) saveStatus(wsDir string, status *WorkspaceStatus) {
 	if err := writeStatus(wsDir, status); err != nil {
-		coreerr.Warn("failed to write workspace status", "workspace", filepath.Base(wsDir), "err", err)
+		coreerr.Warn("failed to write workspace status", "workspace", core.PathBase(wsDir), "err", err)
 	}
 }
 
 func readStatus(wsDir string) (*WorkspaceStatus, error) {
-	data, err := coreio.Local.Read(filepath.Join(wsDir, "status.json"))
+	data, err := coreio.Local.Read(core.JoinPath(wsDir, "status.json"))
 	if err != nil {
 		return nil, err
 	}
 	var s WorkspaceStatus
-	if err := json.Unmarshal([]byte(data), &s); err != nil {
-		return nil, err
+	if r := core.JSONUnmarshal([]byte(data), &s); !r.OK {
+		return nil, coreerr.E("readStatus", "failed to parse status.json", nil)
 	}
 	return &s, nil
 }
@@ -126,7 +128,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	var workspaces []WorkspaceInfo
 
 	for _, wsDir := range wsDirs {
-		name := filepath.Base(wsDir)
+		name := core.PathBase(wsDir)
 
 		// Filter by specific workspace if requested
 		if input.Workspace != "" && name != input.Workspace {
@@ -139,7 +141,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		st, err := readStatus(wsDir)
 		if err != nil {
 			// Legacy workspace (no status.json) — check for log file
-			logFiles, _ := filepath.Glob(filepath.Join(wsDir, "agent-*.log"))
+			logFiles := core.PathGlob(core.Path(wsDir, "agent-*.log"))
 			if len(logFiles) > 0 {
 				info.Status = "completed"
 			} else {
@@ -177,10 +179,10 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 				}
 
 				// Process died — check for BLOCKED.md
-				blockedPath := filepath.Join(wsDir, "src", "BLOCKED.md")
+				blockedPath := core.Path(wsDir, "src", "BLOCKED.md")
 				if data, err := coreio.Local.Read(blockedPath); err == nil {
 					info.Status = "blocked"
-					info.Question = strings.TrimSpace(data)
+					info.Question = core.Trim(data)
 					st.Status = "blocked"
 					st.Question = info.Question
 					status = "blocked"

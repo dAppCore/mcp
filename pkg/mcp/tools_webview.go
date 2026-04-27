@@ -3,24 +3,23 @@
 package mcp
 
 import (
+	// Note: AX-6 — screenshot normalization needs bytes.NewReader for image.Decode on captured byte slices.
 	"bytes"
 	"context"
 	"encoding/base64"
 	"image"
 	"image/jpeg"
 	_ "image/png"
-	"strings"
-	"sync"
 	"time"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-webview"
+	"dappco.re/go/log"
+	"dappco.re/go/webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // webviewMu protects webviewInstance from concurrent access.
-var webviewMu sync.Mutex
+var webviewMu core.Mutex
 
 // webviewInstance holds the current webview connection.
 // This is managed by the MCP service.
@@ -271,6 +270,18 @@ func (s *Service) registerWebviewTools(server *mcp.Server) {
 		Name:        "webview_wait",
 		Description: "Wait for an element to appear by CSS selector.",
 	}, s.webviewWait)
+
+	// Embedded UI rendering — for pushing HTML/state to connected clients
+	// without requiring a Chrome DevTools connection.
+	addToolRecorded(s, server, "webview", &mcp.Tool{
+		Name:        "webview_render",
+		Description: "Render HTML in an embedded webview by ID. Broadcasts to connected clients via the webview.render channel.",
+	}, s.webviewRender)
+
+	addToolRecorded(s, server, "webview", &mcp.Tool{
+		Name:        "webview_update",
+		Description: "Update the HTML, title, or state of an embedded webview by ID. Broadcasts to connected clients via the webview.update channel.",
+	}, s.webviewUpdate)
 }
 
 // webviewConnect handles the webview_connect tool call.
@@ -554,7 +565,7 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 	if format == "" {
 		format = "png"
 	}
-	format = strings.ToLower(format)
+	format = core.Lower(format)
 
 	data, err := webviewInstance.Screenshot()
 	if err != nil {
@@ -586,8 +597,8 @@ func normalizeScreenshotData(data []byte, format string) ([]byte, string, error)
 		if err != nil {
 			return nil, "", err
 		}
-		var buf bytes.Buffer
-		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+		buf := core.NewBuffer()
+		if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 90}); err != nil {
 			return nil, "", err
 		}
 		return buf.Bytes(), "jpeg", nil
@@ -649,7 +660,7 @@ func waitForSelector(ctx context.Context, timeout time.Duration, selector string
 		if err == nil {
 			return nil
 		}
-		if !strings.Contains(err.Error(), "element not found") {
+		if !core.Contains(err.Error(), "element not found") {
 			return err
 		}
 

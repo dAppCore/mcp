@@ -4,6 +4,7 @@ package ide
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
@@ -86,6 +87,46 @@ type DashboardMetricsOutput struct {
 	Metrics DashboardMetrics `json:"metrics"`
 }
 
+// DashboardStateInput is the input for ide_dashboard_state.
+//
+//	input := DashboardStateInput{}
+type DashboardStateInput struct{}
+
+// DashboardStateOutput is the output for ide_dashboard_state.
+//
+//	// out.State["theme"] == "dark"
+type DashboardStateOutput struct {
+	State     map[string]any `json:"state"`     // arbitrary key/value map
+	UpdatedAt time.Time      `json:"updatedAt"` // when the state last changed
+}
+
+// DashboardUpdateInput is the input for ide_dashboard_update.
+//
+//	input := DashboardUpdateInput{
+//	    State:   map[string]any{"theme": "light", "sidebar": true},
+//	    Replace: false,
+//	}
+type DashboardUpdateInput struct {
+	State   map[string]any `json:"state"`             // partial or full state
+	Replace bool           `json:"replace,omitempty"` // true to overwrite, false to merge (default)
+}
+
+// DashboardUpdateOutput is the output for ide_dashboard_update.
+//
+//	// out.State reflects the merged/replaced state
+type DashboardUpdateOutput struct {
+	State     map[string]any `json:"state"`     // merged state after the update
+	UpdatedAt time.Time      `json:"updatedAt"` // when the state was applied
+}
+
+// dashboardStateStore holds the mutable dashboard UI state shared between the
+// IDE frontend and MCP callers. Access is guarded by dashboardStateMu.
+var (
+	dashboardStateMu       sync.RWMutex
+	dashboardStateStore    = map[string]any{}
+	dashboardStateUpdated  time.Time
+)
+
 func (s *Subsystem) registerDashboardTools(svc *coremcp.Service) {
 	server := svc.Server()
 	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
@@ -102,6 +143,16 @@ func (s *Subsystem) registerDashboardTools(svc *coremcp.Service) {
 		Name:        "ide_dashboard_metrics",
 		Description: "Get aggregate build and agent metrics for a time period",
 	}, s.dashboardMetrics)
+
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
+		Name:        "ide_dashboard_state",
+		Description: "Get the current dashboard UI state (arbitrary key/value map shared with the IDE).",
+	}, s.dashboardState)
+
+	coremcp.AddToolRecorded(svc, server, "ide", &mcp.Tool{
+		Name:        "ide_dashboard_update",
+		Description: "Update the dashboard UI state. Merges into existing state by default; set replace=true to overwrite.",
+	}, s.dashboardUpdate)
 }
 
 // dashboardOverview returns a platform overview with bridge status and
@@ -210,4 +261,80 @@ func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, 
 			SuccessRate:   successRate,
 		},
 	}, nil
+}
+
+// dashboardState returns the current dashboard UI state as a snapshot.
+//
+//	out := s.dashboardState(ctx, nil, DashboardStateInput{})
+func (s *Subsystem) dashboardState(_ context.Context, _ *mcp.CallToolRequest, _ DashboardStateInput) (*mcp.CallToolResult, DashboardStateOutput, error) {
+	dashboardStateMu.RLock()
+	defer dashboardStateMu.RUnlock()
+
+	snapshot := make(map[string]any, len(dashboardStateStore))
+	for k, v := range dashboardStateStore {
+		snapshot[k] = v
+	}
+
+	return nil, DashboardStateOutput{
+		State:     snapshot,
+		UpdatedAt: dashboardStateUpdated,
+	}, nil
+}
+
+// dashboardUpdate merges or replaces the dashboard UI state and emits an
+// activity event so the IDE can react to the change.
+//
+//	out := s.dashboardUpdate(ctx, nil, DashboardUpdateInput{State: map[string]any{"theme": "dark"}})
+func (s *Subsystem) dashboardUpdate(ctx context.Context, _ *mcp.CallToolRequest, input DashboardUpdateInput) (*mcp.CallToolResult, DashboardUpdateOutput, error) {
+	now := time.Now()
+
+	dashboardStateMu.Lock()
+	if input.Replace || dashboardStateStore == nil {
+		dashboardStateStore = make(map[string]any, len(input.State))
+	}
+	for k, v := range input.State {
+		dashboardStateStore[k] = v
+	}
+	dashboardStateUpdated = now
+
+	snapshot := make(map[string]any, len(dashboardStateStore))
+	for k, v := range dashboardStateStore {
+		snapshot[k] = v
+	}
+	dashboardStateMu.Unlock()
+
+	// Record the change on the activity feed so ide_dashboard_activity
+	// reflects state transitions alongside build/session events.
+	s.recordActivity("dashboard_state", "dashboard state updated")
+
+	// Push the update over the Laravel bridge when available so web clients
+	// stay in sync with desktop tooling.
+	if s.bridge != nil {
+		_ = s.bridge.Send(BridgeMessage{
+			Type: "dashboard_update",
+			Data: snapshot,
+		})
+	}
+
+	// Surface the change on the shared MCP notifier so connected sessions
+	// receive a JSON-RPC notification alongside the tool response.
+	if s.notifier != nil {
+		s.notifier.ChannelSend(ctx, "dashboard.state.updated", map[string]any{
+			"state":     snapshot,
+			"updatedAt": now,
+		})
+	}
+
+	return nil, DashboardUpdateOutput{
+		State:     snapshot,
+		UpdatedAt: now,
+	}, nil
+}
+
+// resetDashboardState clears the shared dashboard state. Intended for tests.
+func resetDashboardState() {
+	dashboardStateMu.Lock()
+	defer dashboardStateMu.Unlock()
+	dashboardStateStore = map[string]any{}
+	dashboardStateUpdated = time.Time{}
 }

@@ -3,17 +3,18 @@
 package agentic
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
-	coreio "forge.lthn.ai/core/go-io"
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
 	"gopkg.in/yaml.v3"
 )
+
+// os.Create, os.Open, os.DevNull, os.Environ, os.FindProcess are used for
+// process spawning and management — no core equivalents for these OS primitives.
 
 // DispatchConfig controls agent dispatch behaviour.
 type DispatchConfig struct {
@@ -43,7 +44,7 @@ type AgentsConfig struct {
 // loadAgentsConfig reads config/agents.yaml from the code path.
 func (s *PrepSubsystem) loadAgentsConfig() *AgentsConfig {
 	paths := []string{
-		filepath.Join(s.codePath, ".core", "agents.yaml"),
+		core.Path(s.codePath, ".core", "agents.yaml"),
 	}
 
 	for _, path := range paths {
@@ -79,9 +80,16 @@ func (s *PrepSubsystem) delayForAgent(agent string) time.Duration {
 		return 0
 	}
 
-	// Parse reset time
+	// Parse reset time (format: "HH:MM")
 	resetHour, resetMin := 6, 0
-	fmt.Sscanf(rate.ResetUTC, "%d:%d", &resetHour, &resetMin)
+	if parts := core.Split(rate.ResetUTC, ":"); len(parts) == 2 {
+		if h, ok := parseSimpleInt(parts[0]); ok {
+			resetHour = h
+		}
+		if m, ok := parseSimpleInt(parts[1]); ok {
+			resetMin = m
+		}
+	}
 
 	now := time.Now().UTC()
 	resetToday := time.Date(now.Year(), now.Month(), now.Day(), resetHour, resetMin, 0, 0, time.UTC)
@@ -115,9 +123,9 @@ func (s *PrepSubsystem) listWorkspaceDirs() []string {
 		if !entry.IsDir() {
 			continue
 		}
-		path := filepath.Join(wsRoot, entry.Name())
+		path := core.Path(wsRoot, entry.Name())
 		// Check if this dir has a status.json (it's a workspace)
-		if coreio.Local.IsFile(filepath.Join(path, "status.json")) {
+		if coreio.Local.IsFile(core.Path(path, "status.json")) {
 			dirs = append(dirs, path)
 			continue
 		}
@@ -128,8 +136,8 @@ func (s *PrepSubsystem) listWorkspaceDirs() []string {
 		}
 		for _, sub := range subEntries {
 			if sub.IsDir() {
-				subPath := filepath.Join(path, sub.Name())
-				if coreio.Local.IsFile(filepath.Join(subPath, "status.json")) {
+				subPath := core.Path(path, sub.Name())
+				if coreio.Local.IsFile(core.Path(subPath, "status.json")) {
 					dirs = append(dirs, subPath)
 				}
 			}
@@ -146,7 +154,7 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 		if err != nil || st.Status != "running" {
 			continue
 		}
-		stBase := strings.SplitN(st.Agent, ":", 2)[0]
+		stBase := core.SplitN(st.Agent, ":", 2)[0]
 		if stBase != agent {
 			continue
 		}
@@ -162,7 +170,7 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 
 // baseAgent strips the model variant (gemini:flash → gemini).
 func baseAgent(agent string) string {
-	return strings.SplitN(agent, ":", 2)[0]
+	return core.SplitN(agent, ":", 2)[0]
 }
 
 // canDispatchAgent checks if we're under the concurrency limit for a specific agent type.
@@ -174,6 +182,23 @@ func (s *PrepSubsystem) canDispatchAgent(agent string) bool {
 		return true
 	}
 	return s.countRunningByAgent(base) < limit
+}
+
+// parseSimpleInt parses a small non-negative integer from a string.
+// Returns (value, true) on success, (0, false) on failure.
+func parseSimpleInt(s string) (int, bool) {
+	s = core.Trim(s)
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, true
 }
 
 // canDispatch is kept for backwards compat.
@@ -205,7 +230,7 @@ func (s *PrepSubsystem) drainQueue() {
 			continue
 		}
 
-		srcDir := filepath.Join(wsDir, "src")
+		srcDir := core.Path(wsDir, "src")
 		prompt := "Read PROMPT.md for instructions. All context files (CLAUDE.md, TODO.md, CONTEXT.md, CONSUMERS.md, RECENT.md) are in the parent directory. Work in this directory."
 
 		command, args, err := agentCommand(st.Agent, prompt)
@@ -213,7 +238,7 @@ func (s *PrepSubsystem) drainQueue() {
 			continue
 		}
 
-		outputFile := filepath.Join(wsDir, fmt.Sprintf("agent-%s.log", st.Agent))
+		outputFile := core.Path(wsDir, core.Sprintf("agent-%s.log", st.Agent))
 		outFile, err := os.Create(outputFile)
 		if err != nil {
 			continue

@@ -7,17 +7,17 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"iter"
-	"os"
+	"os" // Note: required for process stdout; core Fs/Env do not expose a stdio writer.
 	"reflect"
 	"slices"
-	"sort"
-	"strings"
 	"sync"
 	"unsafe"
 
+	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -203,7 +203,7 @@ func (s *Service) ChannelSend(ctx context.Context, channel string, data any) {
 	if s == nil || s.server == nil {
 		return
 	}
-	if strings.TrimSpace(channel) == "" {
+	if core.Trim(channel) == "" {
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
@@ -218,7 +218,7 @@ func (s *Service) ChannelSendToSession(ctx context.Context, session *mcp.ServerS
 	if s == nil || s.server == nil || session == nil {
 		return
 	}
-	if strings.TrimSpace(channel) == "" {
+	if core.Trim(channel) == "" {
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
@@ -273,6 +273,15 @@ func (s *Service) debugNotify(msg string, args ...any) {
 		return
 	}
 	s.logger.Debug(msg, args...)
+}
+
+// NotifySession sends a raw JSON-RPC notification to a specific MCP session.
+//
+//	coremcp.NotifySession(ctx, session, "notifications/claude/channel", map[string]any{
+//	    "content": "build failed", "meta": map[string]string{"severity": "high"},
+//	})
+func NotifySession(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
+	return sendSessionNotification(ctx, session, method, payload)
 }
 
 func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
@@ -353,8 +362,8 @@ func snapshotSessions(server *mcp.Server) []*mcp.ServerSession {
 		}
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].ID() < sessions[j].ID()
+	slices.SortFunc(sessions, func(a, b *mcp.ServerSession) int {
+		return cmp.Compare(a.ID(), b.ID())
 	})
 
 	return sessions

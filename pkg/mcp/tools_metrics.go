@@ -8,8 +8,8 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-ai/ai"
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/ai/ai"
+	"dappco.re/go/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

@@ -8,14 +8,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
 // newTestDirect creates a DirectSubsystem pointing at a test server.
 func newTestDirect(url string) *DirectSubsystem {
 	return &DirectSubsystem{
-		apiURL: url,
-		apiKey: "test-key",
-		client: http.DefaultClient,
+		apiClient: brainclient.New(brainclient.Options{
+			URL:         url,
+			Key:         "test-key",
+			HTTPClient:  http.DefaultClient,
+			MaxAttempts: 1,
+			BaseDelay:   time.Nanosecond,
+		}),
 	}
 }
 
@@ -84,7 +91,12 @@ func TestApiCall_Good_GetNilBody(t *testing.T) {
 }
 
 func TestApiCall_Bad_NoApiKey(t *testing.T) {
-	s := &DirectSubsystem{apiKey: "", client: http.DefaultClient}
+	s := &DirectSubsystem{apiClient: brainclient.New(brainclient.Options{
+		URL:         "http://example.test",
+		Key:         "",
+		HTTPClient:  http.DefaultClient,
+		MaxAttempts: 1,
+	})}
 	_, err := s.apiCall(context.Background(), "GET", "/test", nil)
 	if err == nil {
 		t.Error("expected error when apiKey is empty")
@@ -121,9 +133,12 @@ func TestApiCall_Bad_InvalidJson(t *testing.T) {
 
 func TestApiCall_Bad_Unreachable(t *testing.T) {
 	s := &DirectSubsystem{
-		apiURL: "http://127.0.0.1:1", // nothing listening
-		apiKey: "key",
-		client: http.DefaultClient,
+		apiClient: brainclient.New(brainclient.Options{
+			URL:         "http://127.0.0.1:1", // nothing listening
+			Key:         "key",
+			HTTPClient:  http.DefaultClient,
+			MaxAttempts: 1,
+		}),
 	}
 	_, err := s.apiCall(context.Background(), "GET", "/test", nil)
 	if err == nil {
@@ -143,6 +158,9 @@ func TestDirectRemember_Good(t *testing.T) {
 		if body["agent_id"] != "cladius" {
 			t.Errorf("expected agent_id=cladius, got %v", body["agent_id"])
 		}
+		if body["org"] != "core" {
+			t.Errorf("expected org=core, got %v", body["org"])
+		}
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(map[string]any{"id": "mem-456"})
 	}))
@@ -152,6 +170,7 @@ func TestDirectRemember_Good(t *testing.T) {
 	_, out, err := s.remember(context.Background(), nil, RememberInput{
 		Content: "test memory",
 		Type:    "observation",
+		Org:     "core",
 		Project: "test-project",
 	})
 	if err != nil {
@@ -188,6 +207,9 @@ func TestDirectRecall_Good(t *testing.T) {
 		if body["query"] != "scoring algorithm" {
 			t.Errorf("unexpected query: %v", body["query"])
 		}
+		if body["org"] != "core" {
+			t.Errorf("expected org=core, got %v", body["org"])
+		}
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(map[string]any{
 			"memories": []any{
@@ -195,6 +217,7 @@ func TestDirectRecall_Good(t *testing.T) {
 					"id":         "mem-1",
 					"content":    "scoring uses weighted average",
 					"type":       "architecture",
+					"org":        "core",
 					"project":    "eaas",
 					"agent_id":   "virgil",
 					"score":      0.92,
@@ -209,7 +232,7 @@ func TestDirectRecall_Good(t *testing.T) {
 	_, out, err := s.recall(context.Background(), nil, RecallInput{
 		Query:  "scoring algorithm",
 		TopK:   5,
-		Filter: RecallFilter{Project: "eaas"},
+		Filter: RecallFilter{Org: "core", Project: "eaas"},
 	})
 	if err != nil {
 		t.Fatalf("recall failed: %v", err)
@@ -219,6 +242,9 @@ func TestDirectRecall_Good(t *testing.T) {
 	}
 	if out.Memories[0].ID != "mem-1" {
 		t.Errorf("expected id=mem-1, got %q", out.Memories[0].ID)
+	}
+	if out.Memories[0].Org != "core" {
+		t.Errorf("expected org=core, got %q", out.Memories[0].Org)
 	}
 	if out.Memories[0].Confidence != 0.92 {
 		t.Errorf("expected score=0.92, got %f", out.Memories[0].Confidence)
@@ -356,6 +382,9 @@ func TestDirectList_Good(t *testing.T) {
 		if got := r.URL.Query().Get("project"); got != "eaas" {
 			t.Errorf("expected project=eaas, got %q", got)
 		}
+		if got := r.URL.Query().Get("org"); got != "core" {
+			t.Errorf("expected org=core, got %q", got)
+		}
 		if got := r.URL.Query().Get("type"); got != "decision" {
 			t.Errorf("expected type=decision, got %q", got)
 		}
@@ -372,6 +401,7 @@ func TestDirectList_Good(t *testing.T) {
 					"id":         "mem-1",
 					"content":    "use qdrant",
 					"type":       "decision",
+					"org":        "core",
 					"project":    "eaas",
 					"agent_id":   "virgil",
 					"score":      0.88,
@@ -384,6 +414,7 @@ func TestDirectList_Good(t *testing.T) {
 
 	s := newTestDirect(srv.URL)
 	_, out, err := s.list(context.Background(), nil, ListInput{
+		Org:     "core",
 		Project: "eaas",
 		Type:    "decision",
 		AgentID: "virgil",
@@ -400,6 +431,9 @@ func TestDirectList_Good(t *testing.T) {
 	}
 	if out.Memories[0].Confidence != 0.88 {
 		t.Errorf("expected score=0.88, got %f", out.Memories[0].Confidence)
+	}
+	if out.Memories[0].Org != "core" {
+		t.Errorf("expected org=core, got %q", out.Memories[0].Org)
 	}
 }
 
@@ -422,6 +456,7 @@ func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
 	}
 
 	_, out, err := s.list(context.Background(), nil, ListInput{
+		Org:     "core",
 		Project: "eaas",
 		Type:    "decision",
 		AgentID: "virgil",
@@ -444,6 +479,9 @@ func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
 	}
 	if gotPayload["project"] != "eaas" {
 		t.Fatalf("expected project=eaas, got %v", gotPayload["project"])
+	}
+	if gotPayload["org"] != "core" {
+		t.Fatalf("expected org=core, got %v", gotPayload["org"])
 	}
 }
 

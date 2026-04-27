@@ -5,12 +5,12 @@ package mcp
 import (
 	"bufio"
 	"context"
-	"fmt"
 	goio "io"
 	"net"
 	"os"
 	"sync"
 
+	core "dappco.re/go/core"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -31,7 +31,7 @@ var diagWriter goio.Writer = os.Stderr
 func diagPrintf(format string, args ...any) {
 	diagMu.Lock()
 	defer diagMu.Unlock()
-	fmt.Fprintf(diagWriter, format, args...)
+	core.Print(diagWriter, format, args...)
 }
 
 // setDiagWriter swaps the diagnostic writer and returns the previous one.

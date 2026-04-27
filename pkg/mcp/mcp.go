@@ -5,22 +5,20 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
-	"errors"
 	"iter"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
-	"strings"
 	"sync"
 
 	core "dappco.re/go/core"
-	"forge.lthn.ai/core/go-io"
-	"forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-process"
-	"forge.lthn.ai/core/go-ws"
+	"dappco.re/go/io"
+	"dappco.re/go/log"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -74,7 +72,8 @@ func New(opts Options) (*Service, error) {
 
 	server := mcp.NewServer(impl, &mcp.ServerOptions{
 		Capabilities: &mcp.ServerCapabilities{
-			Tools:        &mcp.ToolCapabilities{ListChanged: true},
+			Resources:    &mcp.ResourceCapabilities{ListChanged: false},
+			Tools:        &mcp.ToolCapabilities{ListChanged: false},
 			Logging:      &mcp.LoggingCapabilities{},
 			Experimental: channelCapability(),
 		},
@@ -245,15 +244,15 @@ func (s *Service) resolveWorkspacePath(path string) string {
 	}
 
 	if s.workspaceRoot == "" {
-		return filepath.Clean(path)
+		return core.CleanPath(path, "/")
 	}
 
-	clean := filepath.Clean(string(filepath.Separator) + path)
-	clean = strings.TrimPrefix(clean, string(filepath.Separator))
+	clean := core.CleanPath(string(filepath.Separator)+path, "/")
+	clean = core.TrimPrefix(clean, string(filepath.Separator))
 	if clean == "." || clean == "" {
 		return s.workspaceRoot
 	}
-	return filepath.Join(s.workspaceRoot, clean)
+	return core.Path(s.workspaceRoot, clean)
 }
 
 // registerTools adds the built-in tool groups to the MCP server.
@@ -317,6 +316,7 @@ func (s *Service) registerTools(server *mcp.Server) {
 	s.registerProcessTools(server)
 	s.registerWebviewTools(server)
 	s.registerWSTools(server)
+	s.registerWSClientTools(server)
 }
 
 // Tool input/output types for MCP file operations.
@@ -543,8 +543,8 @@ func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
+	slices.SortFunc(entries, func(a, b os.DirEntry) int {
+		return cmp.Compare(a.Name(), b.Name())
 	})
 	result := make([]DirectoryEntry, 0, len(entries))
 	for _, e := range entries {
@@ -615,7 +615,7 @@ func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, inpu
 
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if core.Is(err, os.ErrNotExist) {
 			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
 		}
 		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "failed to stat path", err)

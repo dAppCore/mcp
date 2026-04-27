@@ -4,12 +4,18 @@ package agentic
 
 import (
 	"context"
-	"path/filepath"
 	"time"
 
+	core "dappco.re/go/core"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+const (
+	defaultWatchPollInterval = 5 * time.Second
+	defaultWatchTimeout      = 60 * time.Second
+	maxWatchTimeout          = 30 * time.Minute
 )
 
 // WatchInput is the input for agentic_watch.
@@ -49,13 +55,10 @@ func (s *PrepSubsystem) registerWatchTool(svc *coremcp.Service) {
 func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, input WatchInput) (*mcp.CallToolResult, WatchOutput, error) {
 	pollInterval := time.Duration(input.PollInterval) * time.Second
 	if pollInterval <= 0 {
-		pollInterval = 5 * time.Second
+		pollInterval = defaultWatchPollInterval
 	}
 
-	timeout := time.Duration(input.Timeout) * time.Second
-	if timeout <= 0 {
-		timeout = 10 * time.Minute
-	}
+	timeout := resolveWatchTimeout(input)
 
 	start := time.Now()
 	deadline := start.Add(timeout)
@@ -67,6 +70,14 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	if len(targets) == 0 {
 		return nil, WatchOutput{Success: true, Duration: "0s"}, nil
+	}
+
+	notifier := coremcp.NewProgressNotifier(ctx, req)
+	progress := float64(0)
+	total := float64(len(targets))
+
+	sendProgress := func(current float64, status WorkspaceStatus) {
+		_ = notifier.Send(current, total, core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent))
 	}
 
 	remaining := make(map[string]struct{}, len(targets))
@@ -106,6 +117,11 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 
 			switch info.Status {
 			case "completed", "merged", "ready-for-review":
+				status := WorkspaceStatus{
+					Repo:   info.Repo,
+					Agent:  info.Agent,
+					Status: info.Status,
+				}
 				completed = append(completed, WatchResult{
 					Workspace: info.Name,
 					Agent:     info.Agent,
@@ -116,7 +132,14 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 					PRURL:     info.PRURL,
 				})
 				delete(remaining, info.Name)
+				progress++
+				sendProgress(progress, status)
 			case "failed", "blocked":
+				status := WorkspaceStatus{
+					Repo:   info.Repo,
+					Agent:  info.Agent,
+					Status: info.Status,
+				}
 				failed = append(failed, WatchResult{
 					Workspace: info.Name,
 					Agent:     info.Agent,
@@ -127,6 +150,8 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 					PRURL:     info.PRURL,
 				})
 				delete(remaining, info.Name)
+				progress++
+				sendProgress(progress, status)
 			}
 		}
 	}
@@ -137,6 +162,19 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 		Failed:    failed,
 		Duration:  time.Since(start).Round(time.Second).String(),
 	}, nil
+}
+
+func resolveWatchTimeout(input WatchInput) time.Duration {
+	if input.Timeout <= 0 {
+		return defaultWatchTimeout
+	}
+
+	maxSeconds := int(maxWatchTimeout / time.Second)
+	if input.Timeout > maxSeconds {
+		return maxWatchTimeout
+	}
+
+	return time.Duration(input.Timeout) * time.Second
 }
 
 func (s *PrepSubsystem) findActiveWorkspaces() []string {
@@ -153,15 +191,15 @@ func (s *PrepSubsystem) findActiveWorkspaces() []string {
 		}
 		switch st.Status {
 		case "running", "queued":
-			active = append(active, filepath.Base(wsDir))
+			active = append(active, core.PathBase(wsDir))
 		}
 	}
 	return active
 }
 
 func (s *PrepSubsystem) resolveWorkspaceDir(name string) string {
-	if filepath.IsAbs(name) {
+	if core.PathIsAbs(name) {
 		return name
 	}
-	return filepath.Join(s.workspaceRoot(), name)
+	return core.JoinPath(s.workspaceRoot(), name)
 }

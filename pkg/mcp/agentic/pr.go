@@ -6,15 +6,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os/exec"
-	"path/filepath"
-	"strings"
 
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -66,8 +64,8 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 		return nil, CreatePROutput{}, coreerr.E("createPR", "no Forge token configured", nil)
 	}
 
-	wsDir := filepath.Join(s.workspaceRoot(), input.Workspace)
-	srcDir := filepath.Join(wsDir, "src")
+	wsDir := core.Path(s.workspaceRoot(), input.Workspace)
+	srcDir := core.Path(wsDir, "src")
 
 	if _, err := coreio.Local.List(srcDir); err != nil {
 		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace not found: "+input.Workspace, nil)
@@ -87,7 +85,7 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 		if err != nil {
 			return nil, CreatePROutput{}, coreerr.E("createPR", "failed to detect branch", err)
 		}
-		st.Branch = strings.TrimSpace(string(out))
+		st.Branch = core.Trim(string(out))
 	}
 
 	org := st.Org
@@ -105,7 +103,7 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 		title = st.Task
 	}
 	if title == "" {
-		title = fmt.Sprintf("Agent work on %s", st.Branch)
+		title = core.Sprintf("Agent work on %s", st.Branch)
 	}
 
 	// Build PR body
@@ -143,7 +141,7 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 
 	// Comment on issue if tracked
 	if st.Issue > 0 {
-		comment := fmt.Sprintf("Pull request created: %s", prURL)
+		comment := core.Sprintf("Pull request created: %s", prURL)
 		s.commentOnIssue(ctx, org, st.Repo, st.Issue, comment)
 	}
 
@@ -159,17 +157,17 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 }
 
 func (s *PrepSubsystem) buildPRBody(st *WorkspaceStatus) string {
-	var b strings.Builder
+	b := core.NewBuilder()
 	b.WriteString("## Summary\n\n")
 	if st.Task != "" {
 		b.WriteString(st.Task)
 		b.WriteString("\n\n")
 	}
 	if st.Issue > 0 {
-		b.WriteString(fmt.Sprintf("Closes #%d\n\n", st.Issue))
+		b.WriteString(core.Sprintf("Closes #%d\n\n", st.Issue))
 	}
-	b.WriteString(fmt.Sprintf("**Agent:** %s\n", st.Agent))
-	b.WriteString(fmt.Sprintf("**Runs:** %d\n", st.Runs))
+	b.WriteString(core.Sprintf("**Agent:** %s\n", st.Agent))
+	b.WriteString(core.Sprintf("**Runs:** %d\n", st.Runs))
 	b.WriteString("\n---\n*Created by agentic dispatch*\n")
 	return b.String()
 }
@@ -185,7 +183,7 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 		return "", 0, coreerr.E("forgeCreatePR", "failed to marshal PR payload", err)
 	}
 
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls", s.forgeURL, org, repo)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/pulls", s.forgeURL, org, repo)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	if err != nil {
 		return "", 0, coreerr.E("forgeCreatePR", "failed to build PR request", err)
@@ -202,10 +200,10 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 	if resp.StatusCode != 201 {
 		var errBody map[string]any
 		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
-			return "", 0, coreerr.E("forgeCreatePR", fmt.Sprintf("HTTP %d with unreadable error body", resp.StatusCode), err)
+			return "", 0, coreerr.E("forgeCreatePR", core.Sprintf("HTTP %d with unreadable error body", resp.StatusCode), err)
 		}
 		msg, _ := errBody["message"].(string)
-		return "", 0, coreerr.E("forgeCreatePR", fmt.Sprintf("HTTP %d: %s", resp.StatusCode, msg), nil)
+		return "", 0, coreerr.E("forgeCreatePR", core.Sprintf("HTTP %d: %s", resp.StatusCode, msg), nil)
 	}
 
 	var pr struct {
@@ -225,7 +223,7 @@ func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, is
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d/comments", s.forgeURL, org, repo, issue)
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d/comments", s.forgeURL, org, repo, issue)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	if err != nil {
 		return
@@ -337,7 +335,7 @@ func (s *PrepSubsystem) listPRs(ctx context.Context, _ *mcp.CallToolRequest, inp
 }
 
 func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string) ([]PRInfo, error) {
-	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=%s&limit=10",
+	url := core.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=%s&limit=10",
 		s.forgeURL, org, repo, state)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
@@ -348,7 +346,7 @@ func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listRepoPRs", fmt.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+		return nil, coreerr.E("listRepoPRs", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
 
 	var prs []struct {

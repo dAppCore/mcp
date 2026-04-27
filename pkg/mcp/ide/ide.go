@@ -4,14 +4,13 @@ package ide
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	core "dappco.re/go/core"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreerr "forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-ws"
+	coreerr "dappco.re/go/log"
+	"dappco.re/go/ws"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
@@ -556,7 +555,7 @@ func stringFromAny(v any) string {
 	switch value := v.(type) {
 	case string:
 		return value
-	case fmt.Stringer:
+	case interface{ String() string }:
 		return value.String()
 	default:
 		return ""

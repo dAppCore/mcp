@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
-	"forge.lthn.ai/core/go-ws"
+	coreerr "dappco.re/go/log"
+	"dappco.re/go/ws"
 	"github.com/gorilla/websocket"
 )
 

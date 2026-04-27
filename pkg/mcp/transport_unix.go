@@ -6,8 +6,8 @@ import (
 	"context"
 	"net"
 
-	"forge.lthn.ai/core/go-io"
-	"forge.lthn.ai/core/go-log"
+	"dappco.re/go/io"
+	"dappco.re/go/log"
 )
 
 // ServeUnix starts a Unix domain socket server for the MCP service.

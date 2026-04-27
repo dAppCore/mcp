@@ -1,40 +1,38 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 // brain-seed imports Claude Code MEMORY.md files into the OpenBrain knowledge
-// store via the MCP HTTP API (brain_remember tool). The Laravel app handles
+// store via the shared OpenBrain HTTP client. The Laravel app handles
 // embedding, Qdrant storage, and MariaDB dual-write internally.
 //
 // Usage:
 //
 //	go run ./cmd/brain-seed -api-key YOUR_KEY
-//	go run ./cmd/brain-seed -api-key YOUR_KEY -api https://lthn.sh/api/v1/mcp
+//	go run ./cmd/brain-seed -api-key YOUR_KEY -api https://api.lthn.sh
 //	go run ./cmd/brain-seed -api-key YOUR_KEY -dry-run
 //	go run ./cmd/brain-seed -api-key YOUR_KEY -plans
 //	go run ./cmd/brain-seed -api-key YOUR_KEY -claude-md  # Also import CLAUDE.md files
 package main
 
 import (
-	"bytes"
-	"crypto/tls"
-	"encoding/json"
+	"context"
 	"flag"
-	"fmt"
-	goio "io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
-	"time"
 
-	coreio "forge.lthn.ai/core/go-io"
-	coreerr "forge.lthn.ai/core/go-log"
+	core "dappco.re/go/core"
+	coreio "dappco.re/go/io"
+	coreerr "dappco.re/go/log"
+	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
+const seedDivider = "======================================================="
+
 var (
-	apiURL     = flag.String("api", "https://lthn.sh/api/v1/mcp", "MCP API base URL")
-	apiKey     = flag.String("api-key", "", "MCP API key (Bearer token)")
-	server     = flag.String("server", "hosthub-agent", "MCP server ID")
+	apiURL     = flag.String("api", brainclient.DefaultURL, "OpenBrain API base URL")
+	apiKey     = flag.String("api-key", core.Env("CORE_BRAIN_KEY"), "OpenBrain API key (Bearer token)")
+	server     = flag.String("server", "hosthub-agent", "Legacy MCP server ID flag; accepted for compatibility")
+	org        = flag.String("org", core.Env("CORE_BRAIN_ORG"), "OpenBrain org for seeded memories")
 	agent      = flag.String("agent", "charon", "Agent ID for attribution")
 	dryRun     = flag.Bool("dry-run", false, "Preview without storing")
 	plans      = flag.Bool("plans", false, "Also import plan documents")
@@ -45,33 +43,33 @@ var (
 	maxChars   = flag.Int("max-chars", 3800, "Max chars per section (embeddinggemma limit ~4000)")
 )
 
-// httpClient with TLS skip for non-public TLDs (.lthn.sh has real certs, but
-// allow .lan/.local if someone has legacy config).
-var httpClient = &http.Client{
-	Timeout: 30 * time.Second,
-	Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
-	},
-}
+var openbrain *brainclient.Client
 
 func main() {
 	flag.Parse()
 
-	fmt.Println("OpenBrain Seed — MCP API Client")
-	fmt.Println(strings.Repeat("=", 55))
+	core.Println("OpenBrain Seed — API Client")
+	core.Println(seedDivider)
 
 	if *apiKey == "" && !*dryRun {
-		fmt.Println("ERROR: -api-key is required (or use -dry-run)")
-		fmt.Println("  Generate one at: https://lthn.sh/admin/mcp/api-keys")
+		core.Println("ERROR: -api-key is required (or use -dry-run)")
+		core.Println("  Generate one at: https://lthn.sh/admin/mcp/api-keys")
 		os.Exit(1)
 	}
 
 	if *dryRun {
-		fmt.Println("[DRY RUN] — no data will be stored")
+		core.Println("[DRY RUN] — no data will be stored")
 	}
 
-	fmt.Printf("API: %s\n", *apiURL)
-	fmt.Printf("Server: %s | Agent: %s\n", *server, *agent)
+	core.Print(nil, "API: %s", *apiURL)
+	core.Print(nil, "Org: %s | Agent: %s", *org, *agent)
+
+	openbrain = brainclient.New(brainclient.Options{
+		URL:     *apiURL,
+		Key:     *apiKey,
+		Org:     *org,
+		AgentID: *agent,
+	})
 
 	// Discover memory files
 	memPath := *memoryPath
@@ -80,7 +78,7 @@ func main() {
 		memPath = filepath.Join(home, ".claude", "projects", "*", "memory")
 	}
 	memFiles, _ := filepath.Glob(filepath.Join(memPath, "*.md"))
-	fmt.Printf("\nFound %d memory files\n", len(memFiles))
+	core.Print(nil, "\nFound %d memory files", len(memFiles))
 
 	// Discover plan files
 	var planFiles []string
@@ -103,7 +101,7 @@ func main() {
 		hostUkNested, _ := filepath.Glob(filepath.Join(hostUkPath, "*", "*.md"))
 		planFiles = append(planFiles, hostUkNested...)
 
-		fmt.Printf("Found %d plan files\n", len(planFiles))
+		core.Print(nil, "Found %d plan files", len(planFiles))
 	}
 
 	// Discover CLAUDE.md files
@@ -115,7 +113,7 @@ func main() {
 			cPath = filepath.Join(home, "Code")
 		}
 		claudeFiles = discoverClaudeMdFiles(cPath)
-		fmt.Printf("Found %d CLAUDE.md files\n", len(claudeFiles))
+		core.Print(nil, "Found %d CLAUDE.md files", len(claudeFiles))
 	}
 
 	imported := 0
@@ -123,11 +121,11 @@ func main() {
 	errors := 0
 
 	// Process memory files
-	fmt.Println("\n--- Memory Files ---")
+	core.Println("\n--- Memory Files ---")
 	for _, f := range memFiles {
 		project := extractProject(f)
 		sections := parseMarkdownSections(f)
-		filename := strings.TrimSuffix(filepath.Base(f), ".md")
+		filename := core.TrimSuffix(filepath.Base(f), ".md")
 
 		if len(sections) == 0 {
 			coreerr.Warn("brain-seed: skip file (no sections)", "project", project, "file", filename)
@@ -137,7 +135,7 @@ func main() {
 
 		for _, sec := range sections {
 			content := sec.heading + "\n\n" + sec.content
-			if strings.TrimSpace(sec.content) == "" {
+			if core.Trim(sec.content) == "" {
 				skipped++
 				continue
 			}
@@ -150,7 +148,7 @@ func main() {
 			content = truncate(content, *maxChars)
 
 			if *dryRun {
-				fmt.Printf("  [DRY] %s/%s :: %s (%s) — %d chars\n",
+				core.Print(nil, "  [DRY] %s/%s :: %s (%s) — %d chars",
 					project, filename, sec.heading, memType, len(content))
 				imported++
 				continue
@@ -161,18 +159,18 @@ func main() {
 				errors++
 				continue
 			}
-			fmt.Printf("  ok   %s/%s :: %s (%s)\n", project, filename, sec.heading, memType)
+			core.Print(nil, "  ok   %s/%s :: %s (%s)", project, filename, sec.heading, memType)
 			imported++
 		}
 	}
 
 	// Process plan files
 	if *plans && len(planFiles) > 0 {
-		fmt.Println("\n--- Plan Documents ---")
+		core.Println("\n--- Plan Documents ---")
 		for _, f := range planFiles {
 			project := extractProjectFromPlan(f)
 			sections := parseMarkdownSections(f)
-			filename := strings.TrimSuffix(filepath.Base(f), ".md")
+			filename := core.TrimSuffix(filepath.Base(f), ".md")
 
 			if len(sections) == 0 {
 				skipped++
@@ -181,7 +179,7 @@ func main() {
 
 			for _, sec := range sections {
 				content := sec.heading + "\n\n" + sec.content
-				if strings.TrimSpace(sec.content) == "" {
+				if core.Trim(sec.content) == "" {
 					skipped++
 					continue
 				}
@@ -190,7 +188,7 @@ func main() {
 				content = truncate(content, *maxChars)
 
 				if *dryRun {
-					fmt.Printf("  [DRY] %s :: %s / %s (plan) — %d chars\n",
+					core.Print(nil, "  [DRY] %s :: %s / %s (plan) — %d chars",
 						project, filename, sec.heading, len(content))
 					imported++
 					continue
@@ -201,7 +199,7 @@ func main() {
 					errors++
 					continue
 				}
-				fmt.Printf("  ok   %s :: %s / %s (plan)\n", project, filename, sec.heading)
+				core.Print(nil, "  ok   %s :: %s / %s (plan)", project, filename, sec.heading)
 				imported++
 			}
 		}
@@ -209,7 +207,7 @@ func main() {
 
 	// Process CLAUDE.md files
 	if *claudeMd && len(claudeFiles) > 0 {
-		fmt.Println("\n--- CLAUDE.md Files ---")
+		core.Println("\n--- CLAUDE.md Files ---")
 		for _, f := range claudeFiles {
 			project := extractProjectFromClaudeMd(f)
 			sections := parseMarkdownSections(f)
@@ -221,7 +219,7 @@ func main() {
 
 			for _, sec := range sections {
 				content := sec.heading + "\n\n" + sec.content
-				if strings.TrimSpace(sec.content) == "" {
+				if core.Trim(sec.content) == "" {
 					skipped++
 					continue
 				}
@@ -230,7 +228,7 @@ func main() {
 				content = truncate(content, *maxChars)
 
 				if *dryRun {
-					fmt.Printf("  [DRY] %s :: CLAUDE.md / %s (convention) — %d chars\n",
+					core.Print(nil, "  [DRY] %s :: CLAUDE.md / %s (convention) — %d chars",
 						project, sec.heading, len(content))
 					imported++
 					continue
@@ -241,74 +239,44 @@ func main() {
 					errors++
 					continue
 				}
-				fmt.Printf("  ok   %s :: CLAUDE.md / %s (convention)\n", project, sec.heading)
+				core.Print(nil, "  ok   %s :: CLAUDE.md / %s (convention)", project, sec.heading)
 				imported++
 			}
 		}
 	}
 
-	fmt.Printf("\n%s\n", strings.Repeat("=", 55))
+	core.Print(nil, "\n%s", seedDivider)
 	prefix := ""
 	if *dryRun {
 		prefix = "[DRY RUN] "
 	}
-	fmt.Printf("%sImported: %d | Skipped: %d | Errors: %d\n", prefix, imported, skipped, errors)
+	core.Print(nil, "%sImported: %d | Skipped: %d | Errors: %d", prefix, imported, skipped, errors)
 }
 
-// callBrainRemember sends a memory to the MCP API via brain_remember tool.
+// callBrainRemember sends a memory to OpenBrain via /v1/brain/remember.
 func callBrainRemember(content, memType string, tags []string, project string, confidence float64) error {
-	args := map[string]any{
-		"content":    content,
-		"type":       memType,
-		"tags":       tags,
-		"confidence": confidence,
+	if openbrain == nil {
+		openbrain = brainclient.New(brainclient.Options{
+			URL:     *apiURL,
+			Key:     *apiKey,
+			Org:     *org,
+			AgentID: *agent,
+		})
+	}
+
+	input := brainclient.RememberInput{
+		Content:    content,
+		Type:       memType,
+		Tags:       tags,
+		Org:        *org,
+		AgentID:    *agent,
+		Confidence: confidence,
 	}
 	if project != "" && project != "unknown" {
-		args["project"] = project
+		input.Project = project
 	}
-
-	payload := map[string]any{
-		"server":    *server,
-		"tool":      "brain_remember",
-		"arguments": args,
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return coreerr.E("callBrainRemember", "marshal", err)
-	}
-
-	req, err := http.NewRequest("POST", *apiURL+"/tools/call", bytes.NewReader(body))
-	if err != nil {
-		return coreerr.E("callBrainRemember", "request", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+*apiKey)
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return coreerr.E("callBrainRemember", "http", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := goio.ReadAll(resp.Body)
-
-	if resp.StatusCode != 200 {
-		return coreerr.E("callBrainRemember", "HTTP "+string(respBody), nil)
-	}
-
-	var result struct {
-		Success bool   `json:"success"`
-		Error   string `json:"error"`
-	}
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return coreerr.E("callBrainRemember", "decode", err)
-	}
-	if !result.Success {
-		return coreerr.E("callBrainRemember", "API: "+result.Error, nil)
-	}
-
-	return nil
+	_, err := openbrain.Remember(context.Background(), input)
+	return coreerr.Wrap(err, "callBrainRemember", "remember")
 }
 
 // truncate caps content to maxLen chars, appending an ellipsis if truncated.
@@ -318,10 +286,19 @@ func truncate(s string, maxLen int) string {
 	}
 	// Find last space before limit to avoid splitting mid-word
 	cut := maxLen
-	if idx := strings.LastIndex(s[:maxLen], " "); idx > maxLen-200 {
+	if idx := lastByteIndex(s[:maxLen], ' '); idx > maxLen-200 {
 		cut = idx
 	}
 	return s[:cut] + "…"
+}
+
+func lastByteIndex(s string, target byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == target {
+			return i
+		}
+	}
+	return -1
 }
 
 // discoverClaudeMdFiles finds CLAUDE.md files across a code directory.
@@ -340,7 +317,7 @@ func discoverClaudeMdFiles(codePath string) []string {
 			}
 			// Limit depth
 			rel, _ := filepath.Rel(codePath, path)
-			if strings.Count(rel, string(os.PathSeparator)) > 3 {
+			if len(core.Split(rel, string(os.PathSeparator))) > 4 {
 				return filepath.SkipDir
 			}
 			return nil
@@ -370,19 +347,19 @@ func parseMarkdownSections(path string) []section {
 	}
 
 	var sections []section
-	lines := strings.Split(data, "\n")
+	lines := core.Split(data, "\n")
 	var curHeading string
 	var curContent []string
 
 	for _, line := range lines {
 		if m := headingRe.FindStringSubmatch(line); m != nil {
 			if curHeading != "" && len(curContent) > 0 {
-				text := strings.TrimSpace(strings.Join(curContent, "\n"))
+				text := core.Trim(core.Join("\n", curContent...))
 				if text != "" {
 					sections = append(sections, section{curHeading, text})
 				}
 			}
-			curHeading = strings.TrimSpace(m[1])
+			curHeading = core.Trim(m[1])
 			curContent = nil
 		} else {
 			curContent = append(curContent, line)
@@ -391,17 +368,17 @@ func parseMarkdownSections(path string) []section {
 
 	// Flush last section
 	if curHeading != "" && len(curContent) > 0 {
-		text := strings.TrimSpace(strings.Join(curContent, "\n"))
+		text := core.Trim(core.Join("\n", curContent...))
 		if text != "" {
 			sections = append(sections, section{curHeading, text})
 		}
 	}
 
 	// If no headings found, treat entire file as one section
-	if len(sections) == 0 && strings.TrimSpace(data) != "" {
+	if len(sections) == 0 && core.Trim(data) != "" {
 		sections = append(sections, section{
-			heading: strings.TrimSuffix(filepath.Base(path), ".md"),
-			content: strings.TrimSpace(data),
+			heading: core.TrimSuffix(filepath.Base(path), ".md"),
+			content: core.Trim(data),
 		})
 	}
 
@@ -459,7 +436,7 @@ func inferType(heading, content, source string) string {
 		return "convention"
 	}
 
-	lower := strings.ToLower(heading + " " + content)
+	lower := core.Lower(heading + " " + content)
 	patterns := map[string][]string{
 		"architecture": {"architecture", "stack", "infrastructure", "layer", "service mesh"},
 		"convention":   {"convention", "standard", "naming", "pattern", "rule", "coding"},
@@ -470,7 +447,7 @@ func inferType(heading, content, source string) string {
 	}
 	for t, keywords := range patterns {
 		for _, kw := range keywords {
-			if strings.Contains(lower, kw) {
+			if core.Contains(lower, kw) {
 				return t
 			}
 		}
@@ -485,7 +462,7 @@ func buildTags(filename, source, project string) []string {
 		tags = append(tags, "project:"+project)
 	}
 	if filename != "MEMORY" && filename != "CLAUDE" {
-		tags = append(tags, strings.ReplaceAll(strings.ReplaceAll(filename, "-", " "), "_", " "))
+		tags = append(tags, core.Replace(core.Replace(filename, "-", " "), "_", " "))
 	}
 	return tags
 }
