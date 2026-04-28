@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coreio "dappco.re/go/io"
 	coreerr "dappco.re/go/log"
 	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"

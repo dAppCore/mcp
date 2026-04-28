@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go/core"
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "dappco.re/go"
 	coreerr "dappco.re/go/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/ws"
 )
 

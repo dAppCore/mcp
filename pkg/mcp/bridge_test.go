@@ -13,11 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	api "dappco.re/go/api"
 	mcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
 	"dappco.re/go/mcp/pkg/mcp/ide"
-	api "dappco.re/go/api"
 )
 
 func init() {

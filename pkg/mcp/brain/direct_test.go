@@ -13,8 +13,13 @@ import (
 	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
+const testInsecureBrainEnv = "CORE_BRAIN_INSECURE"
+
 // newTestDirect creates a DirectSubsystem pointing at a test server.
-func newTestDirect(url string) *DirectSubsystem {
+func newTestDirect(t *testing.T, url string) *DirectSubsystem {
+	t.Helper()
+	t.Setenv(testInsecureBrainEnv, "true")
+
 	return &DirectSubsystem{
 		apiClient: brainclient.New(brainclient.Options{
 			URL:         url,
@@ -60,7 +65,7 @@ func TestApiCall_Good_PostWithBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	result, err := s.apiCall(context.Background(), "POST", "/v1/brain/remember", map[string]string{"content": "test"})
 	if err != nil {
 		t.Fatalf("apiCall failed: %v", err)
@@ -80,7 +85,7 @@ func TestApiCall_Good_GetNilBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	result, err := s.apiCall(context.Background(), "GET", "/status", nil)
 	if err != nil {
 		t.Fatalf("apiCall failed: %v", err)
@@ -110,7 +115,7 @@ func TestApiCall_Bad_HttpError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, err := s.apiCall(context.Background(), "POST", "/fail", map[string]string{})
 	if err == nil {
 		t.Error("expected error on HTTP 500")
@@ -124,7 +129,7 @@ func TestApiCall_Bad_InvalidJson(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, err := s.apiCall(context.Background(), "GET", "/bad-json", nil)
 	if err == nil {
 		t.Error("expected error on invalid JSON response")
@@ -166,7 +171,7 @@ func TestDirectRemember_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.remember(context.Background(), nil, RememberInput{
 		Content: "test memory",
 		Type:    "observation",
@@ -191,7 +196,7 @@ func TestDirectRemember_Bad_ApiError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, _, err := s.remember(context.Background(), nil, RememberInput{Content: "x", Type: "bug"})
 	if err == nil {
 		t.Error("expected error on API failure")
@@ -228,7 +233,7 @@ func TestDirectRecall_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.recall(context.Background(), nil, RecallInput{
 		Query:  "scoring algorithm",
 		TopK:   5,
@@ -264,7 +269,7 @@ func TestDirectRecall_Good_DefaultTopK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.recall(context.Background(), nil, RecallInput{Query: "test"})
 	if err != nil {
 		t.Fatalf("recall failed: %v", err)
@@ -281,7 +286,7 @@ func TestDirectRecall_Bad_ApiError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, _, err := s.recall(context.Background(), nil, RecallInput{Query: "test"})
 	if err == nil {
 		t.Error("expected error on API failure")
@@ -303,7 +308,7 @@ func TestDirectForget_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.forget(context.Background(), nil, ForgetInput{
 		ID:     "mem-789",
 		Reason: "outdated",
@@ -326,7 +331,7 @@ func TestDirectForget_Good_EmitsChannel(t *testing.T) {
 	var gotChannel string
 	var gotPayload map[string]any
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	s.onChannel = func(_ context.Context, channel string, data any) {
 		gotChannel = channel
 		if payload, ok := data.(map[string]any); ok {
@@ -365,7 +370,7 @@ func TestDirectForget_Bad_ApiError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, _, err := s.forget(context.Background(), nil, ForgetInput{ID: "nonexistent"})
 	if err == nil {
 		t.Error("expected error on 404")
@@ -412,7 +417,7 @@ func TestDirectList_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.list(context.Background(), nil, ListInput{
 		Org:     "core",
 		Project: "eaas",
@@ -447,7 +452,7 @@ func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
 	var gotChannel string
 	var gotPayload map[string]any
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	s.onChannel = func(_ context.Context, channel string, data any) {
 		gotChannel = channel
 		if payload, ok := data.(map[string]any); ok {
@@ -495,7 +500,7 @@ func TestDirectList_Good_DefaultLimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.list(context.Background(), nil, ListInput{})
 	if err != nil {
 		t.Fatalf("list failed: %v", err)

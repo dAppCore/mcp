@@ -12,7 +12,7 @@ import (
 	_ "image/png"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/log"
 	"dappco.re/go/webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"

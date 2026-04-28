@@ -17,7 +17,7 @@ import (
 	"sync"
 	"unsafe"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

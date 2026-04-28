@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
 	coreerr "dappco.re/go/log"
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

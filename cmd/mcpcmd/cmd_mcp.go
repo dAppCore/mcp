@@ -17,7 +17,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"

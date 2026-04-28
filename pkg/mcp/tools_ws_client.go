@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/log"
 	"github.com/gorilla/websocket"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -22,9 +22,9 @@ import (
 //
 //	input := WSConnectInput{URL: "wss://example.com/ws", Timeout: 10}
 type WSConnectInput struct {
-	URL     string            `json:"url"`                // e.g. "wss://example.com/ws"
-	Headers map[string]string `json:"headers,omitempty"`  // custom request headers
-	Timeout int               `json:"timeout,omitempty"`  // handshake timeout in seconds (default: 30)
+	URL     string            `json:"url"`               // e.g. "wss://example.com/ws"
+	Headers map[string]string `json:"headers,omitempty"` // custom request headers
+	Timeout int               `json:"timeout,omitempty"` // handshake timeout in seconds (default: 30)
 }
 
 // WSConnectOutput contains the result of opening a WebSocket connection.
@@ -41,9 +41,9 @@ type WSConnectOutput struct {
 //
 //	input := WSSendInput{ID: "ws-0af3…", Message: "ping"}
 type WSSendInput struct {
-	ID      string `json:"id"`                // e.g. "ws-0af3…"
-	Message string `json:"message"`           // payload to send
-	Binary  bool   `json:"binary,omitempty"`  // true to send a binary frame (payload is base64 text)
+	ID      string `json:"id"`               // e.g. "ws-0af3…"
+	Message string `json:"message"`          // payload to send
+	Binary  bool   `json:"binary,omitempty"` // true to send a binary frame (payload is base64 text)
 }
 
 // WSSendOutput contains the result of sending a message.

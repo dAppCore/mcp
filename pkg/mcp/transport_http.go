@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	api "dappco.re/go/api"
 	coreerr "dappco.re/go/log"
 	"github.com/gin-gonic/gin"

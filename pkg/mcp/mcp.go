@@ -14,7 +14,7 @@ import (
 	"slices"
 	"sync"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/io"
 	"dappco.re/go/log"
 	"dappco.re/go/process"

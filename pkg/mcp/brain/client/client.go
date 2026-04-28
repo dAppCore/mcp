@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	core "dappco.re/go"
+	coreio "dappco.re/go/io"
 )
 
 const (

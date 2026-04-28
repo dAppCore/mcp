@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/ai/ai"
 	"dappco.re/go/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"

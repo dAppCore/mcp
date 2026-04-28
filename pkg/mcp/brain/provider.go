@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"dappco.re/go/api"
-	"dappco.re/go/core/api/pkg/provider"
-	"dappco.re/go/ws"
+	"dappco.re/go/api/pkg/provider"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
+	"dappco.re/go/ws"
 	"github.com/gin-gonic/gin"
 )
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 	"github.com/modelcontextprotocol/go-sdk/mcp"

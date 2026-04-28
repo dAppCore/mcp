@@ -122,9 +122,9 @@ type DashboardUpdateOutput struct {
 // dashboardStateStore holds the mutable dashboard UI state shared between the
 // IDE frontend and MCP callers. Access is guarded by dashboardStateMu.
 var (
-	dashboardStateMu       sync.RWMutex
-	dashboardStateStore    = map[string]any{}
-	dashboardStateUpdated  time.Time
+	dashboardStateMu      sync.RWMutex
+	dashboardStateStore   = map[string]any{}
+	dashboardStateUpdated time.Time
 )
 
 func (s *Subsystem) registerDashboardTools(svc *coremcp.Service) {
