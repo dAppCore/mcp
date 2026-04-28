@@ -13,8 +13,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
@@ -88,23 +86,23 @@ func envOr(key, fallback string) string {
 
 func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, error) {
 	if core.Trim(value) != value {
-		return "", coreerr.E("prepWorkspace", field+" contains whitespace", nil)
+		return "", core.E("prepWorkspace", field+" contains whitespace", nil)
 	}
 	if value == "" {
 		return "", nil
 	}
 	if core.Contains(value, "\\") {
-		return "", coreerr.E("prepWorkspace", field+" contains invalid path separator", nil)
+		return "", core.E("prepWorkspace", field+" contains invalid path separator", nil)
 	}
 
 	parts := core.Split(value, "/")
 	if !allowSubdirs && len(parts) != 1 {
-		return "", coreerr.E("prepWorkspace", field+" may not contain subdirectories", nil)
+		return "", core.E("prepWorkspace", field+" may not contain subdirectories", nil)
 	}
 
 	for _, part := range parts {
 		if part == "" || part == "." || part == ".." {
-			return "", coreerr.E("prepWorkspace", field+" contains invalid path segment", nil)
+			return "", core.E("prepWorkspace", field+" contains invalid path segment", nil)
 		}
 		for _, r := range part {
 			switch {
@@ -114,7 +112,7 @@ func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, er
 				r == '-' || r == '_' || r == '.':
 				continue
 			default:
-				return "", coreerr.E("prepWorkspace", field+" contains invalid characters", nil)
+				return "", core.E("prepWorkspace", field+" contains invalid characters", nil)
 			}
 		}
 	}
@@ -190,7 +188,7 @@ type PrepOutput struct {
 
 func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
 	if input.Repo == "" {
-		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "repo is required", nil)
+		return nil, PrepOutput{}, core.E("prepWorkspace", "repo is required", nil)
 	}
 
 	repo, err := sanitizeRepoPathSegment(input.Repo, "repo", false)
@@ -238,7 +236,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	srcDir := core.Path(wsDir, "src")
 	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
 	if err := cloneCmd.Run(); err != nil {
-		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
+		return nil, PrepOutput{}, core.E("prepWorkspace", "failed to clone repository", err)
 	}
 
 	// Create feature branch.
@@ -259,7 +257,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
 		branchCmd.Dir = srcDir
 		if err := branchCmd.Run(); err != nil {
-			return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to create branch", err)
+			return nil, PrepOutput{}, core.E("prepWorkspace", "failed to create branch", err)
 		}
 		out.Branch = branchName
 	}
@@ -400,7 +398,7 @@ func (s *PrepSubsystem) writePromptTemplate(template, wsDir string) {
 	case "conventions":
 		prompt = `Read CLAUDE.md for project conventions.
 Review all Go files in src/ for:
-- Error handling: should use coreerr.E() from go-log, not fmt.Errorf or errors.New
+- Error handling: should use core.E() from go-log, not fmt.Errorf or errors.New
 - Compile-time interface checks: var _ Interface = (*Impl)(nil)
 - Import aliasing: stdlib io aliased as goio
 - UK English in comments (colour not color, initialise not initialize)

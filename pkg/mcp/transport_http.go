@@ -14,7 +14,6 @@ import (
 
 	core "dappco.re/go"
 	api "dappco.re/go/api"
-	coreerr "dappco.re/go/log"
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -81,7 +80,7 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return coreerr.E("mcp.ServeHTTP", "failed to listen on "+addr, err)
+		return core.E("mcp.ServeHTTP", "failed to listen on "+addr, err)
 	}
 	defer listener.Close()
 
@@ -98,7 +97,7 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 	}()
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		return coreerr.E("mcp.ServeHTTP", "server error", err)
+		return core.E("mcp.ServeHTTP", "server error", err)
 	}
 	return nil
 }

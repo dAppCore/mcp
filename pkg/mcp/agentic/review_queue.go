@@ -11,7 +11,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

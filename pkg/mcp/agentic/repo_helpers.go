@@ -11,8 +11,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 )
 
 func listLocalRepos(basePath string) []string {
@@ -76,7 +74,7 @@ func gitOutput(repoDir string, args ...string) (string, error) {
 	cmd.Dir = repoDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", coreerr.E("gitOutput", string(out), err)
+		return "", core.E("gitOutput", string(out), err)
 	}
 	return core.Trim(string(out)), nil
 }
@@ -84,12 +82,12 @@ func gitOutput(repoDir string, args ...string) (string, error) {
 func parsePositiveInt(value string) (int, error) {
 	value = core.Trim(value)
 	if value == "" {
-		return 0, coreerr.E("parsePositiveInt", "empty value", nil)
+		return 0, core.E("parsePositiveInt", "empty value", nil)
 	}
 	n := 0
 	for _, r := range value {
 		if r < '0' || r > '9' {
-			return 0, coreerr.E("parsePositiveInt", "value contains non-numeric characters", nil)
+			return 0, core.E("parsePositiveInt", "value contains non-numeric characters", nil)
 		}
 		n = n*10 + int(r-'0')
 	}
@@ -118,7 +116,7 @@ func readGitHubPRURL(repoDir string) (string, error) {
 
 func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files int) (string, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
-		return "", coreerr.E("createGitHubPR", "gh CLI is not available", err)
+		return "", core.E("createGitHubPR", "gh CLI is not available", err)
 	}
 
 	if url, err := readGitHubPRURL(repoDir); err == nil && url != "" {
@@ -144,7 +142,7 @@ func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files in
 	cmd.Dir = repoDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", coreerr.E("createGitHubPR", string(out), err)
+		return "", core.E("createGitHubPR", string(out), err)
 	}
 
 	lines := core.Split(core.Trim(string(out)), "\n")
@@ -159,7 +157,7 @@ func ensureDevBranch(repoDir string) error {
 	cmd.Dir = repoDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return coreerr.E("ensureDevBranch", string(out), err)
+		return core.E("ensureDevBranch", string(out), err)
 	}
 	return nil
 }

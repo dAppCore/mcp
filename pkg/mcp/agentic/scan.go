@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -38,7 +37,7 @@ type ScanIssue struct {
 
 func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input ScanInput) (*mcp.CallToolResult, ScanOutput, error) {
 	if s.forgeToken == "" {
-		return nil, ScanOutput{}, coreerr.E("scan", "no Forge token configured", nil)
+		return nil, ScanOutput{}, core.E("scan", "no Forge token configured", nil)
 	}
 
 	if input.Org == "" {
@@ -105,11 +104,11 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, coreerr.E("listOrgRepos", "failed to list repos", err)
+		return nil, core.E("listOrgRepos", "failed to list repos", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listOrgRepos", core.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
+		return nil, core.E("listOrgRepos", core.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
 	}
 
 	var repos []struct {
@@ -132,11 +131,11 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, coreerr.E("listRepoIssues", "failed to list issues for "+repo, err)
+		return nil, core.E("listRepoIssues", "failed to list issues for "+repo, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listRepoIssues", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+		return nil, core.E("listRepoIssues", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
 
 	var issues []struct {

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	"dappco.re/go/log"
 	"github.com/gorilla/websocket"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -109,10 +108,10 @@ func (s *Service) registerWSClientTools(server *mcp.Server) {
 
 // wsConnect handles the ws_connect tool call.
 func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input WSConnectInput) (*mcp.CallToolResult, WSConnectOutput, error) {
-	s.logger.Security("MCP tool execution", "tool", "ws_connect", "url", input.URL, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "ws_connect", "url", input.URL, "user", core.Username())
 
 	if core.Trim(input.URL) == "" {
-		return nil, WSConnectOutput{}, log.E("wsConnect", "url is required", nil)
+		return nil, WSConnectOutput{}, core.E("wsConnect", "url is required", nil)
 	}
 
 	timeout := time.Duration(input.Timeout) * time.Second
@@ -134,8 +133,8 @@ func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input
 
 	conn, _, err := dialer.DialContext(dialCtx, input.URL, headers)
 	if err != nil {
-		log.Error("mcp: ws connect failed", "url", input.URL, "err", err)
-		return nil, WSConnectOutput{}, log.E("wsConnect", "failed to connect", err)
+		core.Error("mcp: ws connect failed", "url", input.URL, "err", err)
+		return nil, WSConnectOutput{}, core.E("wsConnect", "failed to connect", err)
 	}
 
 	id := newWSClientID()
@@ -159,15 +158,15 @@ func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input
 
 // wsSend handles the ws_send tool call.
 func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WSSendInput) (*mcp.CallToolResult, WSSendOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "ws_send", "id", input.ID, "binary", input.Binary, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "ws_send", "id", input.ID, "binary", input.Binary, "user", core.Username())
 
 	if core.Trim(input.ID) == "" {
-		return nil, WSSendOutput{}, log.E("wsSend", "id is required", nil)
+		return nil, WSSendOutput{}, core.E("wsSend", "id is required", nil)
 	}
 
 	client, ok := getWSClient(input.ID)
 	if !ok {
-		return nil, WSSendOutput{}, log.E("wsSend", "connection not found", nil)
+		return nil, WSSendOutput{}, core.E("wsSend", "connection not found", nil)
 	}
 
 	messageType := websocket.TextMessage
@@ -179,8 +178,8 @@ func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WS
 	err := client.conn.WriteMessage(messageType, []byte(input.Message))
 	client.writeMu.Unlock()
 	if err != nil {
-		log.Error("mcp: ws send failed", "id", input.ID, "err", err)
-		return nil, WSSendOutput{}, log.E("wsSend", "failed to send message", err)
+		core.Error("mcp: ws send failed", "id", input.ID, "err", err)
+		return nil, WSSendOutput{}, core.E("wsSend", "failed to send message", err)
 	}
 
 	return nil, WSSendOutput{
@@ -192,10 +191,10 @@ func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WS
 
 // wsClose handles the ws_close tool call.
 func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input WSCloseInput) (*mcp.CallToolResult, WSCloseOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "ws_close", "id", input.ID, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "ws_close", "id", input.ID, "user", core.Username())
 
 	if core.Trim(input.ID) == "" {
-		return nil, WSCloseOutput{}, log.E("wsClose", "id is required", nil)
+		return nil, WSCloseOutput{}, core.E("wsClose", "id is required", nil)
 	}
 
 	wsClientMu.Lock()
@@ -206,7 +205,7 @@ func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input W
 	wsClientMu.Unlock()
 
 	if !ok {
-		return nil, WSCloseOutput{}, log.E("wsClose", "connection not found", nil)
+		return nil, WSCloseOutput{}, core.E("wsClose", "connection not found", nil)
 	}
 
 	code := input.Code

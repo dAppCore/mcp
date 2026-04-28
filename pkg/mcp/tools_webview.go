@@ -13,7 +13,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	"dappco.re/go/log"
 	"dappco.re/go/webview"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -27,8 +26,8 @@ var webviewInstance *webview.Webview
 
 // Sentinel errors for webview tools.
 var (
-	errNotConnected     = log.E("webview", "not connected; use webview_connect first", nil)
-	errSelectorRequired = log.E("webview", "selector is required", nil)
+	errNotConnected     = core.E("webview", "not connected; use webview_connect first", nil)
+	errSelectorRequired = core.E("webview", "selector is required", nil)
 )
 
 // closeWebviewConnection closes and clears the shared browser connection.
@@ -289,10 +288,10 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Security("MCP tool execution", "tool", "webview_connect", "debug_url", input.DebugURL, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "webview_connect", "debug_url", input.DebugURL, "user", core.Username())
 
 	if input.DebugURL == "" {
-		return nil, WebviewConnectOutput{}, log.E("webviewConnect", "debug_url is required", nil)
+		return nil, WebviewConnectOutput{}, core.E("webviewConnect", "debug_url is required", nil)
 	}
 
 	// Close existing connection if any
@@ -313,8 +312,8 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 	// Create new webview instance
 	wv, err := webview.New(opts...)
 	if err != nil {
-		log.Error("mcp: webview connect failed", "debug_url", input.DebugURL, "err", err)
-		return nil, WebviewConnectOutput{}, log.E("webviewConnect", "failed to connect", err)
+		core.Error("mcp: webview connect failed", "debug_url", input.DebugURL, "err", err)
+		return nil, WebviewConnectOutput{}, core.E("webviewConnect", "failed to connect", err)
 	}
 
 	webviewInstance = wv
@@ -330,7 +329,7 @@ func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolReques
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_disconnect", "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_disconnect", "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewDisconnectOutput{
@@ -340,8 +339,8 @@ func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	if err := webviewInstance.Close(); err != nil {
-		log.Error("mcp: webview disconnect failed", "err", err)
-		return nil, WebviewDisconnectOutput{}, log.E("webviewDisconnect", "failed to disconnect", err)
+		core.Error("mcp: webview disconnect failed", "err", err)
+		return nil, WebviewDisconnectOutput{}, core.E("webviewDisconnect", "failed to disconnect", err)
 	}
 
 	webviewInstance = nil
@@ -357,19 +356,19 @@ func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest,
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_navigate", "url", input.URL, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_navigate", "url", input.URL, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewNavigateOutput{}, errNotConnected
 	}
 
 	if input.URL == "" {
-		return nil, WebviewNavigateOutput{}, log.E("webviewNavigate", "url is required", nil)
+		return nil, WebviewNavigateOutput{}, core.E("webviewNavigate", "url is required", nil)
 	}
 
 	if err := webviewInstance.Navigate(input.URL); err != nil {
-		log.Error("mcp: webview navigate failed", "url", input.URL, "err", err)
-		return nil, WebviewNavigateOutput{}, log.E("webviewNavigate", "failed to navigate", err)
+		core.Error("mcp: webview navigate failed", "url", input.URL, "err", err)
+		return nil, WebviewNavigateOutput{}, core.E("webviewNavigate", "failed to navigate", err)
 	}
 
 	return nil, WebviewNavigateOutput{
@@ -383,7 +382,7 @@ func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, in
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_click", "selector", input.Selector, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_click", "selector", input.Selector, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewClickOutput{}, errNotConnected
@@ -394,8 +393,8 @@ func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, in
 	}
 
 	if err := webviewInstance.Click(input.Selector); err != nil {
-		log.Error("mcp: webview click failed", "selector", input.Selector, "err", err)
-		return nil, WebviewClickOutput{}, log.E("webviewClick", "failed to click", err)
+		core.Error("mcp: webview click failed", "selector", input.Selector, "err", err)
+		return nil, WebviewClickOutput{}, core.E("webviewClick", "failed to click", err)
 	}
 
 	return nil, WebviewClickOutput{Success: true}, nil
@@ -406,7 +405,7 @@ func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, inp
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_type", "selector", input.Selector, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_type", "selector", input.Selector, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewTypeOutput{}, errNotConnected
@@ -417,8 +416,8 @@ func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, inp
 	}
 
 	if err := webviewInstance.Type(input.Selector, input.Text); err != nil {
-		log.Error("mcp: webview type failed", "selector", input.Selector, "err", err)
-		return nil, WebviewTypeOutput{}, log.E("webviewType", "failed to type", err)
+		core.Error("mcp: webview type failed", "selector", input.Selector, "err", err)
+		return nil, WebviewTypeOutput{}, core.E("webviewType", "failed to type", err)
 	}
 
 	return nil, WebviewTypeOutput{Success: true}, nil
@@ -429,7 +428,7 @@ func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_query", "selector", input.Selector, "all", input.All, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_query", "selector", input.Selector, "all", input.All, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewQueryOutput{}, errNotConnected
@@ -442,8 +441,8 @@ func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	if input.All {
 		elements, err := webviewInstance.QuerySelectorAll(input.Selector)
 		if err != nil {
-			log.Error("mcp: webview query all failed", "selector", input.Selector, "err", err)
-			return nil, WebviewQueryOutput{}, log.E("webviewQuery", "failed to query", err)
+			core.Error("mcp: webview query all failed", "selector", input.Selector, "err", err)
+			return nil, WebviewQueryOutput{}, core.E("webviewQuery", "failed to query", err)
 		}
 
 		output := WebviewQueryOutput{
@@ -490,7 +489,7 @@ func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, 
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_console", "clear", input.Clear, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_console", "clear", input.Clear, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewConsoleOutput{}, errNotConnected
@@ -525,19 +524,19 @@ func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, inp
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Security("MCP tool execution", "tool", "webview_eval", "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "webview_eval", "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewEvalOutput{}, errNotConnected
 	}
 
 	if input.Script == "" {
-		return nil, WebviewEvalOutput{}, log.E("webviewEval", "script is required", nil)
+		return nil, WebviewEvalOutput{}, core.E("webviewEval", "script is required", nil)
 	}
 
 	result, err := webviewInstance.Evaluate(input.Script)
 	if err != nil {
-		log.Error("mcp: webview eval failed", "err", err)
+		core.Error("mcp: webview eval failed", "err", err)
 		return nil, WebviewEvalOutput{
 			Success: false,
 			Error:   err.Error(),
@@ -555,7 +554,7 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_screenshot", "format", input.Format, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_screenshot", "format", input.Format, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewScreenshotOutput{}, errNotConnected
@@ -569,13 +568,13 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 
 	data, err := webviewInstance.Screenshot()
 	if err != nil {
-		log.Error("mcp: webview screenshot failed", "err", err)
-		return nil, WebviewScreenshotOutput{}, log.E("webviewScreenshot", "failed to capture screenshot", err)
+		core.Error("mcp: webview screenshot failed", "err", err)
+		return nil, WebviewScreenshotOutput{}, core.E("webviewScreenshot", "failed to capture screenshot", err)
 	}
 
 	encoded, outputFormat, err := normalizeScreenshotData(data, format)
 	if err != nil {
-		return nil, WebviewScreenshotOutput{}, log.E("webviewScreenshot", "failed to encode screenshot", err)
+		return nil, WebviewScreenshotOutput{}, core.E("webviewScreenshot", "failed to encode screenshot", err)
 	}
 
 	return nil, WebviewScreenshotOutput{
@@ -603,7 +602,7 @@ func normalizeScreenshotData(data []byte, format string) ([]byte, string, error)
 		}
 		return buf.Bytes(), "jpeg", nil
 	default:
-		return nil, "", log.E("webviewScreenshot", "unsupported screenshot format: "+format, nil)
+		return nil, "", core.E("webviewScreenshot", "unsupported screenshot format: "+format, nil)
 	}
 }
 
@@ -612,7 +611,7 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
-	s.logger.Info("MCP tool execution", "tool", "webview_wait", "selector", input.Selector, "timeout", input.Timeout, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_wait", "selector", input.Selector, "timeout", input.Timeout, "user", core.Username())
 
 	if webviewInstance == nil {
 		return nil, WebviewWaitOutput{}, errNotConnected
@@ -631,8 +630,8 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 		_, err := webviewInstance.QuerySelector(selector)
 		return err
 	}); err != nil {
-		log.Error("mcp: webview wait failed", "selector", input.Selector, "err", err)
-		return nil, WebviewWaitOutput{}, log.E("webviewWait", "failed to wait for selector", err)
+		core.Error("mcp: webview wait failed", "selector", input.Selector, "err", err)
+		return nil, WebviewWaitOutput{}, core.E("webviewWait", "failed to wait for selector", err)
 	}
 
 	return nil, WebviewWaitOutput{
@@ -666,7 +665,7 @@ func waitForSelector(ctx context.Context, timeout time.Duration, selector string
 
 		select {
 		case <-waitCtx.Done():
-			return log.E("webviewWait", "timed out waiting for selector", waitCtx.Err())
+			return core.E("webviewWait", "timed out waiting for selector", waitCtx.Err())
 		case <-ticker.C:
 		}
 	}

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -101,13 +100,13 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 
 		select {
 		case <-ctx.Done():
-			return nil, WatchOutput{}, coreerr.E("watch", "cancelled", ctx.Err())
+			return nil, WatchOutput{}, core.E("watch", "cancelled", ctx.Err())
 		case <-time.After(pollInterval):
 		}
 
 		_, statusOut, err := s.status(ctx, req, StatusInput{})
 		if err != nil {
-			return nil, WatchOutput{}, coreerr.E("watch", "failed to refresh status", err)
+			return nil, WatchOutput{}, core.E("watch", "failed to refresh status", err)
 		}
 
 		for _, info := range statusOut.Workspaces {

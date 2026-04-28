@@ -6,19 +6,18 @@ import (
 	"context"
 	"net"
 
-	"dappco.re/go/io"
-	"dappco.re/go/log"
+	core "dappco.re/go"
 )
 
 // ServeUnix starts a Unix domain socket server for the MCP service.
 // The socket file is created at the given path and removed on shutdown.
 //
 //	if err := svc.ServeUnix(ctx, "/tmp/core-mcp.sock"); err != nil {
-//	    log.Fatal("unix transport failed", "err", err)
+//	    core.Fatal("unix transport failed", "err", err)
 //	}
 func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	// Clean up any stale socket file
-	if err := io.Local.Delete(socketPath); err != nil {
+	if err := localMedium.Delete(socketPath); err != nil {
 		s.logger.Warn("Failed to remove stale socket", "path", socketPath, "err", err)
 	}
 
@@ -28,7 +27,7 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	}
 	defer func() {
 		_ = listener.Close()
-		_ = io.Local.Delete(socketPath)
+		_ = localMedium.Delete(socketPath)
 	}()
 
 	// Close listener when context is cancelled to unblock Accept
@@ -37,7 +36,7 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 		_ = listener.Close()
 	}()
 
-	s.logger.Security("MCP Unix server listening", "path", socketPath, "user", log.Username())
+	s.logger.Security("MCP Unix server listening", "path", socketPath, "user", core.Username())
 
 	for {
 		conn, err := listener.Accept()
@@ -46,12 +45,12 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 			case <-ctx.Done():
 				return nil
 			default:
-				s.logger.Error("MCP Unix accept error", "err", err, "user", log.Username())
+				s.logger.Error("MCP Unix accept error", "err", err, "user", core.Username())
 				continue
 			}
 		}
 
-		s.logger.Security("MCP Unix connection accepted", "user", log.Username())
+		s.logger.Security("MCP Unix connection accepted", "user", core.Username())
 		go s.handleConnection(ctx, conn)
 	}
 }

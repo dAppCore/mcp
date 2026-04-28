@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -157,7 +157,7 @@ func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input Ch
 		Data:      input.Message,
 	})
 	if err != nil {
-		return nil, ChatSendOutput{}, coreerr.E("ide.chatSend", "failed to send message", err)
+		return nil, ChatSendOutput{}, core.E("ide.chatSend", "failed to send message", err)
 	}
 
 	s.appendChatMessage(input.SessionID, "user", input.Message)

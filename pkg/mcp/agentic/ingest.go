@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 )
 

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	core "dappco.re/go"
-	"dappco.re/go/log"
 	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -65,7 +64,7 @@ func (s *Service) registerWSTools(server *mcp.Server) bool {
 // wsStart handles the ws_start tool call.
 func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input WSStartInput) (*mcp.CallToolResult, WSStartOutput, error) {
 	if s.wsHub == nil {
-		return nil, WSStartOutput{}, log.E("wsStart", "websocket hub unavailable", nil)
+		return nil, WSStartOutput{}, core.E("wsStart", "websocket hub unavailable", nil)
 	}
 
 	addr := input.Addr
@@ -73,7 +72,7 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 		addr = ":8080"
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "ws_start", "addr", addr, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "ws_start", "addr", addr, "user", core.Username())
 
 	s.wsMu.Lock()
 	defer s.wsMu.Unlock()
@@ -99,8 +98,8 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 	// Start listener to get actual address
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Error("mcp: ws start listen failed", "addr", addr, "err", err)
-		return nil, WSStartOutput{}, log.E("wsStart", "failed to listen on "+addr, err)
+		core.Error("mcp: ws start listen failed", "addr", addr, "err", err)
+		return nil, WSStartOutput{}, core.E("wsStart", "failed to listen on "+addr, err)
 	}
 
 	actualAddr := ln.Addr().String()
@@ -110,7 +109,7 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 	// Start server in background
 	go func() {
 		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Error("mcp: ws server error", "err", err)
+			core.Error("mcp: ws server error", "err", err)
 		}
 	}()
 
@@ -124,10 +123,10 @@ func (s *Service) wsStart(ctx context.Context, req *mcp.CallToolRequest, input W
 // wsInfo handles the ws_info tool call.
 func (s *Service) wsInfo(ctx context.Context, req *mcp.CallToolRequest, input WSInfoInput) (*mcp.CallToolResult, WSInfoOutput, error) {
 	if s.wsHub == nil {
-		return nil, WSInfoOutput{}, log.E("wsInfo", "websocket hub unavailable", nil)
+		return nil, WSInfoOutput{}, core.E("wsInfo", "websocket hub unavailable", nil)
 	}
 
-	s.logger.Info("MCP tool execution", "tool", "ws_info", "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "ws_info", "user", core.Username())
 
 	stats := s.wsHub.Stats()
 

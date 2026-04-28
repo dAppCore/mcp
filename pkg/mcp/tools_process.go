@@ -6,13 +6,13 @@ import (
 	"context"
 	"time"
 
-	"dappco.re/go/log"
+	core "dappco.re/go"
 	"dappco.re/go/process"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // errIDEmpty is returned when a process tool call omits the required ID.
-var errIDEmpty = log.E("process", "id cannot be empty", nil)
+var errIDEmpty = core.E("process", "id cannot be empty", nil)
 
 // ProcessStartInput contains parameters for starting a new process.
 //
@@ -208,13 +208,13 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 // processStart handles the process_start tool call.
 func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, input ProcessStartInput) (*mcp.CallToolResult, ProcessStartOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessStartOutput{}, log.E("processStart", "process service unavailable", nil)
+		return nil, ProcessStartOutput{}, core.E("processStart", "process service unavailable", nil)
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "process_start", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "process_start", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", core.Username())
 
 	if input.Command == "" {
-		return nil, ProcessStartOutput{}, log.E("processStart", "command cannot be empty", nil)
+		return nil, ProcessStartOutput{}, core.E("processStart", "command cannot be empty", nil)
 	}
 
 	opts := process.RunOptions{
@@ -226,8 +226,8 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 
 	proc, err := s.processService.StartWithOptions(ctx, opts)
 	if err != nil {
-		log.Error("mcp: process start failed", "command", input.Command, "err", err)
-		return nil, ProcessStartOutput{}, log.E("processStart", "failed to start process", err)
+		core.Error("mcp: process start failed", "command", input.Command, "err", err)
+		return nil, ProcessStartOutput{}, core.E("processStart", "failed to start process", err)
 	}
 
 	info := proc.Info()
@@ -259,14 +259,14 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 // Executes the command to completion and returns the captured output.
 func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, input ProcessRunInput) (*mcp.CallToolResult, ProcessRunOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessRunOutput{}, log.E("processRun", "process service unavailable", nil)
+		return nil, ProcessRunOutput{}, core.E("processRun", "process service unavailable", nil)
 	}
 
 	progress := NewProgressNotifier(ctx, req)
-	s.logger.Security("MCP tool execution", "tool", "process_run", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "process_run", "command", input.Command, "args", input.Args, "dir", input.Dir, "user", core.Username())
 
 	if input.Command == "" {
-		return nil, ProcessRunOutput{}, log.E("processRun", "command cannot be empty", nil)
+		return nil, ProcessRunOutput{}, core.E("processRun", "command cannot be empty", nil)
 	}
 
 	opts := process.RunOptions{
@@ -279,8 +279,8 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 	_ = progress.Send(0, 2, "starting process")
 	proc, err := s.processService.StartWithOptions(ctx, opts)
 	if err != nil {
-		log.Error("mcp: process run start failed", "command", input.Command, "err", err)
-		return nil, ProcessRunOutput{}, log.E("processRun", "failed to start process", err)
+		core.Error("mcp: process run start failed", "command", input.Command, "err", err)
+		return nil, ProcessRunOutput{}, core.E("processRun", "failed to start process", err)
 	}
 	_ = progress.Send(1, 2, "process started")
 
@@ -304,7 +304,7 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 	select {
 	case <-ctx.Done():
 		_ = progress.Send(2, 2, "process cancelled")
-		return nil, ProcessRunOutput{}, log.E("processRun", "cancelled", ctx.Err())
+		return nil, ProcessRunOutput{}, core.E("processRun", "cancelled", ctx.Err())
 	case <-proc.Done():
 	}
 	_ = progress.Send(2, 2, "process completed")
@@ -320,10 +320,10 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 // processStop handles the process_stop tool call.
 func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, input ProcessStopInput) (*mcp.CallToolResult, ProcessStopOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessStopOutput{}, log.E("processStop", "process service unavailable", nil)
+		return nil, ProcessStopOutput{}, core.E("processStop", "process service unavailable", nil)
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "process_stop", "id", input.ID, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "process_stop", "id", input.ID, "user", core.Username())
 
 	if input.ID == "" {
 		return nil, ProcessStopOutput{}, errIDEmpty
@@ -331,15 +331,15 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	proc, err := s.processService.Get(input.ID)
 	if err != nil {
-		log.Error("mcp: process stop failed", "id", input.ID, "err", err)
-		return nil, ProcessStopOutput{}, log.E("processStop", "process not found", err)
+		core.Error("mcp: process stop failed", "id", input.ID, "err", err)
+		return nil, ProcessStopOutput{}, core.E("processStop", "process not found", err)
 	}
 
 	// Use the process service's graceful shutdown path first so callers get
 	// a real stop signal before we fall back to a hard kill internally.
 	if err := proc.Shutdown(); err != nil {
-		log.Error("mcp: process stop failed", "id", input.ID, "err", err)
-		return nil, ProcessStopOutput{}, log.E("processStop", "failed to stop process", err)
+		core.Error("mcp: process stop failed", "id", input.ID, "err", err)
+		return nil, ProcessStopOutput{}, core.E("processStop", "failed to stop process", err)
 	}
 
 	info := proc.Info()
@@ -362,10 +362,10 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 // processKill handles the process_kill tool call.
 func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, input ProcessKillInput) (*mcp.CallToolResult, ProcessKillOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessKillOutput{}, log.E("processKill", "process service unavailable", nil)
+		return nil, ProcessKillOutput{}, core.E("processKill", "process service unavailable", nil)
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "process_kill", "id", input.ID, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "process_kill", "id", input.ID, "user", core.Username())
 
 	if input.ID == "" {
 		return nil, ProcessKillOutput{}, errIDEmpty
@@ -373,13 +373,13 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	proc, err := s.processService.Get(input.ID)
 	if err != nil {
-		log.Error("mcp: process kill failed", "id", input.ID, "err", err)
-		return nil, ProcessKillOutput{}, log.E("processKill", "process not found", err)
+		core.Error("mcp: process kill failed", "id", input.ID, "err", err)
+		return nil, ProcessKillOutput{}, core.E("processKill", "process not found", err)
 	}
 
 	if err := s.processService.Kill(input.ID); err != nil {
-		log.Error("mcp: process kill failed", "id", input.ID, "err", err)
-		return nil, ProcessKillOutput{}, log.E("processKill", "failed to kill process", err)
+		core.Error("mcp: process kill failed", "id", input.ID, "err", err)
+		return nil, ProcessKillOutput{}, core.E("processKill", "failed to kill process", err)
 	}
 
 	info := proc.Info()
@@ -402,10 +402,10 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 // processList handles the process_list tool call.
 func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, input ProcessListInput) (*mcp.CallToolResult, ProcessListOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessListOutput{}, log.E("processList", "process service unavailable", nil)
+		return nil, ProcessListOutput{}, core.E("processList", "process service unavailable", nil)
 	}
 
-	s.logger.Info("MCP tool execution", "tool", "process_list", "running_only", input.RunningOnly, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "process_list", "running_only", input.RunningOnly, "user", core.Username())
 
 	var procs []*process.Process
 	if input.RunningOnly {
@@ -439,10 +439,10 @@ func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, inp
 // processOutput handles the process_output tool call.
 func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, input ProcessOutputInput) (*mcp.CallToolResult, ProcessOutputOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessOutputOutput{}, log.E("processOutput", "process service unavailable", nil)
+		return nil, ProcessOutputOutput{}, core.E("processOutput", "process service unavailable", nil)
 	}
 
-	s.logger.Info("MCP tool execution", "tool", "process_output", "id", input.ID, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "process_output", "id", input.ID, "user", core.Username())
 
 	if input.ID == "" {
 		return nil, ProcessOutputOutput{}, errIDEmpty
@@ -450,8 +450,8 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 
 	output, err := s.processService.Output(input.ID)
 	if err != nil {
-		log.Error("mcp: process output failed", "id", input.ID, "err", err)
-		return nil, ProcessOutputOutput{}, log.E("processOutput", "failed to get process output", err)
+		core.Error("mcp: process output failed", "id", input.ID, "err", err)
+		return nil, ProcessOutputOutput{}, core.E("processOutput", "failed to get process output", err)
 	}
 
 	return nil, ProcessOutputOutput{
@@ -463,27 +463,27 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 // processInput handles the process_input tool call.
 func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, input ProcessInputInput) (*mcp.CallToolResult, ProcessInputOutput, error) {
 	if s.processService == nil {
-		return nil, ProcessInputOutput{}, log.E("processInput", "process service unavailable", nil)
+		return nil, ProcessInputOutput{}, core.E("processInput", "process service unavailable", nil)
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "process_input", "id", input.ID, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "process_input", "id", input.ID, "user", core.Username())
 
 	if input.ID == "" {
 		return nil, ProcessInputOutput{}, errIDEmpty
 	}
 	if input.Input == "" {
-		return nil, ProcessInputOutput{}, log.E("processInput", "input cannot be empty", nil)
+		return nil, ProcessInputOutput{}, core.E("processInput", "input cannot be empty", nil)
 	}
 
 	proc, err := s.processService.Get(input.ID)
 	if err != nil {
-		log.Error("mcp: process input get failed", "id", input.ID, "err", err)
-		return nil, ProcessInputOutput{}, log.E("processInput", "process not found", err)
+		core.Error("mcp: process input get failed", "id", input.ID, "err", err)
+		return nil, ProcessInputOutput{}, core.E("processInput", "process not found", err)
 	}
 
 	if err := proc.SendInput(input.Input); err != nil {
-		log.Error("mcp: process input send failed", "id", input.ID, "err", err)
-		return nil, ProcessInputOutput{}, log.E("processInput", "failed to send input", err)
+		core.Error("mcp: process input send failed", "id", input.ID, "err", err)
+		return nil, ProcessInputOutput{}, core.E("processInput", "failed to send input", err)
 	}
 
 	return nil, ProcessInputOutput{

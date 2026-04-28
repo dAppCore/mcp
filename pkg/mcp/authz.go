@@ -14,7 +14,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -99,7 +98,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 	}
 	tkn := extractBearerToken(authToken)
 	if tkn == "" {
-		return nil, coreerr.E("", "missing bearer token", nil)
+		return nil, core.E("", "missing bearer token", nil)
 	}
 
 	if subtle.ConstantTimeCompare([]byte(tkn), []byte(cfg.apiToken)) == 1 {
@@ -110,12 +109,12 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 	}
 
 	if len(cfg.secret) == 0 {
-		return nil, coreerr.E("", "jwt secret is not configured", nil)
+		return nil, core.E("", "jwt secret is not configured", nil)
 	}
 
 	parts := core.Split(tkn, ".")
 	if len(parts) != 3 {
-		return nil, coreerr.E("", "invalid token format", nil)
+		return nil, core.E("", "invalid token format", nil)
 	}
 
 	headerJSON, err := decodeJWTSection(parts[0])
@@ -127,7 +126,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 		return nil, err
 	}
 	if alg, _ := header["alg"].(string); alg != "" && alg != "HS256" {
-		return nil, coreerr.E("", core.Sprintf("unsupported jwt algorithm: %s", alg), nil)
+		return nil, core.E("", core.Sprintf("unsupported jwt algorithm: %s", alg), nil)
 	}
 
 	signatureBase := parts[0] + "." + parts[1]
@@ -139,7 +138,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 		return nil, err
 	}
 	if !hmac.Equal(expectedSig, actualSig) {
-		return nil, coreerr.E("", "invalid token signature", nil)
+		return nil, core.E("", "invalid token signature", nil)
 	}
 
 	payloadJSON, err := decodeJWTSection(parts[1])
@@ -153,7 +152,7 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 
 	now := time.Now().Unix()
 	if claims.ExpiresAt > 0 && claims.ExpiresAt < now {
-		return nil, coreerr.E("", "token has expired", nil)
+		return nil, core.E("", "token has expired", nil)
 	}
 
 	return &claims, nil
@@ -207,7 +206,7 @@ func authClaimsFromToolRequest(ctx context.Context, req *mcp.CallToolRequest, ap
 	if req != nil {
 		extra := req.GetExtra()
 		if extra == nil || extra.Header == nil {
-			return nil, true, coreerr.E("", "missing request auth metadata", nil)
+			return nil, true, core.E("", "missing request auth metadata", nil)
 		}
 		raw := extra.Header.Get("Authorization")
 		parsed, err := parseAuthClaims(raw, apiToken)
@@ -233,7 +232,7 @@ func (s *Service) authorizeToolAccess(ctx context.Context, req *mcp.CallToolRequ
 
 	claims, inTransport, err := authClaimsFromToolRequest(ctx, req, apiToken)
 	if err != nil {
-		return coreerr.E("auth", "unauthorized", err)
+		return core.E("auth", "unauthorized", err)
 	}
 	if !inTransport {
 		// Allow direct service method calls in-process, while still enforcing
@@ -241,13 +240,13 @@ func (s *Service) authorizeToolAccess(ctx context.Context, req *mcp.CallToolRequ
 		return nil
 	}
 	if claims == nil {
-		return coreerr.E("auth", "unauthorized", coreerr.E("", "missing auth claims", nil))
+		return core.E("auth", "unauthorized", core.E("", "missing auth claims", nil))
 	}
 	if !claims.canRunTool(tool) {
-		return coreerr.E("auth", "forbidden", coreerr.E("", "tool not allowed for token", nil))
+		return core.E("auth", "forbidden", core.E("", "tool not allowed for token", nil))
 	}
 	if !claims.canAccessWorkspaceFromInput(input) {
-		return coreerr.E("auth", "forbidden", coreerr.E("", "workspace scope mismatch", nil))
+		return core.E("auth", "forbidden", core.E("", "workspace scope mismatch", nil))
 	}
 	return nil
 }

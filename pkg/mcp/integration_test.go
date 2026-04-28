@@ -4,15 +4,14 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"testing"
 
-	"github.com/stretchr/testify/assert"
+	core "dappco.re/go"
 )
 
-func TestIntegration_FileTools(t *testing.T) {
+func TestIntegration_FileTools(t *core.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})
-	assert.NoError(t, err)
+	core.AssertNoError(t, err)
 
 	ctx := context.Background()
 
@@ -22,22 +21,22 @@ func TestIntegration_FileTools(t *testing.T) {
 		Content: "hello world",
 	}
 	_, writeOutput, err := s.writeFile(ctx, nil, writeInput)
-	assert.NoError(t, err)
-	assert.True(t, writeOutput.Success)
-	assert.Equal(t, "test.txt", writeOutput.Path)
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, writeOutput.Success)
+	core.AssertEqual(t, "test.txt", writeOutput.Path)
 
 	// Verify on disk
 	content, _ := os.ReadFile(filepath.Join(tmpDir, "test.txt"))
-	assert.Equal(t, "hello world", string(content))
+	core.AssertEqual(t, "hello world", string(content))
 
 	// 2. Test file_read
 	readInput := ReadFileInput{
 		Path: "test.txt",
 	}
 	_, readOutput, err := s.readFile(ctx, nil, readInput)
-	assert.NoError(t, err)
-	assert.Equal(t, "hello world", readOutput.Content)
-	assert.Equal(t, "plaintext", readOutput.Language)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, "hello world", readOutput.Content)
+	core.AssertEqual(t, "plaintext", readOutput.Language)
 
 	// 3. Test file_edit (replace_all=false)
 	editInput := EditDiffInput{
@@ -46,13 +45,13 @@ func TestIntegration_FileTools(t *testing.T) {
 		NewString: "mcp",
 	}
 	_, editOutput, err := s.editDiff(ctx, nil, editInput)
-	assert.NoError(t, err)
-	assert.True(t, editOutput.Success)
-	assert.Equal(t, 1, editOutput.Replacements)
+	core.AssertNoError(t, err)
+	core.AssertTrue(t, editOutput.Success)
+	core.AssertEqual(t, 1, editOutput.Replacements)
 
 	// Verify change
 	_, readOutput, _ = s.readFile(ctx, nil, readInput)
-	assert.Equal(t, "hello mcp", readOutput.Content)
+	core.AssertEqual(t, "hello mcp", readOutput.Content)
 
 	// 4. Test file_edit (replace_all=true)
 	_ = s.medium.Write("multi.txt", "abc abc abc")
@@ -63,11 +62,11 @@ func TestIntegration_FileTools(t *testing.T) {
 		ReplaceAll: true,
 	}
 	_, editOutput, err = s.editDiff(ctx, nil, editInputMulti)
-	assert.NoError(t, err)
-	assert.Equal(t, 3, editOutput.Replacements)
+	core.AssertNoError(t, err)
+	core.AssertEqual(t, 3, editOutput.Replacements)
 
 	content, _ = os.ReadFile(filepath.Join(tmpDir, "multi.txt"))
-	assert.Equal(t, "xyz xyz xyz", string(content))
+	core.AssertEqual(t, "xyz xyz xyz", string(content))
 
 	// 5. Test dir_list
 	_ = s.medium.EnsureDir("subdir")
@@ -77,22 +76,22 @@ func TestIntegration_FileTools(t *testing.T) {
 		Path: "subdir",
 	}
 	_, listOutput, err := s.listDirectory(ctx, nil, listInput)
-	assert.NoError(t, err)
-	assert.Len(t, listOutput.Entries, 1)
-	assert.Equal(t, "file1.txt", listOutput.Entries[0].Name)
-	assert.False(t, listOutput.Entries[0].IsDir)
+	core.AssertNoError(t, err)
+	core.AssertLen(t, listOutput.Entries, 1)
+	core.AssertEqual(t, "file1.txt", listOutput.Entries[0].Name)
+	core.AssertFalse(t, listOutput.Entries[0].IsDir)
 }
 
-func TestIntegration_ErrorPaths(t *testing.T) {
+func TestIntegration_ErrorPaths(t *core.T) {
 	tmpDir := t.TempDir()
 	s, err := New(Options{WorkspaceRoot: tmpDir})
-	assert.NoError(t, err)
+	core.AssertNoError(t, err)
 
 	ctx := context.Background()
 
 	// Read nonexistent file
 	_, _, err = s.readFile(ctx, nil, ReadFileInput{Path: "nonexistent.txt"})
-	assert.Error(t, err)
+	core.AssertError(t, err)
 
 	// Edit nonexistent file
 	_, _, err = s.editDiff(ctx, nil, EditDiffInput{
@@ -100,7 +99,7 @@ func TestIntegration_ErrorPaths(t *testing.T) {
 		OldString: "foo",
 		NewString: "bar",
 	})
-	assert.Error(t, err)
+	core.AssertError(t, err)
 
 	// Edit with empty old_string
 	_, _, err = s.editDiff(ctx, nil, EditDiffInput{
@@ -108,7 +107,7 @@ func TestIntegration_ErrorPaths(t *testing.T) {
 		OldString: "",
 		NewString: "bar",
 	})
-	assert.Error(t, err)
+	core.AssertError(t, err)
 
 	// Edit with old_string not found
 	_ = s.medium.Write("test.txt", "hello")
@@ -117,5 +116,5 @@ func TestIntegration_ErrorPaths(t *testing.T) {
 		OldString: "missing",
 		NewString: "bar",
 	})
-	assert.Error(t, err)
+	core.AssertError(t, err)
 }

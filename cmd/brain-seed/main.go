@@ -21,8 +21,6 @@ import (
 	"regexp"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
@@ -128,7 +126,7 @@ func main() {
 		filename := core.TrimSuffix(filepath.Base(f), ".md")
 
 		if len(sections) == 0 {
-			coreerr.Warn("brain-seed: skip file (no sections)", "project", project, "file", filename)
+			core.Warn("brain-seed: skip file (no sections)", "project", project, "file", filename)
 			skipped++
 			continue
 		}
@@ -155,7 +153,7 @@ func main() {
 			}
 
 			if err := callBrainRemember(content, memType, tags, project, confidence); err != nil {
-				coreerr.Error("brain-seed: import failed", "project", project, "file", filename, "heading", sec.heading, "err", err)
+				core.Error("brain-seed: import failed", "project", project, "file", filename, "heading", sec.heading, "err", err)
 				errors++
 				continue
 			}
@@ -195,7 +193,7 @@ func main() {
 				}
 
 				if err := callBrainRemember(content, "plan", tags, project, 0.6); err != nil {
-					coreerr.Error("brain-seed: plan import failed", "project", project, "file", filename, "heading", sec.heading, "err", err)
+					core.Error("brain-seed: plan import failed", "project", project, "file", filename, "heading", sec.heading, "err", err)
 					errors++
 					continue
 				}
@@ -235,7 +233,7 @@ func main() {
 				}
 
 				if err := callBrainRemember(content, "convention", tags, project, 0.9); err != nil {
-					coreerr.Error("brain-seed: claude-md import failed", "project", project, "heading", sec.heading, "err", err)
+					core.Error("brain-seed: claude-md import failed", "project", project, "heading", sec.heading, "err", err)
 					errors++
 					continue
 				}
@@ -276,7 +274,7 @@ func callBrainRemember(content, memType string, tags []string, project string, c
 		input.Project = project
 	}
 	_, err := openbrain.Remember(context.Background(), input)
-	return coreerr.Wrap(err, "callBrainRemember", "remember")
+	return core.Wrap(err, "callBrainRemember", "remember")
 }
 
 // truncate caps content to maxLen chars, appending an ellipsis if truncated.
@@ -341,7 +339,7 @@ var headingRe = regexp.MustCompile(`^#{1,3}\s+(.+)$`)
 
 // parseMarkdownSections splits a markdown file by headings.
 func parseMarkdownSections(path string) []section {
-	data, err := coreio.Local.Read(path)
+	data, err := readLocal(path)
 	if err != nil || len(data) == 0 {
 		return nil
 	}
@@ -383,6 +381,21 @@ func parseMarkdownSections(path string) []section {
 	}
 
 	return sections
+}
+
+func readLocal(path string) (string, error) {
+	r := (&core.Fs{}).New("/").Read(path)
+	if !r.OK {
+		if err, ok := r.Value.(error); ok && err != nil {
+			return "", err
+		}
+		return "", core.E("brain-seed.readLocal", "failed to read file", nil)
+	}
+	data, ok := r.Value.(string)
+	if !ok {
+		return "", core.E("brain-seed.readLocal", "unexpected read result", nil)
+	}
+	return data, nil
 }
 
 // extractProject derives a project name from a Claude memory path.

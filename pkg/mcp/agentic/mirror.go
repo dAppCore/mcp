@@ -7,7 +7,6 @@ import (
 	"os/exec"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -70,7 +69,7 @@ func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		}
 
 		if _, err := exec.LookPath("git"); err != nil {
-			return nil, MirrorOutput{}, coreerr.E("mirror", "git CLI is not available", err)
+			return nil, MirrorOutput{}, core.E("mirror", "git CLI is not available", err)
 		}
 
 		_, _ = gitOutput(repoDir, "fetch", "github")

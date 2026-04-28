@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -55,13 +54,13 @@ func (s *PrepSubsystem) registerEpicTool(svc *coremcp.Service) {
 
 func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest, input EpicInput) (*mcp.CallToolResult, EpicOutput, error) {
 	if input.Title == "" {
-		return nil, EpicOutput{}, coreerr.E("createEpic", "title is required", nil)
+		return nil, EpicOutput{}, core.E("createEpic", "title is required", nil)
 	}
 	if len(input.Tasks) == 0 {
-		return nil, EpicOutput{}, coreerr.E("createEpic", "at least one task is required", nil)
+		return nil, EpicOutput{}, core.E("createEpic", "at least one task is required", nil)
 	}
 	if s.forgeToken == "" {
-		return nil, EpicOutput{}, coreerr.E("createEpic", "no Forge token configured", nil)
+		return nil, EpicOutput{}, core.E("createEpic", "no Forge token configured", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -114,7 +113,7 @@ func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest
 	epicLabels := append(labelIDs, s.resolveLabelIDs(ctx, input.Org, input.Repo, []string{"epic"})...)
 	epic, err := s.createIssue(ctx, input.Org, input.Repo, input.Title, body.String(), epicLabels)
 	if err != nil {
-		return nil, EpicOutput{}, coreerr.E("createEpic", "failed to create epic", err)
+		return nil, EpicOutput{}, core.E("createEpic", "failed to create epic", err)
 	}
 
 	out := EpicOutput{
@@ -158,7 +157,7 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 
 	r := core.JSONMarshal(payload)
 	if !r.OK {
-		return ChildRef{}, coreerr.E("createIssue", "failed to encode issue payload", nil)
+		return ChildRef{}, core.E("createIssue", "failed to encode issue payload", nil)
 	}
 	data := r.Value.([]byte)
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues", s.forgeURL, org, repo)
@@ -168,12 +167,12 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return ChildRef{}, coreerr.E("createIssue", "request failed", err)
+		return ChildRef{}, core.E("createIssue", "request failed", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
-		return ChildRef{}, coreerr.E("createIssue", core.Sprintf("returned %d", resp.StatusCode), nil)
+		return ChildRef{}, core.E("createIssue", core.Sprintf("returned %d", resp.StatusCode), nil)
 	}
 
 	var result struct {

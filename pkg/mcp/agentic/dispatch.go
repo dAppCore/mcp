@@ -10,8 +10,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -79,7 +77,7 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 		script := core.Path(home, "Code", "core", "agent", "scripts", "local-agent.sh")
 		return "bash", []string{script, prompt}, nil
 	default:
-		return "", nil, coreerr.E("agentCommand", "unknown agent: "+agent, nil)
+		return "", nil, core.E("agentCommand", "unknown agent: "+agent, nil)
 	}
 }
 
@@ -88,10 +86,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	const dispatchProgressTotal = 4
 
 	if input.Repo == "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "repo is required", nil)
+		return nil, DispatchOutput{}, core.E("dispatch", "repo is required", nil)
 	}
 	if input.Task == "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "task is required", nil)
+		return nil, DispatchOutput{}, core.E("dispatch", "task is required", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -119,7 +117,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	_, prepOut, err := s.prepWorkspace(ctx, req, prepInput)
 	if err != nil {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "prep workspace failed", err)
+		return nil, DispatchOutput{}, core.E("dispatch", "prep workspace failed", err)
 	}
 	_ = progress.Send(3, dispatchProgressTotal, core.Sprintf("workspace prepared for %s", prepOut.Branch))
 
@@ -193,7 +191,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	outputFile := core.Path(wsDir, core.Sprintf("agent-%s.log", input.Agent))
 	outFile, err := os.Create(outputFile)
 	if err != nil {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to create log file", err)
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to create log file", err)
 	}
 
 	// Fully detach from terminal:
@@ -204,7 +202,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	devNull, err := os.Open(os.DevNull)
 	if err != nil {
 		outFile.Close()
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to open /dev/null", err)
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to open /dev/null", err)
 	}
 	defer devNull.Close()
 
@@ -227,7 +225,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			Issue:  input.Issue,
 			Branch: prepOut.Branch,
 		})
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to spawn "+input.Agent, err)
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to spawn "+input.Agent, err)
 	}
 
 	pid := cmd.Process.Pid

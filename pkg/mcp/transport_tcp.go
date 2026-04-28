@@ -99,7 +99,7 @@ func normalizeTCPAddr(addr string) string {
 // It accepts connections and spawns a new MCP server session for each connection.
 //
 //	if err := svc.ServeTCP(ctx, "127.0.0.1:9100"); err != nil {
-//	    log.Fatal("tcp transport failed", "err", err)
+//	    core.Fatal("tcp transport failed", "err", err)
 //	}
 func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 	t, err := NewTCPTransport(addr)

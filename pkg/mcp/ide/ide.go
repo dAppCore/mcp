@@ -8,14 +8,13 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/ws"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
 // but it has not been initialised (headless mode).
-var errBridgeNotAvailable = coreerr.E("ide", "bridge not available", nil)
+var errBridgeNotAvailable = core.E("ide", "bridge not available", nil)
 
 // Subsystem implements mcp.Subsystem and mcp.SubsystemWithShutdown for the IDE.
 type Subsystem struct {

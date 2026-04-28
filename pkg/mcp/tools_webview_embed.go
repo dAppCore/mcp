@@ -8,7 +8,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	"dappco.re/go/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -98,10 +97,10 @@ const ChannelWebviewUpdate = "webview.update"
 
 // webviewRender handles the webview_render tool call.
 func (s *Service) webviewRender(ctx context.Context, req *mcp.CallToolRequest, input WebviewRenderInput) (*mcp.CallToolResult, WebviewRenderOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "webview_render", "view", input.ViewID, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_render", "view", input.ViewID, "user", core.Username())
 
 	if core.Trim(input.ViewID) == "" {
-		return nil, WebviewRenderOutput{}, log.E("webviewRender", "view_id is required", nil)
+		return nil, WebviewRenderOutput{}, core.E("webviewRender", "view_id is required", nil)
 	}
 
 	now := time.Now()
@@ -138,10 +137,10 @@ func (s *Service) webviewRender(ctx context.Context, req *mcp.CallToolRequest, i
 
 // webviewUpdate handles the webview_update tool call.
 func (s *Service) webviewUpdate(ctx context.Context, req *mcp.CallToolRequest, input WebviewUpdateInput) (*mcp.CallToolResult, WebviewUpdateOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "webview_update", "view", input.ViewID, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "webview_update", "view", input.ViewID, "user", core.Username())
 
 	if core.Trim(input.ViewID) == "" {
-		return nil, WebviewUpdateOutput{}, log.E("webviewUpdate", "view_id is required", nil)
+		return nil, WebviewUpdateOutput{}, core.E("webviewUpdate", "view_id is required", nil)
 	}
 
 	now := time.Now()

@@ -15,8 +15,6 @@ import (
 	"sync"
 
 	core "dappco.re/go"
-	"dappco.re/go/io"
-	"dappco.re/go/log"
 	"dappco.re/go/process"
 	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -33,9 +31,9 @@ type Service struct {
 
 	server         *mcp.Server
 	workspaceRoot  string           // Root directory for file operations (empty = cwd unless Unrestricted)
-	medium         io.Medium        // Filesystem medium for sandboxed operations
+	medium         *coreMedium      // Filesystem medium for sandboxed operations
 	subsystems     []Subsystem      // Additional subsystems registered via Options.Subsystems
-	logger         *log.Logger      // Logger for tool execution auditing
+	logger         *core.Log        // Logger for tool execution auditing
 	processService *process.Service // Process management service (optional)
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
@@ -83,14 +81,14 @@ func New(opts Options) (*Service, error) {
 		server:         server,
 		processService: opts.ProcessService,
 		wsHub:          opts.WSHub,
-		logger:         log.Default(),
+		logger:         core.Default(),
 		processMeta:    make(map[string]processRuntime),
 	}
 
 	// Workspace root: unrestricted, explicit root, or default to cwd
 	if opts.Unrestricted {
 		s.workspaceRoot = ""
-		s.medium = io.Local
+		s.medium = localMedium
 	} else {
 		root := opts.WorkspaceRoot
 		if root == "" {
@@ -105,11 +103,7 @@ func New(opts Options) (*Service, error) {
 			return nil, core.E("mcp.New", "failed to resolve workspace root", err)
 		}
 		s.workspaceRoot = abs
-		m, merr := io.NewSandboxed(abs)
-		if merr != nil {
-			return nil, core.E("mcp.New", "failed to create workspace medium", merr)
-		}
-		s.medium = m
+		s.medium = newCoreMedium(abs)
 	}
 
 	s.registerTools(s.server)
@@ -176,7 +170,7 @@ func (s *Service) ToolsSeq() iter.Seq[ToolRecord] {
 //
 //	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 //	defer cancel()
-//	if err := svc.Shutdown(ctx); err != nil { log.Fatal(err) }
+//	if err := svc.Shutdown(ctx); err != nil { core.Fatal(err) }
 func (s *Service) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 
@@ -184,7 +178,7 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		if sh, ok := sub.(SubsystemWithShutdown); ok {
 			if err := sh.Shutdown(ctx); err != nil {
 				if shutdownErr == nil {
-					shutdownErr = log.E("mcp.Shutdown", "shutdown "+sub.Name(), err)
+					shutdownErr = core.E("mcp.Shutdown", "shutdown "+sub.Name(), err)
 				}
 			}
 		}
@@ -196,7 +190,7 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		s.wsMu.Unlock()
 
 		if err := server.Shutdown(ctx); err != nil && shutdownErr == nil {
-			shutdownErr = log.E("mcp.Shutdown", "shutdown websocket server", err)
+			shutdownErr = core.E("mcp.Shutdown", "shutdown websocket server", err)
 		}
 
 		s.wsMu.Lock()
@@ -208,7 +202,7 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	}
 
 	if err := closeWebviewConnection(); err != nil && shutdownErr == nil {
-		shutdownErr = log.E("mcp.Shutdown", "close webview connection", err)
+		shutdownErr = core.E("mcp.Shutdown", "close webview connection", err)
 	}
 
 	return shutdownErr
@@ -508,12 +502,12 @@ type EditDiffOutput struct {
 
 func (s *Service) readFile(ctx context.Context, req *mcp.CallToolRequest, input ReadFileInput) (*mcp.CallToolResult, ReadFileOutput, error) {
 	if s.medium == nil {
-		return nil, ReadFileOutput{}, log.E("mcp.readFile", "workspace medium unavailable", nil)
+		return nil, ReadFileOutput{}, core.E("mcp.readFile", "workspace medium unavailable", nil)
 	}
 
 	content, err := s.medium.Read(input.Path)
 	if err != nil {
-		return nil, ReadFileOutput{}, log.E("mcp.readFile", "failed to read file", err)
+		return nil, ReadFileOutput{}, core.E("mcp.readFile", "failed to read file", err)
 	}
 	return nil, ReadFileOutput{
 		Content:  content,
@@ -524,24 +518,24 @@ func (s *Service) readFile(ctx context.Context, req *mcp.CallToolRequest, input 
 
 func (s *Service) writeFile(ctx context.Context, req *mcp.CallToolRequest, input WriteFileInput) (*mcp.CallToolResult, WriteFileOutput, error) {
 	if s.medium == nil {
-		return nil, WriteFileOutput{}, log.E("mcp.writeFile", "workspace medium unavailable", nil)
+		return nil, WriteFileOutput{}, core.E("mcp.writeFile", "workspace medium unavailable", nil)
 	}
 
 	// Medium.Write creates parent directories automatically
 	if err := s.medium.Write(input.Path, input.Content); err != nil {
-		return nil, WriteFileOutput{}, log.E("mcp.writeFile", "failed to write file", err)
+		return nil, WriteFileOutput{}, core.E("mcp.writeFile", "failed to write file", err)
 	}
 	return nil, WriteFileOutput{Success: true, Path: input.Path}, nil
 }
 
 func (s *Service) listDirectory(ctx context.Context, req *mcp.CallToolRequest, input ListDirectoryInput) (*mcp.CallToolResult, ListDirectoryOutput, error) {
 	if s.medium == nil {
-		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "workspace medium unavailable", nil)
+		return nil, ListDirectoryOutput{}, core.E("mcp.listDirectory", "workspace medium unavailable", nil)
 	}
 
 	entries, err := s.medium.List(input.Path)
 	if err != nil {
-		return nil, ListDirectoryOutput{}, log.E("mcp.listDirectory", "failed to list directory", err)
+		return nil, ListDirectoryOutput{}, core.E("mcp.listDirectory", "failed to list directory", err)
 	}
 	slices.SortFunc(entries, func(a, b os.DirEntry) int {
 		return cmp.Compare(a.Name(), b.Name())
@@ -577,40 +571,40 @@ func directoryEntryPath(dir, name string) string {
 
 func (s *Service) createDirectory(ctx context.Context, req *mcp.CallToolRequest, input CreateDirectoryInput) (*mcp.CallToolResult, CreateDirectoryOutput, error) {
 	if s.medium == nil {
-		return nil, CreateDirectoryOutput{}, log.E("mcp.createDirectory", "workspace medium unavailable", nil)
+		return nil, CreateDirectoryOutput{}, core.E("mcp.createDirectory", "workspace medium unavailable", nil)
 	}
 
 	if err := s.medium.EnsureDir(input.Path); err != nil {
-		return nil, CreateDirectoryOutput{}, log.E("mcp.createDirectory", "failed to create directory", err)
+		return nil, CreateDirectoryOutput{}, core.E("mcp.createDirectory", "failed to create directory", err)
 	}
 	return nil, CreateDirectoryOutput{Success: true, Path: input.Path}, nil
 }
 
 func (s *Service) deleteFile(ctx context.Context, req *mcp.CallToolRequest, input DeleteFileInput) (*mcp.CallToolResult, DeleteFileOutput, error) {
 	if s.medium == nil {
-		return nil, DeleteFileOutput{}, log.E("mcp.deleteFile", "workspace medium unavailable", nil)
+		return nil, DeleteFileOutput{}, core.E("mcp.deleteFile", "workspace medium unavailable", nil)
 	}
 
 	if err := s.medium.Delete(input.Path); err != nil {
-		return nil, DeleteFileOutput{}, log.E("mcp.deleteFile", "failed to delete file", err)
+		return nil, DeleteFileOutput{}, core.E("mcp.deleteFile", "failed to delete file", err)
 	}
 	return nil, DeleteFileOutput{Success: true, Path: input.Path}, nil
 }
 
 func (s *Service) renameFile(ctx context.Context, req *mcp.CallToolRequest, input RenameFileInput) (*mcp.CallToolResult, RenameFileOutput, error) {
 	if s.medium == nil {
-		return nil, RenameFileOutput{}, log.E("mcp.renameFile", "workspace medium unavailable", nil)
+		return nil, RenameFileOutput{}, core.E("mcp.renameFile", "workspace medium unavailable", nil)
 	}
 
 	if err := s.medium.Rename(input.OldPath, input.NewPath); err != nil {
-		return nil, RenameFileOutput{}, log.E("mcp.renameFile", "failed to rename file", err)
+		return nil, RenameFileOutput{}, core.E("mcp.renameFile", "failed to rename file", err)
 	}
 	return nil, RenameFileOutput{Success: true, OldPath: input.OldPath, NewPath: input.NewPath}, nil
 }
 
 func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, input FileExistsInput) (*mcp.CallToolResult, FileExistsOutput, error) {
 	if s.medium == nil {
-		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "workspace medium unavailable", nil)
+		return nil, FileExistsOutput{}, core.E("mcp.fileExists", "workspace medium unavailable", nil)
 	}
 
 	info, err := s.medium.Stat(input.Path)
@@ -618,7 +612,7 @@ func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, inpu
 		if core.Is(err, os.ErrNotExist) {
 			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
 		}
-		return nil, FileExistsOutput{}, log.E("mcp.fileExists", "failed to stat path", err)
+		return nil, FileExistsOutput{}, core.E("mcp.fileExists", "failed to stat path", err)
 	}
 	return nil, FileExistsOutput{
 		Exists: true,
@@ -638,16 +632,16 @@ func (s *Service) getSupportedLanguages(ctx context.Context, req *mcp.CallToolRe
 
 func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input EditDiffInput) (*mcp.CallToolResult, EditDiffOutput, error) {
 	if s.medium == nil {
-		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "workspace medium unavailable", nil)
+		return nil, EditDiffOutput{}, core.E("mcp.editDiff", "workspace medium unavailable", nil)
 	}
 
 	if input.OldString == "" {
-		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string cannot be empty", nil)
+		return nil, EditDiffOutput{}, core.E("mcp.editDiff", "old_string cannot be empty", nil)
 	}
 
 	content, err := s.medium.Read(input.Path)
 	if err != nil {
-		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "failed to read file", err)
+		return nil, EditDiffOutput{}, core.E("mcp.editDiff", "failed to read file", err)
 	}
 
 	count := 0
@@ -655,19 +649,19 @@ func (s *Service) editDiff(ctx context.Context, req *mcp.CallToolRequest, input 
 	if input.ReplaceAll {
 		count = countOccurrences(content, input.OldString)
 		if count == 0 {
-			return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string not found in file", nil)
+			return nil, EditDiffOutput{}, core.E("mcp.editDiff", "old_string not found in file", nil)
 		}
 		content = core.Replace(content, input.OldString, input.NewString)
 	} else {
 		if !core.Contains(content, input.OldString) {
-			return nil, EditDiffOutput{}, log.E("mcp.editDiff", "old_string not found in file", nil)
+			return nil, EditDiffOutput{}, core.E("mcp.editDiff", "old_string not found in file", nil)
 		}
 		content = replaceFirst(content, input.OldString, input.NewString)
 		count = 1
 	}
 
 	if err := s.medium.Write(input.Path, content); err != nil {
-		return nil, EditDiffOutput{}, log.E("mcp.editDiff", "failed to write file", err)
+		return nil, EditDiffOutput{}, core.E("mcp.editDiff", "failed to write file", err)
 	}
 
 	return nil, EditDiffOutput{

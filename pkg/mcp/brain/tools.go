@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -133,7 +133,7 @@ type ListOutput struct {
 
 func validateBrainOrg(org string) error {
 	if utf8.RuneCountInString(org) > brainOrgMaxLength {
-		return coreerr.E("brain.validate", "org exceeds maximum length of 128 characters", nil)
+		return core.E("brain.validate", "org exceeds maximum length of 128 characters", nil)
 	}
 	return nil
 }
@@ -199,7 +199,7 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 		},
 	})
 	if err != nil {
-		return nil, RememberOutput{}, coreerr.E("brain.remember", "failed to send brain_remember", err)
+		return nil, RememberOutput{}, core.E("brain.remember", "failed to send brain_remember", err)
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
@@ -231,7 +231,7 @@ func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, inp
 		},
 	})
 	if err != nil {
-		return nil, RecallOutput{}, coreerr.E("brain.recall", "failed to send brain_recall", err)
+		return nil, RecallOutput{}, core.E("brain.recall", "failed to send brain_recall", err)
 	}
 
 	return nil, RecallOutput{
@@ -253,7 +253,7 @@ func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, inp
 		},
 	})
 	if err != nil {
-		return nil, ForgetOutput{}, coreerr.E("brain.forget", "failed to send brain_forget", err)
+		return nil, ForgetOutput{}, core.E("brain.forget", "failed to send brain_forget", err)
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainForgetDone, map[string]any{
@@ -290,7 +290,7 @@ func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input
 		},
 	})
 	if err != nil {
-		return nil, ListOutput{}, coreerr.E("brain.list", "failed to send brain_list", err)
+		return nil, ListOutput{}, core.E("brain.list", "failed to send brain_list", err)
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{

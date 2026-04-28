@@ -9,8 +9,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -64,7 +62,7 @@ func writeStatus(wsDir string, status *WorkspaceStatus) error {
 
 func (s *PrepSubsystem) saveStatus(wsDir string, status *WorkspaceStatus) {
 	if err := writeStatus(wsDir, status); err != nil {
-		coreerr.Warn("failed to write workspace status", "workspace", core.PathBase(wsDir), "err", err)
+		core.Warn("failed to write workspace status", "workspace", core.PathBase(wsDir), "err", err)
 	}
 }
 
@@ -75,7 +73,7 @@ func readStatus(wsDir string) (*WorkspaceStatus, error) {
 	}
 	var s WorkspaceStatus
 	if r := core.JSONUnmarshal([]byte(data), &s); !r.OK {
-		return nil, coreerr.E("readStatus", "failed to parse status.json", nil)
+		return nil, core.E("readStatus", "failed to parse status.json", nil)
 	}
 	return &s, nil
 }

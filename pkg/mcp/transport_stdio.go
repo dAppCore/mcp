@@ -6,7 +6,7 @@ import (
 	"context"
 	"os"
 
-	"dappco.re/go/log"
+	core "dappco.re/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -14,10 +14,10 @@ import (
 // This is the default transport for CLI integrations.
 //
 //	if err := svc.ServeStdio(ctx); err != nil {
-//	    log.Fatal("stdio transport failed", "err", err)
+//	    core.Fatal("stdio transport failed", "err", err)
 //	}
 func (s *Service) ServeStdio(ctx context.Context) error {
-	s.logger.Info("MCP Stdio server starting", "user", log.Username())
+	s.logger.Info("MCP Stdio server starting", "user", core.Username())
 	return s.server.Run(ctx, &mcp.IOTransport{
 		Reader: os.Stdin,
 		Writer: sharedStdout,

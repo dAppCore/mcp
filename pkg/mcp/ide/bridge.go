@@ -5,13 +5,11 @@ package ide
 import (
 	"context"
 	core "dappco.re/go"
+	"dappco.re/go/ws"
+	"github.com/gorilla/websocket"
 	"net/http"
 	"sync"
 	"time"
-
-	coreerr "dappco.re/go/log"
-	"dappco.re/go/ws"
-	"github.com/gorilla/websocket"
 )
 
 // BridgeMessage is the wire format between the IDE bridge and Laravel.
@@ -70,7 +68,7 @@ func (b *Bridge) SetObserver(fn func(BridgeMessage)) {
 // AddObserver registers an additional bridge observer.
 // Observers are invoked in registration order after each inbound message.
 //
-//	bridge.AddObserver(func(msg BridgeMessage) { log.Println(msg.Type) })
+//	bridge.AddObserver(func(msg BridgeMessage) { core.Println(msg.Type) })
 func (b *Bridge) AddObserver(fn func(BridgeMessage)) {
 	if fn == nil {
 		return
@@ -123,7 +121,7 @@ func (b *Bridge) Send(msg BridgeMessage) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.conn == nil {
-		return coreerr.E("bridge.Send", "not connected", nil)
+		return core.E("bridge.Send", "not connected", nil)
 	}
 	msg.Timestamp = time.Now()
 	data := []byte(core.JSONMarshalString(msg))
@@ -141,7 +139,7 @@ func (b *Bridge) connectLoop(ctx context.Context) {
 		}
 
 		if err := b.dial(ctx); err != nil {
-			coreerr.Warn("ide bridge: connect failed", "err", err)
+			core.Warn("ide bridge: connect failed", "err", err)
 			select {
 			case <-ctx.Done():
 				return
@@ -178,7 +176,7 @@ func (b *Bridge) dial(ctx context.Context) error {
 	b.connected = true
 	b.mu.Unlock()
 
-	coreerr.Info("ide bridge: connected", "url", b.cfg.LaravelWSURL)
+	core.Info("ide bridge: connected", "url", b.cfg.LaravelWSURL)
 	return nil
 }
 
@@ -201,13 +199,13 @@ func (b *Bridge) readLoop(ctx context.Context) {
 
 		_, data, err := b.conn.ReadMessage()
 		if err != nil {
-			coreerr.Warn("ide bridge: read error", "err", err)
+			core.Warn("ide bridge: read error", "err", err)
 			return
 		}
 
 		var msg BridgeMessage
 		if r := core.JSONUnmarshal(data, &msg); !r.OK {
-			coreerr.Warn("ide bridge: unmarshal error")
+			core.Warn("ide bridge: unmarshal error")
 			continue
 		}
 
@@ -247,6 +245,6 @@ func (b *Bridge) dispatch(msg BridgeMessage) {
 	}
 
 	if err := b.hub.SendToChannel(channel, wsMsg); err != nil {
-		coreerr.Warn("ide bridge: dispatch failed", "channel", channel, "err", err)
+		core.Warn("ide bridge: dispatch failed", "channel", channel, "err", err)
 	}
 }

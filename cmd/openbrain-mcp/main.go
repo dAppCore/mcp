@@ -12,7 +12,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	coreerr "dappco.re/go/log"
 	"dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/brain"
 )
@@ -26,7 +25,7 @@ var (
 
 func main() {
 	if err := run(); err != nil {
-		coreerr.Error("openbrain-mcp failed", "err", err)
+		core.Error("openbrain-mcp failed", "err", err)
 		os.Exit(1)
 	}
 }
@@ -90,6 +89,6 @@ func shutdownService(svc *mcp.Service) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := svc.Shutdown(ctx); err != nil {
-		coreerr.Error("openbrain-mcp shutdown failed", "err", err)
+		core.Error("openbrain-mcp shutdown failed", "err", err)
 	}
 }
