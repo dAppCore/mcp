@@ -869,8 +869,10 @@ func TestSubsystem_Good_RegisterTools(t *testing.T) {
 // TestSubsystem_Good_StartBridgeNilHub verifies StartBridge is a no-op with nil hub.
 func TestSubsystem_Good_StartBridgeNilHub(t *testing.T) {
 	sub := New(nil, Config{})
-	// Should not panic
 	sub.StartBridge(context.Background())
+	if sub.Bridge() != nil {
+		t.Fatal("expected no bridge without a hub")
+	}
 }
 
 // TestSubsystem_Good_WithConfig verifies the Config DTO applies correctly.

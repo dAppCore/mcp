@@ -96,7 +96,9 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		var dispatchErr error
 		defer func() {
 			if dispatchErr != nil {
-				_ = s.unlockIssue(ctx, input.Org, input.Repo, input.Issue, issue.Labels)
+				if err := s.unlockIssue(ctx, input.Org, input.Repo, input.Issue, issue.Labels); err != nil {
+					core.Error("agentic: failed to unlock issue after dispatch error", "err", err)
+				}
 			}
 		}()
 

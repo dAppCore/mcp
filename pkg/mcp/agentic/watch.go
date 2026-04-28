@@ -76,7 +76,7 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 	total := float64(len(targets))
 
 	sendProgress := func(current float64, status WorkspaceStatus) {
-		_ = notifier.Send(current, total, core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent))
+		sendProgressBestEffort(notifier, current, total, core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent))
 	}
 
 	remaining := make(map[string]struct{}, len(targets))

@@ -276,13 +276,13 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 		Env:     input.Env,
 	}
 
-	_ = progress.Send(0, 2, "starting process")
+	sendToolProgress(progress, 0, 2, "starting process")
 	proc, err := s.processService.StartWithOptions(ctx, opts)
 	if err != nil {
 		core.Error("mcp: process run start failed", "command", input.Command, "err", err)
 		return nil, ProcessRunOutput{}, core.E("processRun", "failed to start process", err)
 	}
-	_ = progress.Send(1, 2, "process started")
+	sendToolProgress(progress, 1, 2, "process started")
 
 	info := proc.Info()
 	s.recordProcessRuntime(proc.ID, processRuntime{
@@ -303,11 +303,11 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 	// Wait for completion (context-aware).
 	select {
 	case <-ctx.Done():
-		_ = progress.Send(2, 2, "process cancelled")
+		sendToolProgress(progress, 2, 2, "process cancelled")
 		return nil, ProcessRunOutput{}, core.E("processRun", "cancelled", ctx.Err())
 	case <-proc.Done():
 	}
-	_ = progress.Send(2, 2, "process completed")
+	sendToolProgress(progress, 2, 2, "process completed")
 
 	return nil, ProcessRunOutput{
 		ID:       proc.ID,
@@ -315,6 +315,12 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 		Output:   proc.Output(),
 		Command:  proc.Command,
 	}, nil
+}
+
+func sendToolProgress(progress ProgressNotifier, current float64, total float64, message string) {
+	if err := progress.Send(current, total, message); err != nil {
+		core.Error("mcp: failed to send tool progress", "err", err)
+	}
 }
 
 // processStop handles the process_stop tool call.

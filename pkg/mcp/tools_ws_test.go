@@ -65,7 +65,13 @@ func TestWSStartOutput_Good(t *testing.T) {
 // TestWSInfoInput_Good verifies the WSInfoInput struct exists (it's empty).
 func TestWSInfoInput_Good(t *testing.T) {
 	input := WSInfoInput{}
-	_ = input // Just verify it compiles
+	s, err := New(Options{WSHub: ws.NewHub()})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	if input != (WSInfoInput{}) || s.wsHub == nil {
+		t.Fatal("expected empty input and configured hub")
+	}
 }
 
 // TestWSInfoOutput_Good verifies the WSInfoOutput struct has expected fields.

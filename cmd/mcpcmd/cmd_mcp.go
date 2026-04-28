@@ -120,7 +120,9 @@ func runServe() error {
 		return core.E("mcpcmd.runServe", "create MCP service", err)
 	}
 	defer func() {
-		_ = shutdownMCPService(svc, context.Background())
+		if err := shutdownMCPService(svc, context.Background()); err != nil {
+			core.Error("mcp serve: shutdown failed", "err", err)
+		}
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())

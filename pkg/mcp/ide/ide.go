@@ -99,6 +99,15 @@ func (s *Subsystem) StartBridge(ctx context.Context) {
 	}
 }
 
+func (s *Subsystem) sendBridgeBestEffort(msg BridgeMessage) {
+	if s == nil || s.bridge == nil {
+		return
+	}
+	if err := s.bridge.Send(msg); err != nil {
+		s.recordActivity("bridge_send_error", err.Error())
+	}
+}
+
 func (s *Subsystem) addSession(session Session) {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()

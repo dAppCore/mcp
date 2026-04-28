@@ -529,23 +529,13 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 // --- Stdio Transport Tests ---
 
 func TestStdioTransport_Documented_Skip(t *testing.T) {
-	// The MCP SDK's StdioTransport binds directly to os.Stdin and os.Stdout,
-	// with no way to inject custom io.Reader/io.Writer. Testing stdio transport
-	// would require spawning the binary as a subprocess and piping JSON-RPC
-	// messages through its stdin/stdout.
-	//
-	// Since the core MCP protocol handling is identical across all transports
-	// (the transport layer only handles framing), and we thoroughly test the
-	// protocol via TCP and Unix socket e2e tests, the stdio transport is
-	// effectively covered. The only untested code path is the StdioTransport
-	// adapter itself, which is a thin wrapper in the upstream SDK.
-	//
-	// If process-level testing is needed in the future, the approach would be:
-	//   1. Build the binary: `go build -o /tmp/mcp-test ./cmd/...`
-	//   2. Spawn it: exec.Command("/tmp/mcp-test", "mcp", "serve")
-	//   3. Pipe JSON-RPC to stdin, read from stdout
-	//   4. Verify responses match expected protocol
-	t.Skip("stdio transport requires process spawning; protocol is covered by TCP and Unix e2e tests")
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	if s.Server() == nil {
+		t.Fatal("expected stdio-capable service to expose an MCP server")
+	}
 }
 
 // --- Helper: verify a specific tool exists in tools/list response ---

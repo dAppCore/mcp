@@ -157,7 +157,9 @@ func NewProcessEventCallback(hub *ws.Hub) *ProcessEventCallback {
 //	cb.OnProcessOutput("proc-abc123", "PASS\n")
 func (c *ProcessEventCallback) OnProcessOutput(processID string, line string) {
 	if c.hub != nil {
-		_ = c.hub.SendProcessOutput(processID, line)
+		if err := c.hub.SendProcessOutput(processID, line); err != nil {
+			core.Error("mcp: failed to send process output over websocket", "err", err)
+		}
 	}
 }
 
@@ -166,6 +168,8 @@ func (c *ProcessEventCallback) OnProcessOutput(processID string, line string) {
 //	cb.OnProcessStatus("proc-abc123", "exited", 0)
 func (c *ProcessEventCallback) OnProcessStatus(processID string, status string, exitCode int) {
 	if c.hub != nil {
-		_ = c.hub.SendProcessStatus(processID, status, exitCode)
+		if err := c.hub.SendProcessStatus(processID, status, exitCode); err != nil {
+			core.Error("mcp: failed to send process status over websocket", "err", err)
+		}
 	}
 }

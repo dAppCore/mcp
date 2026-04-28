@@ -65,6 +65,9 @@ func Register(c *core.Core) core.Result {
 //	core-agent mcp    — start MCP server on stdio
 //	core-agent serve  — start MCP server on HTTP
 func (s *Service) OnStartup(ctx context.Context) core.Result {
+	if s == nil || s.ServiceRuntime == nil {
+		return core.Ok(nil)
+	}
 	c := s.Core()
 	if c == nil {
 		return core.Ok(nil)

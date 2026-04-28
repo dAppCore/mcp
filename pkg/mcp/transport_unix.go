@@ -26,14 +26,20 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 		return err
 	}
 	defer func() {
-		_ = listener.Close()
-		_ = localMedium.Delete(socketPath)
+		if err := listener.Close(); err != nil {
+			s.logger.Warn("Failed to close Unix listener", "path", socketPath, "err", err)
+		}
+		if err := localMedium.Delete(socketPath); err != nil {
+			s.logger.Warn("Failed to remove Unix socket", "path", socketPath, "err", err)
+		}
 	}()
 
 	// Close listener when context is cancelled to unblock Accept
 	go func() {
 		<-ctx.Done()
-		_ = listener.Close()
+		if err := listener.Close(); err != nil {
+			s.logger.Warn("Failed to close Unix listener on cancellation", "path", socketPath, "err", err)
+		}
 	}()
 
 	s.logger.Security("MCP Unix server listening", "path", socketPath, "user", core.Username())

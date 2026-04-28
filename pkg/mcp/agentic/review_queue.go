@@ -233,7 +233,7 @@ func (s *PrepSubsystem) storeReviewOutput(repoDir, repo, reviewer, output string
 	}
 
 	name := core.Sprintf("%s-%s-%d.json", repo, reviewer, time.Now().Unix())
-	_ = writeAtomic(core.Path(dataDir, name), string(data))
+	writeAtomicBestEffort(core.Path(dataDir, name), string(data))
 }
 
 func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
@@ -243,7 +243,7 @@ func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
 	if err != nil {
 		return
 	}
-	_ = writeAtomic(path, string(data))
+	writeAtomicBestEffort(path, string(data))
 }
 
 func (s *PrepSubsystem) loadRateLimitState() *RateLimitInfo {

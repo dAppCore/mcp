@@ -513,9 +513,11 @@ func TestWebviewConsoleMessage_Good(t *testing.T) {
 
 // TestWebviewDisconnectInput_Good verifies the WebviewDisconnectInput struct exists.
 func TestWebviewDisconnectInput_Good(t *testing.T) {
-	// WebviewDisconnectInput has no fields
 	input := WebviewDisconnectInput{}
-	_ = input // Just verify the struct exists
+	msg := WebviewDisconnectInput{}
+	if input != msg {
+		t.Fatal("expected zero-value disconnect input")
+	}
 }
 
 // TestWebviewDisconnectOutput_Good verifies the WebviewDisconnectOutput struct has expected fields.

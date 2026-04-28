@@ -184,7 +184,9 @@ func (s *Service) OnStartup(context.Context) error { return nil }
 
 func (s *Service) OnShutdown(context.Context) error {
 	for _, proc := range s.List() {
-		_ = proc.Shutdown()
+		if err := proc.Shutdown(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

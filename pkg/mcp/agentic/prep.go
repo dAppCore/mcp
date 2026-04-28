@@ -272,20 +272,20 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := core.Path(repoPath, "CLAUDE.md")
 	if data, err := coreio.Local.Read(claudeMdPath); err == nil {
-		_ = writeAtomic(core.Path(wsDir, "src", "CLAUDE.md"), data)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "CLAUDE.md"), data)
 		out.ClaudeMd = true
 	}
 	// Copy GEMINI.md from core/agent (ethics framework for all agents)
 	agentGeminiMd := core.Path(s.codePath, "core", "agent", "GEMINI.md")
 	if data, err := coreio.Local.Read(agentGeminiMd); err == nil {
-		_ = writeAtomic(core.Path(wsDir, "src", "GEMINI.md"), data)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "GEMINI.md"), data)
 	}
 
 	// Copy persona if specified
 	if persona != "" {
 		personaPath := core.Path(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
-			_ = writeAtomic(core.Path(wsDir, "src", "PERSONA.md"), data)
+			writeAtomicBestEffort(core.Path(wsDir, "src", "PERSONA.md"), data)
 		}
 	}
 
@@ -295,7 +295,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	} else if input.Task != "" {
 		todo := core.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		_ = writeAtomic(core.Path(wsDir, "src", "TODO.md"), todo)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "TODO.md"), todo)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -456,7 +456,7 @@ Do NOT push. Commit only — a reviewer will verify and push.
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	_ = writeAtomic(core.Path(wsDir, "src", "PROMPT.md"), prompt)
+	writeAtomicBestEffort(core.Path(wsDir, "src", "PROMPT.md"), prompt)
 }
 
 // --- Plan template rendering ---
@@ -534,7 +534,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
 	}
 
-	_ = writeAtomic(core.Path(wsDir, "src", "PLAN.md"), plan.String())
+	writeAtomicBestEffort(core.Path(wsDir, "src", "PLAN.md"), plan.String())
 }
 
 // --- Helpers (unchanged) ---
@@ -609,7 +609,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		}
 		filename := sanitizeFilename(page.Title) + ".md"
 
-		_ = writeAtomic(core.Path(wsDir, "src", "kb", filename), string(content))
+		writeAtomicBestEffort(core.Path(wsDir, "src", "kb", filename), string(content))
 		count++
 	}
 
@@ -623,7 +623,7 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	for _, file := range specFiles {
 		src := core.Path(s.specsPath, file)
 		if data, err := coreio.Local.Read(src); err == nil {
-			_ = writeAtomic(core.Path(wsDir, "src", "specs", file), data)
+			writeAtomicBestEffort(core.Path(wsDir, "src", "specs", file), data)
 			count++
 		}
 	}
@@ -686,7 +686,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		content.WriteString(core.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	_ = writeAtomic(core.Path(wsDir, "src", "CONTEXT.md"), content.String())
+	writeAtomicBestEffort(core.Path(wsDir, "src", "CONTEXT.md"), content.String())
 	return len(result.Memories)
 }
 
@@ -723,7 +723,7 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += core.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		_ = writeAtomic(core.Path(wsDir, "src", "CONSUMERS.md"), content)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "CONSUMERS.md"), content)
 	}
 
 	return len(consumers)
@@ -740,7 +740,7 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	lines := core.Split(core.Trim(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		_ = writeAtomic(core.Path(wsDir, "src", "RECENT.md"), content)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "RECENT.md"), content)
 	}
 
 	return len(lines)
@@ -776,5 +776,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += core.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	_ = writeAtomic(core.Path(wsDir, "src", "TODO.md"), content)
+	writeAtomicBestEffort(core.Path(wsDir, "src", "TODO.md"), content)
 }

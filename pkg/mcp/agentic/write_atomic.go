@@ -29,8 +29,12 @@ func writeAtomic(path, content string) error {
 	tmpPath := tmp.Name()
 
 	cleanup := func() {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
+		if err := tmp.Close(); err != nil {
+			core.Error("agentic: close temporary file failed", "path", tmpPath, "err", err)
+		}
+		if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+			core.Error("agentic: remove temporary file failed", "path", tmpPath, "err", err)
+		}
 	}
 
 	if _, err := tmp.WriteString(content); err != nil {
@@ -42,12 +46,22 @@ func writeAtomic(path, content string) error {
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
+		if removeErr := os.Remove(tmpPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			core.Error("agentic: remove temporary file after close failure failed", "path", tmpPath, "err", removeErr)
+		}
 		return err
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
+		if removeErr := os.Remove(tmpPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			core.Error("agentic: remove temporary file after rename failure failed", "path", tmpPath, "err", removeErr)
+		}
 		return err
 	}
 	return nil
+}
+
+func writeAtomicBestEffort(path, content string) {
+	if err := writeAtomic(path, content); err != nil {
+		core.Error("agentic: atomic write failed", "path", path, "err", err)
+	}
 }

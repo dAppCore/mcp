@@ -176,7 +176,7 @@ func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input
 	if s.bridge != nil {
 		// Request history via bridge when available; the local cache still
 		// provides an immediate response in headless mode.
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type:      "chat_history",
 			SessionID: input.SessionID,
 			Data:      map[string]any{"limit": input.Limit},
@@ -192,7 +192,7 @@ func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input
 // backend when the bridge is available.
 func (s *Subsystem) sessionList(_ context.Context, _ *mcp.CallToolRequest, _ SessionListInput) (*mcp.CallToolResult, SessionListOutput, error) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{Type: "session_list"})
+		s.sendBridgeBestEffort(BridgeMessage{Type: "session_list"})
 	}
 	return nil, SessionListOutput{Sessions: s.listSessions()}, nil
 }
@@ -225,7 +225,7 @@ func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, inp
 // Laravel backend when the bridge is available.
 func (s *Subsystem) planStatus(_ context.Context, _ *mcp.CallToolRequest, input PlanStatusInput) (*mcp.CallToolResult, PlanStatusOutput, error) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type:      "plan_status",
 			SessionID: input.SessionID,
 		})

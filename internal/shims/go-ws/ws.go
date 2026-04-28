@@ -51,7 +51,9 @@ func (h *Hub) Handler() http.HandlerFunc {
 			h.mu.Lock()
 			delete(h.clients, conn)
 			h.mu.Unlock()
-			_ = conn.Close()
+			if err := conn.Close(); err != nil {
+				return
+			}
 		}()
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
@@ -69,7 +71,9 @@ func (h *Hub) SendToChannel(channel string, msg Message) error {
 	}
 	h.channels[channel] = append(h.channels[channel], msg)
 	for conn := range h.clients {
-		_ = conn.WriteJSON(msg)
+		if err := conn.WriteJSON(msg); err != nil {
+			return err
+		}
 	}
 	return nil
 }

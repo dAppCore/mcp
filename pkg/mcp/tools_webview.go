@@ -296,7 +296,9 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 
 	// Close existing connection if any
 	if webviewInstance != nil {
-		_ = webviewInstance.Close()
+		if err := webviewInstance.Close(); err != nil {
+			core.Error("mcp: failed to close existing webview connection", "err", err)
+		}
 		webviewInstance = nil
 	}
 

@@ -218,13 +218,17 @@ func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input W
 	}
 
 	client.writeMu.Lock()
-	_ = client.conn.WriteControl(
+	if err := client.conn.WriteControl(
 		websocket.CloseMessage,
 		websocket.FormatCloseMessage(code, reason),
 		time.Now().Add(5*time.Second),
-	)
+	); err != nil {
+		core.Error("mcp: websocket close control failed", "id", input.ID, "err", err)
+	}
 	client.writeMu.Unlock()
-	_ = client.conn.Close()
+	if err := client.conn.Close(); err != nil {
+		core.Error("mcp: websocket close failed", "id", input.ID, "err", err)
+	}
 
 	return nil, WSCloseOutput{
 		Success: true,
@@ -257,7 +261,9 @@ func resetWSClients() {
 	wsClientMu.Lock()
 	defer wsClientMu.Unlock()
 	for id, client := range wsClientRegistry {
-		_ = client.conn.Close()
+		if err := client.conn.Close(); err != nil {
+			core.Error("mcp: websocket registry close failed", "id", id, "err", err)
+		}
 		delete(wsClientRegistry, id)
 	}
 }

@@ -106,12 +106,18 @@ func (s *Service) ServeTCP(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = t.listener.Close() }()
+	defer func() {
+		if err := t.listener.Close(); err != nil {
+			core.Error("mcp: TCP listener close failed", "err", err)
+		}
+	}()
 
 	// Close listener when context is cancelled to unblock Accept
 	go func() {
 		<-ctx.Done()
-		_ = t.listener.Close()
+		if err := t.listener.Close(); err != nil {
+			core.Error("mcp: TCP listener cancellation close failed", "err", err)
+		}
 	}()
 	diagPrintf("MCP TCP server listening on %s\n", t.listener.Addr().String())
 
@@ -182,6 +188,12 @@ func (c *connConnection) Read(ctx context.Context) (jsonrpc.Message, error) {
 }
 
 func (c *connConnection) Write(ctx context.Context, msg jsonrpc.Message) error {
+	if c == nil || c.conn == nil {
+		return core.E("mcp.connConnection.Write", "connection is not available", nil)
+	}
+	if msg == nil {
+		return core.E("mcp.connConnection.Write", "message is required", nil)
+	}
 	data, err := jsonrpc.EncodeMessage(msg)
 	if err != nil {
 		return err

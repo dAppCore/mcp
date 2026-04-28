@@ -37,6 +37,9 @@ type lockedWriter struct {
 }
 
 func (lw *lockedWriter) Write(p []byte) (int, error) {
+	if lw == nil || lw.w == nil {
+		return 0, core.E("mcp.lockedWriter.Write", "writer is not available", nil)
+	}
 	lw.mu.Lock()
 	defer lw.mu.Unlock()
 	return lw.w.Write(p)

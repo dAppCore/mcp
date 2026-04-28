@@ -352,10 +352,12 @@ func (p *BrainProvider) emitEvent(channel string, data any) {
 	if p.hub == nil {
 		return
 	}
-	_ = p.hub.SendToChannel(channel, ws.Message{
+	if err := p.hub.SendToChannel(channel, ws.Message{
 		Type: ws.TypeEvent,
 		Data: data,
-	})
+	}); err != nil {
+		return
+	}
 }
 
 func (p *BrainProvider) handleBridgeMessage(msg ide.BridgeMessage) {

@@ -75,7 +75,7 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 	// Health check (no auth)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+		writeHTTPJSON(w, map[string]any{"status": "ok"})
 	})
 
 	listener, err := net.Listen("tcp", addr)
@@ -93,7 +93,9 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			core.Error("mcp: HTTP server shutdown failed", "err", err)
+		}
 	}()
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
@@ -161,7 +163,7 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if apiToken == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(api.Fail("unauthorized", "authentication is not configured"))
+		writeHTTPJSON(w, api.Fail("unauthorized", "authentication is not configured"))
 		return
 	}
 
@@ -169,7 +171,7 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(api.Fail("invalid_request", "invalid JSON payload"))
+		writeHTTPJSON(w, api.Fail("invalid_request", "invalid JSON payload"))
 		return
 	}
 
@@ -180,14 +182,14 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if providedToken == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(api.Fail("invalid_request", "missing token"))
+		writeHTTPJSON(w, api.Fail("invalid_request", "missing token"))
 		return
 	}
 
 	if _, err := parseAuthClaims("Bearer "+providedToken, apiToken); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(api.Fail("unauthorized", "invalid API token"))
+		writeHTTPJSON(w, api.Fail("unauthorized", "invalid API token"))
 		return
 	}
 
@@ -205,12 +207,12 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(api.Fail("token_error", "failed to mint token"))
+		writeHTTPJSON(w, api.Fail("token_error", "failed to mint token"))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(mcpAuthExchangeResponse{
+	writeHTTPJSON(w, mcpAuthExchangeResponse{
 		AccessToken: minted,
 		TokenType:   "Bearer",
 		ExpiresIn:   int64(cfg.ttl.Seconds()),
@@ -281,6 +283,12 @@ func handleMCPDiscovery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(api.Fail("server_error", "failed to encode discovery payload"))
+		writeHTTPJSON(w, api.Fail("server_error", "failed to encode discovery payload"))
+	}
+}
+
+func writeHTTPJSON(w http.ResponseWriter, value any) {
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		core.Error("mcp: failed to encode HTTP JSON", "err", err)
 	}
 }

@@ -164,7 +164,7 @@ func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest,
 	repos := s.buildRepoCount()
 
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{Type: "dashboard_overview"})
+		s.sendBridgeBestEffort(BridgeMessage{Type: "dashboard_overview"})
 	}
 
 	return nil, DashboardOverviewOutput{
@@ -182,7 +182,7 @@ func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest,
 // backend when the bridge is available.
 func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest, input DashboardActivityInput) (*mcp.CallToolResult, DashboardActivityOutput, error) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "dashboard_activity",
 			Data: map[string]any{"limit": input.Limit},
 		})
@@ -198,7 +198,7 @@ func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, 
 		period = "24h"
 	}
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "dashboard_metrics",
 			Data: map[string]any{"period": period},
 		})
@@ -310,7 +310,7 @@ func (s *Subsystem) dashboardUpdate(ctx context.Context, _ *mcp.CallToolRequest,
 	// Push the update over the Laravel bridge when available so web clients
 	// stay in sync with desktop tooling.
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "dashboard_update",
 			Data: snapshot,
 		})
