@@ -25,9 +25,9 @@ func newTestProcessService(t *testing.T) *process.Service {
 
 	resultFrom := func(err error) core.Result {
 		if err != nil {
-			return core.Result{Value: err}
+			return core.Fail(err)
 		}
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	}
 	c.Service("process", core.Service{
 		OnStart: func() core.Result { return resultFrom(svc.OnStartup(context.Background())) },

@@ -76,9 +76,9 @@ func runServeAction(opts core.Options) core.Result {
 	unrestrictedFlag = opts.Bool("unrestricted")
 
 	if err := runServe(); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // firstNonEmpty returns the first non-empty string argument.
