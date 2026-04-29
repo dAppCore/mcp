@@ -1,15 +1,11 @@
 package process
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	core "dappco.re/go"
@@ -77,19 +73,27 @@ type Info struct {
 
 type captureBuffer struct {
 	mu  sync.Mutex
-	buf bytes.Buffer
+	buf captureBytes
 }
 
-func (b *captureBuffer) Write(p []byte) (int, error) {
+type captureBytes []byte
+
+func (b captureBytes) Len() int { return len(b) }
+
+func (b *captureBuffer) Write(p []byte) (
+	int,
+	error,
+) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.buf.Write(p)
+	b.buf = append(b.buf, p...)
+	return len(p), nil
 }
 
 func (b *captureBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.buf.String()
+	return string(b.buf)
 }
 
 type Process struct {
@@ -100,7 +104,7 @@ type Process struct {
 	StartedAt time.Time
 	ExitCode  int
 
-	cmd    *exec.Cmd
+	cmd    *core.Cmd
 	stdin  io.WriteCloser
 	output captureBuffer
 	done   chan struct{}
@@ -143,11 +147,13 @@ func (p *Process) Done() <-chan struct{} {
 
 func (p *Process) Output() string { return p.output.String() }
 
-func (p *Process) Shutdown() error {
+func (p *Process) Shutdown() (
+	_ error, // result
+) {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
-	if err := p.cmd.Process.Signal(os.Interrupt); err != nil {
+	if err := p.cmd.Process.Signal(syscall.SIGINT); err != nil {
 		return p.cmd.Process.Kill()
 	}
 	select {
@@ -158,9 +164,13 @@ func (p *Process) Shutdown() error {
 	}
 }
 
-func (p *Process) SendInput(input string) error {
+func (p *Process) SendInput(
+	input string,
+) (
+	_ error, // result
+) {
 	if p.stdin == nil {
-		return errors.New("stdin unavailable")
+		return core.NewError("stdin unavailable")
 	}
 	_, err := io.WriteString(p.stdin, input)
 	return err
@@ -174,7 +184,10 @@ type Service struct {
 
 type Options struct{}
 
-func NewService(Options) func(*core.Core) (any, error) {
+func NewService(Options) func(*core.Core) (
+	any,
+	error,
+) {
 	return func(*core.Core) (any, error) {
 		return &Service{}, nil
 	}
@@ -182,7 +195,11 @@ func NewService(Options) func(*core.Core) (any, error) {
 
 func (s *Service) OnStartup(context.Context) error { return nil }
 
-func (s *Service) OnShutdown(context.Context) error {
+func (s *Service) OnShutdown(
+	context.Context,
+) (
+	_ error, // result
+) {
 	for _, proc := range s.List() {
 		if err := proc.Shutdown(); err != nil {
 			return err
@@ -191,20 +208,23 @@ func (s *Service) OnShutdown(context.Context) error {
 	return nil
 }
 
-func (s *Service) StartWithOptions(ctx context.Context, opts RunOptions) (*Process, error) {
+func (s *Service) StartWithOptions(ctx context.Context, opts RunOptions) (
+	*Process,
+	error,
+) {
 	if opts.Command == "" {
-		return nil, errors.New("command cannot be empty")
+		return nil, core.NewError("command cannot be empty")
 	}
-	cmd := exec.CommandContext(ctx, opts.Command, opts.Args...)
+	cmd := newCommand(ctx, opts.Command, opts.Args...)
 	if opts.Dir != "" {
 		cmd.Dir = opts.Dir
 	}
 	if len(opts.Env) > 0 {
-		cmd.Env = append(os.Environ(), opts.Env...)
+		cmd.Env = append(core.Environ(), opts.Env...)
 	}
 
 	proc := &Process{
-		ID:        fmt.Sprintf("proc-%d", s.counter.Add(1)),
+		ID:        core.Sprintf("proc-%d", s.counter.Add(1)),
 		Command:   opts.Command,
 		Args:      append([]string(nil), opts.Args...),
 		Dir:       opts.Dir,
@@ -239,8 +259,7 @@ func (p *Process) wait() {
 	defer p.mu.Unlock()
 	p.duration = time.Since(p.StartedAt)
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := err.(interface{ ExitCode() int }); ok {
 			p.ExitCode = exitErr.ExitCode()
 		} else {
 			p.ExitCode = -1
@@ -254,15 +273,45 @@ func (p *Process) wait() {
 	close(p.done)
 }
 
-func (s *Service) Get(id string) (*Process, error) {
+func (s *Service) Get(id string) (
+	*Process,
+	error,
+) {
 	s.ensure()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	proc, ok := s.procs[id]
 	if !ok {
-		return nil, errors.New("process not found")
+		return nil, core.NewError("process not found")
 	}
 	return proc, nil
+}
+
+func newCommand(ctx context.Context, command string, args ...string) *core.Cmd {
+	if core.Contains(command, "/") {
+		return &core.Cmd{Path: command, Args: append([]string{command}, args...)}
+	}
+	script := command
+	for _, arg := range args {
+		script = core.Concat(script, " ", shellQuote(arg))
+	}
+	cmd := &core.Cmd{Path: "/bin/sh", Args: []string{"sh", "-c", script}}
+	go func() {
+		<-ctx.Done()
+		if cmd.Process != nil {
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				core.Error("process kill failed", "err", killErr)
+			}
+		}
+	}()
+	return cmd
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + core.Replace(value, "'", "'\"'\"'") + "'"
 }
 
 func (s *Service) List() []*Process {
@@ -287,7 +336,11 @@ func (s *Service) Running() []*Process {
 	return out
 }
 
-func (s *Service) Kill(id string) error {
+func (s *Service) Kill(
+	id string,
+) (
+	_ error, // result
+) {
 	proc, err := s.Get(id)
 	if err != nil {
 		return err
@@ -304,7 +357,10 @@ func (s *Service) Kill(id string) error {
 	return nil
 }
 
-func (s *Service) Output(id string) (string, error) {
+func (s *Service) Output(id string) (
+	string,
+	error,
+) {
 	proc, err := s.Get(id)
 	if err != nil {
 		return "", err

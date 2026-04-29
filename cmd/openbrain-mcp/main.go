@@ -6,12 +6,9 @@ package main
 import (
 	"context"
 	"flag"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	core "dappco.re/go"
+	. "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/brain"
 )
@@ -25,19 +22,21 @@ var (
 
 func main() {
 	if err := run(); err != nil {
-		core.Error("openbrain-mcp failed", "err", err)
-		os.Exit(1)
+		Error("openbrain-mcp failed", "err", err)
+		Exit(1)
 	}
 }
 
-func run() error {
+func run() (
+	_ error, // result
+) {
 	flag.Parse()
 
 	if err := configureBrainEnv(*brainURLFlag, *apiKeyFlag); err != nil {
 		return err
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 
 	svc, err := mcp.New(mcp.Options{
@@ -46,49 +45,56 @@ func run() error {
 		},
 	})
 	if err != nil {
-		return core.E("openbrain-mcp.run", "create MCP service", err)
+		return E("openbrain-mcp.run", "create MCP service", err)
 	}
 	defer shutdownService(svc)
 
-	if err := svc.ServeStdio(ctx); err != nil && !core.Is(err, context.Canceled) {
-		return core.E("openbrain-mcp.run", "serve stdio", err)
+	if err := svc.ServeStdio(ctx); err != nil && !Is(err, context.Canceled) {
+		return E("openbrain-mcp.run", "serve stdio", err)
 	}
 	return nil
 }
 
-func configureBrainEnv(brainURL, apiKey string) error {
+func configureBrainEnv(
+	brainURL,
+	apiKey string,
+) (
+	_ error, // result
+) {
 	baseURL := directBrainBaseURL(brainURL)
 	if baseURL == "" {
 		baseURL = directBrainBaseURL(defaultBrainURL)
 	}
-	if err := os.Setenv("CORE_BRAIN_URL", baseURL); err != nil {
-		return core.E("openbrain-mcp.configure", "set CORE_BRAIN_URL", err)
+	if r := Setenv("CORE_BRAIN_URL", baseURL); !r.OK {
+		err, _ := r.Value.(error)
+		return E("openbrain-mcp.configure", "set CORE_BRAIN_URL", err)
 	}
 
-	key := core.Trim(apiKey)
+	key := Trim(apiKey)
 	if key == "" {
-		key = core.Trim(core.Env("OPENBRAIN_API_KEY"))
+		key = Trim(Env("OPENBRAIN_API_KEY"))
 	}
 	if key == "" {
 		return nil
 	}
-	if err := os.Setenv("CORE_BRAIN_KEY", key); err != nil {
-		return core.E("openbrain-mcp.configure", "set CORE_BRAIN_KEY", err)
+	if r := Setenv("CORE_BRAIN_KEY", key); !r.OK {
+		err, _ := r.Value.(error)
+		return E("openbrain-mcp.configure", "set CORE_BRAIN_KEY", err)
 	}
 	return nil
 }
 
 func directBrainBaseURL(brainURL string) string {
-	baseURL := core.Trim(brainURL)
-	baseURL = core.TrimSuffix(baseURL, "/")
-	baseURL = core.TrimSuffix(baseURL, "/v1/brain")
-	return core.TrimSuffix(baseURL, "/")
+	baseURL := Trim(brainURL)
+	baseURL = TrimSuffix(baseURL, "/")
+	baseURL = TrimSuffix(baseURL, "/v1/brain")
+	return TrimSuffix(baseURL, "/")
 }
 
 func shutdownService(svc *mcp.Service) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := svc.Shutdown(ctx); err != nil {
-		core.Error("openbrain-mcp shutdown failed", "err", err)
+		Error("openbrain-mcp shutdown failed", "err", err)
 	}
 }

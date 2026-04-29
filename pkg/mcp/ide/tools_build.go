@@ -89,7 +89,11 @@ func (s *Subsystem) registerBuildTools(svc *coremcp.Service) {
 
 // buildStatus returns a local best-effort build status and refreshes the
 // Laravel backend when the bridge is available.
-func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input BuildStatusInput) (*mcp.CallToolResult, BuildStatusOutput, error) {
+func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input BuildStatusInput) (
+	*mcp.CallToolResult,
+	BuildStatusOutput,
+	error,
+) {
 	if s.bridge != nil {
 		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "build_status",
@@ -107,7 +111,11 @@ func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input
 
 // buildList returns the local build list snapshot and refreshes the Laravel
 // backend when the bridge is available.
-func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input BuildListInput) (*mcp.CallToolResult, BuildListOutput, error) {
+func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input BuildListInput) (
+	*mcp.CallToolResult,
+	BuildListOutput,
+	error,
+) {
 	if s.bridge != nil {
 		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "build_list",
@@ -119,7 +127,11 @@ func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input B
 
 // buildLogs returns the local build log snapshot and refreshes the Laravel
 // backend when the bridge is available.
-func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input BuildLogsInput) (*mcp.CallToolResult, BuildLogsOutput, error) {
+func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input BuildLogsInput) (
+	*mcp.CallToolResult,
+	BuildLogsOutput,
+	error,
+) {
 	if s.bridge != nil {
 		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "build_logs",

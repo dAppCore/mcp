@@ -6,10 +6,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"github.com/gorilla/websocket"
 )
 
@@ -26,8 +26,9 @@ func TestToolsWSClient_WSConnect_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, out, err := svc.wsConnect(context.Background(), nil, WSConnectInput{
-		URL:     "ws" + strings.TrimPrefix(server.URL, "http") + "/ws",
+	WSConnect := svc.wsConnect
+	_, out, err := WSConnect(context.Background(), nil, WSConnectInput{
+		URL:     "ws" + core.TrimPrefix(server.URL, "http") + "/ws",
 		Timeout: 5,
 	})
 	if err != nil {
@@ -36,7 +37,7 @@ func TestToolsWSClient_WSConnect_Good(t *testing.T) {
 	if !out.Success {
 		t.Fatal("expected Success=true")
 	}
-	if !strings.HasPrefix(out.ID, "ws-") {
+	if !core.HasPrefix(out.ID, "ws-") {
 		t.Fatalf("expected ID prefix 'ws-', got %q", out.ID)
 	}
 
@@ -55,7 +56,8 @@ func TestToolsWSClient_WSConnect_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = svc.wsConnect(context.Background(), nil, WSConnectInput{})
+	WSConnect := svc.wsConnect
+	_, _, err = WSConnect(context.Background(), nil, WSConnectInput{})
 	if err == nil {
 		t.Fatal("expected error for empty URL")
 	}
@@ -74,15 +76,17 @@ func TestToolsWSClient_WSSendClose_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, conn, err := svc.wsConnect(context.Background(), nil, WSConnectInput{
-		URL:     "ws" + strings.TrimPrefix(server.URL, "http") + "/ws",
+	WSConnect := svc.wsConnect
+	_, conn, err := WSConnect(context.Background(), nil, WSConnectInput{
+		URL:     "ws" + core.TrimPrefix(server.URL, "http") + "/ws",
 		Timeout: 5,
 	})
 	if err != nil {
 		t.Fatalf("wsConnect failed: %v", err)
 	}
 
-	_, sendOut, err := svc.wsSend(context.Background(), nil, WSSendInput{
+	WSSend := svc.wsSend
+	_, sendOut, err := WSSend(context.Background(), nil, WSSendInput{
 		ID:      conn.ID,
 		Message: "ping",
 	})
@@ -96,7 +100,8 @@ func TestToolsWSClient_WSSendClose_Good(t *testing.T) {
 		t.Fatalf("expected 4 bytes written, got %d", sendOut.Bytes)
 	}
 
-	_, closeOut, err := svc.wsClose(context.Background(), nil, WSCloseInput{ID: conn.ID})
+	WSSendClose := svc.wsClose
+	_, closeOut, err := WSSendClose(context.Background(), nil, WSCloseInput{ID: conn.ID})
 	if err != nil {
 		t.Fatalf("wsClose failed: %v", err)
 	}
@@ -118,7 +123,8 @@ func TestToolsWSClient_WSSend_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = svc.wsSend(context.Background(), nil, WSSendInput{ID: "ws-missing", Message: "x"})
+	WSSend := svc.wsSend
+	_, _, err = WSSend(context.Background(), nil, WSSendInput{ID: "ws-missing", Message: "x"})
 	if err == nil {
 		t.Fatal("expected error for unknown connection ID")
 	}
@@ -133,7 +139,8 @@ func TestToolsWSClient_WSClose_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = svc.wsClose(context.Background(), nil, WSCloseInput{ID: "ws-missing"})
+	WSClose := svc.wsClose
+	_, _, err = WSClose(context.Background(), nil, WSCloseInput{ID: "ws-missing"})
 	if err == nil {
 		t.Fatal("expected error for unknown connection ID")
 	}

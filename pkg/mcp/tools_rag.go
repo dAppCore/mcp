@@ -59,7 +59,7 @@ type RAGQueryOutput struct {
 //	    Recreate:   true,
 //	}
 type RAGIngestInput struct {
-	Path       string `json:"path"`                 // e.g. "docs/" or "docs/services.md"
+	Path       string "json:\"path\""               // e.g. "docs/" or "docs/services.md"
 	Collection string `json:"collection,omitempty"` // e.g. "core-docs" (default: "hostuk-docs")
 	Recreate   bool   `json:"recreate,omitempty"`   // true to drop and recreate the collection
 }
@@ -69,7 +69,7 @@ type RAGIngestInput struct {
 //	// out.Success == true, out.Chunks == 42, out.Collection == "core-docs"
 type RAGIngestOutput struct {
 	Success    bool   `json:"success"`           // true when ingest completed
-	Path       string `json:"path"`              // e.g. "docs/"
+	Path       string "json:\"path\""            // e.g. "docs/"
 	Collection string `json:"collection"`        // e.g. "core-docs"
 	Chunks     int    `json:"chunks"`            // number of chunks ingested
 	Message    string `json:"message,omitempty"` // human-readable summary
@@ -158,7 +158,11 @@ func (s *Service) registerRAGTools(server *mcp.Server) {
 }
 
 // ragQuery handles the rag_query tool call.
-func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input RAGQueryInput) (*mcp.CallToolResult, RAGQueryOutput, error) {
+func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input RAGQueryInput) (
+	*mcp.CallToolResult,
+	RAGQueryOutput,
+	error,
+) {
 	// Apply defaults
 	collection := input.Collection
 	if collection == "" {
@@ -205,14 +209,18 @@ func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input 
 }
 
 // ragIngest handles the rag_ingest tool call.
-func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input RAGIngestInput) (*mcp.CallToolResult, RAGIngestOutput, error) {
+func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input RAGIngestInput) (
+	*mcp.CallToolResult,
+	RAGIngestOutput,
+	error,
+) {
 	// Apply defaults
 	collection := input.Collection
 	if collection == "" {
 		collection = DefaultRAGCollection
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "rag_ingest", "path", input.Path, "collection", collection, "recreate", input.Recreate, "user", core.Username())
+	s.logger.Security("MCP tool execution", "tool", "rag_ingest", `path`, input.Path, "collection", collection, "recreate", input.Recreate, "user", core.Username())
 
 	// Validate input
 	if input.Path == "" {
@@ -222,7 +230,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 	// Check if path is a file or directory using the medium
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		core.Error("mcp: rag ingest stat failed", "path", input.Path, "err", err)
+		core.Error("mcp: rag ingest stat failed", `path`, input.Path, "err", err)
 		return nil, RAGIngestOutput{}, core.E("ragIngest", "failed to access path", err)
 	}
 	resolvedPath := s.resolveWorkspacePath(input.Path)
@@ -233,7 +241,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		// Ingest directory
 		err = rag.IngestDirectory(ctx, resolvedPath, collection, input.Recreate)
 		if err != nil {
-			core.Error("mcp: rag ingest directory failed", "path", input.Path, "collection", collection, "err", err)
+			core.Error("mcp: rag ingest directory failed", `path`, input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, core.E("ragIngest", "failed to ingest directory", err)
 		}
 		message = core.Sprintf("Successfully ingested directory %s into collection %s", input.Path, collection)
@@ -241,7 +249,7 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 		// Ingest single file
 		chunks, err = rag.IngestSingleFile(ctx, resolvedPath, collection)
 		if err != nil {
-			core.Error("mcp: rag ingest file failed", "path", input.Path, "collection", collection, "err", err)
+			core.Error("mcp: rag ingest file failed", `path`, input.Path, "collection", collection, "err", err)
 			return nil, RAGIngestOutput{}, core.E("ragIngest", "failed to ingest file", err)
 		}
 		message = core.Sprintf("Successfully ingested file %s (%d chunks) into collection %s", input.Path, chunks, collection)
@@ -261,7 +269,11 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 // the source path as the query text and then filtering results down to the
 // matching source. This preserves the transport abstraction that the rest of
 // the RAG tools use while producing the document-scoped view callers expect.
-func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, input RAGRetrieveInput) (*mcp.CallToolResult, RAGRetrieveOutput, error) {
+func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, input RAGRetrieveInput) (
+	*mcp.CallToolResult,
+	RAGRetrieveOutput,
+	error,
+) {
 	collection := input.Collection
 	if collection == "" {
 		collection = DefaultRAGCollection
@@ -337,7 +349,11 @@ func sortChunksByIndex(chunks []RAGQueryResult) {
 }
 
 // ragCollections handles the rag_collections tool call.
-func (s *Service) ragCollections(ctx context.Context, req *mcp.CallToolRequest, input RAGCollectionsInput) (*mcp.CallToolResult, RAGCollectionsOutput, error) {
+func (s *Service) ragCollections(ctx context.Context, req *mcp.CallToolRequest, input RAGCollectionsInput) (
+	*mcp.CallToolResult,
+	RAGCollectionsOutput,
+	error,
+) {
 	s.logger.Info("MCP tool execution", "tool", "rag_collections", "show_stats", input.ShowStats, "user", core.Username())
 
 	// Create Qdrant client with default config

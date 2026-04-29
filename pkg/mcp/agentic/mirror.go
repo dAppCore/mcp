@@ -4,7 +4,6 @@ package agentic
 
 import (
 	"context"
-	"os/exec"
 
 	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
@@ -44,7 +43,11 @@ func (s *PrepSubsystem) registerMirrorTool(svc *coremcp.Service) {
 	}, s.mirror)
 }
 
-func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, input MirrorInput) (*mcp.CallToolResult, MirrorOutput, error) {
+func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, input MirrorInput) (
+	*mcp.CallToolResult,
+	MirrorOutput,
+	error,
+) {
 	maxFiles := input.MaxFiles
 	if maxFiles <= 0 {
 		maxFiles = 50
@@ -68,11 +71,14 @@ func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			continue
 		}
 
-		if _, err := exec.LookPath("git"); err != nil {
+		if err := commandAvailable("git"); err != nil {
 			return nil, MirrorOutput{}, core.E("mirror", "git CLI is not available", err)
 		}
 
-		_, _ = gitOutput(repoDir, "fetch", "github")
+		if _, err := gitOutput(repoDir, "fetch", "github"); err != nil {
+			skipped = append(skipped, repo+": fetch failed")
+			continue
+		}
 		ahead := commitsAhead(repoDir, "github/main", "HEAD")
 		if ahead <= 0 {
 			continue

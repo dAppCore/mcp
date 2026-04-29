@@ -3,13 +3,15 @@ package mcp
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
+	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -567,4 +569,359 @@ func TestSendNotificationToAllClients_Good_BroadcastsToMultipleSessions(t *testi
 			t.Fatalf("session %d: expected logger test, got %v", idx+1, params["logger"])
 		}
 	}
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapability_Good
+func TestNotify_ChannelCapability_Good(t *T) {
+	got := ChannelCapability()
+	AssertNotNil(t, got[ClaudeChannelCapabilityName])
+	AssertLen(t, got, 1)
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapability_Bad
+func TestNotify_ChannelCapability_Bad(t *T) {
+	got := ChannelCapability()
+	AssertNil(t, got["missing/channel"])
+	AssertNotNil(t, got[ClaudeChannelCapabilityName])
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapability_Ugly
+func TestNotify_ChannelCapability_Ugly(t *T) {
+	got := ChannelCapability()
+	got[ClaudeChannelCapabilityName] = "mutated"
+	AssertNotEqual(t, got[ClaudeChannelCapabilityName], ChannelCapability()[ClaudeChannelCapabilityName])
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapabilityChannels_Good
+func TestNotify_ChannelCapabilityChannels_Good(t *T) {
+	got := ChannelCapabilityChannels()
+	AssertContains(t, got, ChannelAgentStatus)
+	AssertContains(t, got, ChannelProcessOutput)
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapabilityChannels_Bad
+func TestNotify_ChannelCapabilityChannels_Bad(t *T) {
+	got := ChannelCapabilityChannels()
+	AssertFalse(t, Contains(Join(",", got...), "missing.channel"))
+	AssertTrue(t, len(got) > 0)
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapabilityChannels_Ugly
+func TestNotify_ChannelCapabilityChannels_Ugly(t *T) {
+	got := ChannelCapabilityChannels()
+	got[0] = "mutated"
+	AssertNotEqual(t, "mutated", ChannelCapabilityChannels()[0])
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapabilitySpec_Map_Good
+func TestNotify_ChannelCapabilitySpec_Map_Good(t *T) {
+	spec := ChannelCapabilitySpec{Version: "1", Description: "d", Channels: []string{"a"}}
+	got := spec.Map()
+	AssertEqual(t, "1", got["version"])
+	AssertEqual(t, "d", got["description"])
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapabilitySpec_Map_Bad
+func TestNotify_ChannelCapabilitySpec_Map_Bad(t *T) {
+	got := (ChannelCapabilitySpec{}).Map()
+	AssertEqual(t, "", got["version"])
+	AssertEqual(t, []string(nil), got["channels"])
+}
+
+// moved AX-7 triplet TestNotify_ChannelCapabilitySpec_Map_Ugly
+func TestNotify_ChannelCapabilitySpec_Map_Ugly(t *T) {
+	spec := ChannelCapabilitySpec{Channels: []string{"a"}}
+	channels := spec.Map()["channels"].([]string)
+	channels[0] = "mutated"
+	AssertEqual(t, "a", spec.Channels[0])
+}
+
+// moved AX-7 triplet TestNotify_ClaudeChannelCapability_Good
+func TestNotify_ClaudeChannelCapability_Good(t *T) {
+	got := ClaudeChannelCapability()
+	AssertEqual(t, "1", got.Version)
+	AssertContains(t, got.Channels, ChannelBrainRecallDone)
+}
+
+// moved AX-7 triplet TestNotify_ClaudeChannelCapability_Bad
+func TestNotify_ClaudeChannelCapability_Bad(t *T) {
+	got := ClaudeChannelCapability()
+	AssertNotEmpty(t, got.Description)
+	AssertFalse(t, Contains(Join(",", got.Channels...), "missing.channel"))
+}
+
+// moved AX-7 triplet TestNotify_ClaudeChannelCapability_Ugly
+func TestNotify_ClaudeChannelCapability_Ugly(t *T) {
+	got := ClaudeChannelCapability()
+	got.Channels[0] = "mutated"
+	AssertNotEqual(t, "mutated", ClaudeChannelCapability().Channels[0])
+}
+
+// moved AX-7 triplet TestNotify_Error_Error_Good
+func TestNotify_Error_Error_Good(t *T) {
+	err := &notificationError{message: "boom"}
+	AssertEqual(t, "boom", err.Error())
+	AssertNotNil(t, err)
+}
+
+// moved AX-7 triplet TestNotify_Error_Error_Bad
+func TestNotify_Error_Error_Bad(t *T) {
+	err := &notificationError{}
+	AssertEqual(t, "", err.Error())
+	AssertNotNil(t, err)
+}
+
+// moved AX-7 triplet TestNotify_Error_Error_Ugly
+func TestNotify_Error_Error_Ugly(t *T) {
+	err := &notificationError{message: repeatString("x", 32)}
+	AssertEqual(t, repeatString("x", 32), err.Error())
+	AssertEqual(t, 32, len(err.Error()))
+}
+
+// moved AX-7 triplet TestNotify_NotifySession_Good
+func TestNotify_NotifySession_Good(t *T) {
+	err := NotifySession(context.Background(), nil, "method", map[string]any{"ok": true})
+	AssertNoError(t, err)
+	AssertNoError(t, NotifySession(context.Background(), nil, "method", nil))
+}
+
+// moved AX-7 triplet TestNotify_NotifySession_Bad
+func TestNotify_NotifySession_Bad(t *T) {
+	err := NotifySession(context.Background(), nil, "", nil)
+	AssertNoError(t, err)
+	AssertNil(t, ProgressTokenFromRequest(nil))
+}
+
+// moved AX-7 triplet TestNotify_NotifySession_Ugly
+func TestNotify_NotifySession_Ugly(t *T) {
+	err := NotifySession(nil, nil, "method", map[string]any{})
+	AssertNoError(t, err)
+	AssertNoError(t, NotifySession(nil, nil, "", map[string]any{}))
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSend_Good
+func TestNotify_Service_ChannelSend_Good(t *T) {
+	svc := newServiceForTest(t, Options{WSHub: ws.NewHub()})
+	AssertNotPanics(t, func() { svc.ChannelSend(context.Background(), "ax7", map[string]any{"ok": true}) })
+	AssertNotNil(t, svc.WSHub())
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSend_Bad
+func TestNotify_Service_ChannelSend_Bad(t *T) {
+	var svc *Service
+	AssertNotPanics(t, func() { svc.ChannelSend(context.Background(), "ax7", nil) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSend_Ugly
+func TestNotify_Service_ChannelSend_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.ChannelSend(nil, "", nil) })
+	AssertNil(t, svc.WSHub())
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSendToClient_Good
+func TestNotify_Service_ChannelSendToClient_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.ChannelSendToClient(context.Background(), nil, "ax7", map[string]any{"ok": true}) })
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSendToClient_Bad
+func TestNotify_Service_ChannelSendToClient_Bad(t *T) {
+	var svc *Service
+	AssertNotPanics(t, func() { svc.ChannelSendToClient(context.Background(), nil, "ax7", nil) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSendToClient_Ugly
+func TestNotify_Service_ChannelSendToClient_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.ChannelSendToClient(nil, nil, "", nil) })
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSendToSession_Good
+func TestNotify_Service_ChannelSendToSession_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.ChannelSendToSession(context.Background(), nil, "ax7", map[string]any{"ok": true}) })
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSendToSession_Bad
+func TestNotify_Service_ChannelSendToSession_Bad(t *T) {
+	var svc *Service
+	AssertNotPanics(t, func() { svc.ChannelSendToSession(context.Background(), nil, "ax7", nil) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestNotify_Service_ChannelSendToSession_Ugly
+func TestNotify_Service_ChannelSendToSession_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.ChannelSendToSession(nil, nil, "", nil) })
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToAllClients_Good
+func TestNotify_Service_SendNotificationToAllClients_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() {
+		svc.SendNotificationToAllClients(context.Background(), "info", "ax7", map[string]any{"ok": true})
+	})
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToAllClients_Bad
+func TestNotify_Service_SendNotificationToAllClients_Bad(t *T) {
+	var svc *Service
+	AssertNotPanics(t, func() { svc.SendNotificationToAllClients(context.Background(), "info", "ax7", nil) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToAllClients_Ugly
+func TestNotify_Service_SendNotificationToAllClients_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.SendNotificationToAllClients(nil, "", "", nil) })
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToClient_Good
+func TestNotify_Service_SendNotificationToClient_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.SendNotificationToClient(context.Background(), nil, "info", "ax7", nil) })
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToClient_Bad
+func TestNotify_Service_SendNotificationToClient_Bad(t *T) {
+	var svc *Service
+	AssertNotPanics(t, func() { svc.SendNotificationToClient(context.Background(), nil, "info", "ax7", nil) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToClient_Ugly
+func TestNotify_Service_SendNotificationToClient_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.SendNotificationToClient(nil, nil, "", "", nil) })
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToSession_Good
+func TestNotify_Service_SendNotificationToSession_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.SendNotificationToSession(context.Background(), nil, "info", "ax7", nil) })
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToSession_Bad
+func TestNotify_Service_SendNotificationToSession_Bad(t *T) {
+	var svc *Service
+	AssertNotPanics(t, func() { svc.SendNotificationToSession(context.Background(), nil, "info", "ax7", nil) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestNotify_Service_SendNotificationToSession_Ugly
+func TestNotify_Service_SendNotificationToSession_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotPanics(t, func() { svc.SendNotificationToSession(nil, nil, "", "", nil) })
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_Sessions_Good
+func TestNotify_Service_Sessions_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_Sessions_Bad
+func TestNotify_Service_Sessions_Bad(t *T) {
+	var svc *Service
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Service_Sessions_Ugly
+func TestNotify_Service_Sessions_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	svc.ChannelSend(context.Background(), ChannelAgentStatus, map[string]any{"ok": true})
+	count := 0
+	for range svc.Sessions() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestNotify_Writer_Close_Good
+func TestNotify_Writer_Close_Good(t *T) {
+	buf := core.NewBuffer()
+	w := &lockedWriter{w: buf}
+	AssertNoError(t, w.Close())
+}
+
+// moved AX-7 triplet TestNotify_Writer_Close_Bad
+func TestNotify_Writer_Close_Bad(t *T) {
+	var w *lockedWriter
+	AssertNoError(t, w.Close())
+	AssertNil(t, w)
+}
+
+// moved AX-7 triplet TestNotify_Writer_Close_Ugly
+func TestNotify_Writer_Close_Ugly(t *T) {
+	w := &lockedWriter{}
+	AssertNoError(t, w.Close())
+	AssertNil(t, w.w)
+}
+
+// moved AX-7 triplet TestNotify_Writer_Write_Good
+func TestNotify_Writer_Write_Good(t *T) {
+	buf := core.NewBuffer()
+	w := &lockedWriter{w: buf}
+	n, err := w.Write([]byte("ok"))
+	AssertNoError(t, err)
+	AssertEqual(t, 2, n)
+}
+
+// moved AX-7 triplet TestNotify_Writer_Write_Bad
+func TestNotify_Writer_Write_Bad(t *T) {
+	w := &lockedWriter{}
+	n, err := w.Write([]byte("x"))
+	AssertError(t, err)
+	AssertEqual(t, 0, n)
+	AssertNil(t, w.w)
+}
+
+// moved AX-7 triplet TestNotify_Writer_Write_Ugly
+func TestNotify_Writer_Write_Ugly(t *T) {
+	buf := core.NewBuffer()
+	w := &lockedWriter{w: buf}
+	n, err := w.Write(nil)
+	AssertNoError(t, err)
+	AssertEqual(t, 0, n)
 }

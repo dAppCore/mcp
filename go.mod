@@ -32,7 +32,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/goccy/go-json v0.10.6
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -66,7 +66,7 @@ replace dappco.re/go/ai => ./internal/shims/go-ai
 
 replace dappco.re/go/api => ./internal/shims/go-api
 
-replace dappco.re/go/cli => ../cli.codex-v090-upgrade
+replace dappco.re/go/cli => ../cli
 
 replace dappco.re/go/i18n => github.com/dappcore/go-i18n v0.8.0-alpha.1
 

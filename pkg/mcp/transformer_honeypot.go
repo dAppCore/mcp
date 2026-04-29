@@ -3,10 +3,8 @@
 package mcp
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"strings"
+	core "dappco.re/go"
+	"github.com/goccy/go-json"
 )
 
 // HoneypotTransformer absorbs malformed or probe-like input and returns a
@@ -14,7 +12,7 @@ import (
 type HoneypotTransformer struct{}
 
 func (HoneypotTransformer) Detect(body []byte, contentType, path string) bool {
-	trimmed := bytes.TrimSpace(body)
+	trimmed := trimBytes(body)
 	if len(trimmed) == 0 {
 		return false
 	}
@@ -29,11 +27,14 @@ func (HoneypotTransformer) Detect(body []byte, contentType, path string) bool {
 	return looksProbeLike(trimmed, contentType, path)
 }
 
-func (HoneypotTransformer) Normalise(body []byte) (MCPRequest, error) {
+func (HoneypotTransformer) Normalise(body []byte) (
+	MCPRequest,
+	error,
+) {
 	params := map[string]any{
 		"source_format": "honeypot",
 		"raw":           honeypotSnippet(body),
-		"malformed":     !json.Valid(bytes.TrimSpace(body)),
+		"malformed":     !json.Valid(trimBytes(body)),
 	}
 	return MCPRequest{
 		JSONRPC: "2.0",
@@ -42,7 +43,10 @@ func (HoneypotTransformer) Normalise(body []byte) (MCPRequest, error) {
 	}, nil
 }
 
-func (HoneypotTransformer) Transform(result MCPResult) ([]byte, error) {
+func (HoneypotTransformer) Transform(result MCPResult) (
+	[]byte,
+	error,
+) {
 	text := extractMCPText(result)
 	if text == "" {
 		text = "Request received. The gateway is processing the available context and will return compatible MCP output when a valid protocol envelope is provided."
@@ -73,11 +77,11 @@ func (HoneypotTransformer) Transform(result MCPResult) ([]byte, error) {
 }
 
 func looksProbeLike(body []byte, contentType, path string) bool {
-	haystack := strings.ToLower(strings.Join([]string{
+	haystack := core.Lower(core.Join("\n",
 		string(body),
 		contentType,
 		path,
-	}, "\n"))
+	))
 	for _, marker := range []string{
 		"ignore previous",
 		"system prompt",
@@ -88,7 +92,7 @@ func looksProbeLike(body []byte, contentType, path string) bool {
 		"jailbreak",
 		"prompt injection",
 	} {
-		if strings.Contains(haystack, marker) {
+		if core.Contains(haystack, marker) {
 			return true
 		}
 	}
@@ -96,7 +100,7 @@ func looksProbeLike(body []byte, contentType, path string) bool {
 }
 
 func honeypotSnippet(body []byte) string {
-	s := string(bytes.TrimSpace(body))
+	s := string(trimBytes(body))
 	const max = 4096
 	if len(s) <= max {
 		return s
@@ -108,5 +112,5 @@ func honeypotResponseID(id any) string {
 	if id == nil {
 		return "chatcmpl-honeypot"
 	}
-	return fmt.Sprintf("chatcmpl-honeypot-%v", id)
+	return core.Sprintf("chatcmpl-honeypot-%v", id)
 }

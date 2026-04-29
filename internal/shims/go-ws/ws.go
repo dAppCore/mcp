@@ -63,7 +63,12 @@ func (h *Hub) Handler() http.HandlerFunc {
 	}
 }
 
-func (h *Hub) SendToChannel(channel string, msg Message) error {
+func (h *Hub) SendToChannel(
+	channel string,
+	msg Message,
+) (
+	_ error, // result
+) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.channels == nil {
@@ -84,14 +89,25 @@ func (h *Hub) Stats() Stats {
 	return Stats{Clients: len(h.clients), Channels: len(h.channels)}
 }
 
-func (h *Hub) SendProcessOutput(processID, line string) error {
+func (h *Hub) SendProcessOutput(
+	processID,
+	line string,
+) (
+	_ error, // result
+) {
 	return h.SendToChannel("process.output", Message{
 		Type: TypeEvent,
 		Data: map[string]any{"id": processID, "line": line},
 	})
 }
 
-func (h *Hub) SendProcessStatus(processID, status string, exitCode int) error {
+func (h *Hub) SendProcessStatus(
+	processID,
+	status string,
+	exitCode int,
+) (
+	_ error, // result
+) {
 	return h.SendToChannel("process.status", Message{
 		Type: TypeEvent,
 		Data: map[string]any{"id": processID, "status": status, "exitCode": exitCode},

@@ -3,17 +3,14 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
+
+	core "dappco.re/go"
 )
 
 func TestBranchSlug_Good(t *testing.T) {
@@ -44,14 +41,13 @@ func TestPrepWorkspace_Good_IssueBranchName(t *testing.T) {
 		t.Fatalf("expected branch %q, got %q", want, out.Branch)
 	}
 
-	srcDir := filepath.Join(out.WorkspaceDir, "src")
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
-	cmd.Dir = srcDir
+	srcDir := core.Path(out.WorkspaceDir, "src")
+	cmd := shellCommand(context.Background(), srcDir, "git", "rev-parse", "--abbrev-ref", "HEAD")
 	data, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to read branch: %v", err)
 	}
-	if got := strings.TrimSpace(string(data)); got != want {
+	if got := core.Trim(string(data)); got != want {
 		t.Fatalf("expected git branch %q, got %q", want, got)
 	}
 }
@@ -145,13 +141,13 @@ func TestDispatchIssue_Good_UnlocksOnPrepFailure(t *testing.T) {
 	if methods[2] != http.MethodPatch {
 		t.Fatalf("expected third request to unlock issue, got %s", methods[2])
 	}
-	if !strings.Contains(bodies[1], `"assignees":["claude"]`) {
+	if !core.Contains(bodies[1], `"assignees":["claude"]`) {
 		t.Fatalf("expected lock request to assign claude, got %s", bodies[1])
 	}
-	if !strings.Contains(bodies[2], `"assignees":[]`) {
+	if !core.Contains(bodies[2], `"assignees":[]`) {
 		t.Fatalf("expected unlock request to clear assignees, got %s", bodies[2])
 	}
-	if !strings.Contains(bodies[2], `"labels":["bug"]`) {
+	if !core.Contains(bodies[2], `"labels":["bug"]`) {
 		t.Fatalf("expected unlock request to preserve original labels, got %s", bodies[2])
 	}
 }
@@ -185,10 +181,10 @@ func TestLockIssue_Good_RequestBody(t *testing.T) {
 	if gotPath != "/api/v1/repos/core/demo/issues/42" {
 		t.Fatalf("unexpected path %q", gotPath)
 	}
-	if !bytes.Contains(gotBody, []byte(`"assignees":["claude"]`)) {
+	if !core.Contains(string(gotBody), `"assignees":["claude"]`) {
 		t.Fatalf("expected assignee in body, got %s", string(gotBody))
 	}
-	if !bytes.Contains(gotBody, []byte(`"in-progress"`)) {
+	if !core.Contains(string(gotBody), `"in-progress"`) {
 		t.Fatalf("expected in-progress label in body, got %s", string(gotBody))
 	}
 }
@@ -196,16 +192,15 @@ func TestLockIssue_Good_RequestBody(t *testing.T) {
 func initTestRepo(t *testing.T, codePath, repo string) string {
 	t.Helper()
 
-	repoDir := filepath.Join(codePath, "core", repo)
-	if err := os.MkdirAll(repoDir, 0o755); err != nil {
-		t.Fatalf("mkdir repo dir: %v", err)
+	repoDir := core.Path(codePath, "core", repo)
+	if r := core.MkdirAll(repoDir, 0o755); !r.OK {
+		t.Fatalf("mkdir repo dir: %v", resultError(r))
 	}
 
 	run := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = repoDir
-		cmd.Env = append(os.Environ(),
+		cmd := shellCommand(context.Background(), repoDir, "git", args...)
+		cmd.Env = append(core.Environ(),
 			"GIT_AUTHOR_NAME=Test User",
 			"GIT_AUTHOR_EMAIL=test@example.com",
 			"GIT_COMMITTER_NAME=Test User",
@@ -217,8 +212,8 @@ func initTestRepo(t *testing.T, codePath, repo string) string {
 	}
 
 	run("init", "-b", "main")
-	if err := os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# demo\n"), 0o644); err != nil {
-		t.Fatalf("write file: %v", err)
+	if r := core.WriteFile(core.Path(repoDir, "README.md"), []byte("# demo\n"), 0o644); !r.OK {
+		t.Fatalf("write file: %v", resultError(r))
 	}
 	run("add", "README.md")
 	run("commit", "-m", "initial commit")

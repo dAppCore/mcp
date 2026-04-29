@@ -131,22 +131,38 @@ type ListOutput struct {
 	Memories []Memory `json:"memories"`
 }
 
-func validateBrainOrg(org string) error {
+func validateBrainOrg(
+	org string,
+) (
+	_ error, // result
+) {
 	if utf8.RuneCountInString(org) > brainOrgMaxLength {
 		return core.E("brain.validate", "org exceeds maximum length of 128 characters", nil)
 	}
 	return nil
 }
 
-func validateRememberInput(input RememberInput) error {
+func validateRememberInput(
+	input RememberInput,
+) (
+	_ error, // result
+) {
 	return validateBrainOrg(input.Org)
 }
 
-func validateRecallInput(input RecallInput) error {
+func validateRecallInput(
+	input RecallInput,
+) (
+	_ error, // result
+) {
 	return validateBrainOrg(input.Filter.Org)
 }
 
-func validateListInput(input ListInput) error {
+func validateListInput(
+	input ListInput,
+) (
+	_ error, // result
+) {
 	return validateBrainOrg(input.Org)
 }
 
@@ -177,7 +193,11 @@ func (s *Subsystem) registerBrainTools(svc *coremcp.Service) {
 
 // -- Tool handlers ------------------------------------------------------------
 
-func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
+func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (
+	*mcp.CallToolResult,
+	RememberOutput,
+	error,
+) {
 	if err := validateRememberInput(input); err != nil {
 		return nil, RememberOutput{}, err
 	}
@@ -214,7 +234,11 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 	}, nil
 }
 
-func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
+func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (
+	*mcp.CallToolResult,
+	RecallOutput,
+	error,
+) {
 	if err := validateRecallInput(input); err != nil {
 		return nil, RecallOutput{}, err
 	}
@@ -240,7 +264,11 @@ func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, inp
 	}, nil
 }
 
-func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (*mcp.CallToolResult, ForgetOutput, error) {
+func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (
+	*mcp.CallToolResult,
+	ForgetOutput,
+	error,
+) {
 	if s.bridge == nil {
 		return nil, ForgetOutput{}, errBridgeNotAvailable
 	}
@@ -267,7 +295,11 @@ func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, inp
 	}, nil
 }
 
-func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (
+	*mcp.CallToolResult,
+	ListOutput,
+	error,
+) {
 	if err := validateListInput(input); err != nil {
 		return nil, ListOutput{}, err
 	}

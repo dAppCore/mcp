@@ -1,8 +1,9 @@
 package webview
 
 import (
-	"errors"
 	"time"
+
+	core "dappco.re/go"
 )
 
 type Option func(*Webview)
@@ -43,7 +44,10 @@ type Webview struct {
 	console  []ConsoleMessage
 }
 
-func New(opts ...Option) (*Webview, error) {
+func New(opts ...Option) (
+	*Webview,
+	error,
+) {
 	w := &Webview{timeout: 30 * time.Second}
 	for _, opt := range opts {
 		if opt != nil {
@@ -55,18 +59,24 @@ func New(opts ...Option) (*Webview, error) {
 
 func (w *Webview) Close() error { return nil }
 
-func (w *Webview) Navigate(string) error { return errors.New("webview backend unavailable") }
+func (w *Webview) Navigate(string) error { return core.NewError("webview backend unavailable") }
 
-func (w *Webview) Click(string) error { return errors.New("webview backend unavailable") }
+func (w *Webview) Click(string) error { return core.NewError("webview backend unavailable") }
 
-func (w *Webview) Type(string, string) error { return errors.New("webview backend unavailable") }
+func (w *Webview) Type(string, string) error { return core.NewError("webview backend unavailable") }
 
-func (w *Webview) QuerySelector(string) (*Element, error) {
-	return nil, errors.New("element not found")
+func (w *Webview) QuerySelector(string) (
+	*Element,
+	error,
+) {
+	return nil, core.NewError("element not found")
 }
 
-func (w *Webview) QuerySelectorAll(string) ([]Element, error) {
-	return nil, errors.New("webview backend unavailable")
+func (w *Webview) QuerySelectorAll(string) (
+	[]Element,
+	error,
+) {
+	return nil, core.NewError("webview backend unavailable")
 }
 
 func (w *Webview) GetConsole() []ConsoleMessage {
@@ -77,10 +87,16 @@ func (w *Webview) GetConsole() []ConsoleMessage {
 
 func (w *Webview) ClearConsole() { w.console = nil }
 
-func (w *Webview) Evaluate(string) (any, error) {
-	return nil, errors.New("webview backend unavailable")
+func (w *Webview) Evaluate(string) (
+	any,
+	error,
+) {
+	return nil, core.NewError("webview backend unavailable")
 }
 
-func (w *Webview) Screenshot() ([]byte, error) {
-	return nil, errors.New("webview backend unavailable")
+func (w *Webview) Screenshot() (
+	[]byte,
+	error,
+) {
+	return nil, core.NewError("webview backend unavailable")
 }

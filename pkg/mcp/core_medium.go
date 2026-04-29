@@ -19,7 +19,11 @@ func newCoreMedium(root string) *coreMedium {
 	return &coreMedium{fs: (&core.Fs{}).New(root)}
 }
 
-func coreMediumErr(r core.Result) error {
+func coreMediumErr(
+	r core.Result,
+) (
+	_ error, // result
+) {
 	if r.OK {
 		return nil
 	}
@@ -32,7 +36,10 @@ func coreMediumErr(r core.Result) error {
 	return core.E("coreMedium", "operation failed", nil)
 }
 
-func (m *coreMedium) Read(path string) (string, error) {
+func (m *coreMedium) Read(path string) (
+	string,
+	error,
+) {
 	r := m.fs.Read(path)
 	if !r.OK {
 		return "", coreMediumErr(r)
@@ -44,15 +51,30 @@ func (m *coreMedium) Read(path string) (string, error) {
 	return content, nil
 }
 
-func (m *coreMedium) Write(path, content string) error {
+func (m *coreMedium) Write(
+	path,
+	content string,
+) (
+	_ error, // result
+) {
 	return coreMediumErr(m.fs.Write(path, content))
 }
 
-func (m *coreMedium) WriteMode(path, content string, mode core.FileMode) error {
+func (m *coreMedium) WriteMode(
+	path,
+	content string,
+	mode core.FileMode,
+) (
+	_ error, // result
+) {
 	return coreMediumErr(m.fs.WriteMode(path, content, mode))
 }
 
-func (m *coreMedium) EnsureDir(path string) error {
+func (m *coreMedium) EnsureDir(
+	path string,
+) (
+	_ error, // result
+) {
 	return coreMediumErr(m.fs.EnsureDir(path))
 }
 
@@ -60,19 +82,35 @@ func (m *coreMedium) IsFile(path string) bool {
 	return m.fs.IsFile(path)
 }
 
-func (m *coreMedium) Delete(path string) error {
+func (m *coreMedium) Delete(
+	path string,
+) (
+	_ error, // result
+) {
 	return coreMediumErr(m.fs.Delete(path))
 }
 
-func (m *coreMedium) DeleteAll(path string) error {
+func (m *coreMedium) DeleteAll(
+	path string,
+) (
+	_ error, // result
+) {
 	return coreMediumErr(m.fs.DeleteAll(path))
 }
 
-func (m *coreMedium) Rename(oldPath, newPath string) error {
+func (m *coreMedium) Rename(
+	oldPath,
+	newPath string,
+) (
+	_ error, // result
+) {
 	return coreMediumErr(m.fs.Rename(oldPath, newPath))
 }
 
-func (m *coreMedium) List(path string) ([]core.FsDirEntry, error) {
+func (m *coreMedium) List(path string) (
+	[]core.FsDirEntry,
+	error,
+) {
 	r := m.fs.List(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)
@@ -84,7 +122,10 @@ func (m *coreMedium) List(path string) ([]core.FsDirEntry, error) {
 	return entries, nil
 }
 
-func (m *coreMedium) Stat(path string) (core.FsFileInfo, error) {
+func (m *coreMedium) Stat(path string) (
+	core.FsFileInfo,
+	error,
+) {
 	r := m.fs.Stat(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)
@@ -96,7 +137,10 @@ func (m *coreMedium) Stat(path string) (core.FsFileInfo, error) {
 	return info, nil
 }
 
-func (m *coreMedium) Open(path string) (core.FsFile, error) {
+func (m *coreMedium) Open(path string) (
+	core.FsFile,
+	error,
+) {
 	r := m.fs.Open(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)
@@ -108,7 +152,10 @@ func (m *coreMedium) Open(path string) (core.FsFile, error) {
 	return file, nil
 }
 
-func (m *coreMedium) Create(path string) (core.WriteCloser, error) {
+func (m *coreMedium) Create(path string) (
+	core.WriteCloser,
+	error,
+) {
 	r := m.fs.Create(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)
@@ -120,7 +167,10 @@ func (m *coreMedium) Create(path string) (core.WriteCloser, error) {
 	return writer, nil
 }
 
-func (m *coreMedium) Append(path string) (core.WriteCloser, error) {
+func (m *coreMedium) Append(path string) (
+	core.WriteCloser,
+	error,
+) {
 	r := m.fs.Append(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)
@@ -132,7 +182,10 @@ func (m *coreMedium) Append(path string) (core.WriteCloser, error) {
 	return writer, nil
 }
 
-func (m *coreMedium) ReadStream(path string) (core.ReadCloser, error) {
+func (m *coreMedium) ReadStream(path string) (
+	core.ReadCloser,
+	error,
+) {
 	r := m.fs.ReadStream(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)
@@ -144,7 +197,10 @@ func (m *coreMedium) ReadStream(path string) (core.ReadCloser, error) {
 	return reader, nil
 }
 
-func (m *coreMedium) WriteStream(path string) (core.WriteCloser, error) {
+func (m *coreMedium) WriteStream(path string) (
+	core.WriteCloser,
+	error,
+) {
 	r := m.fs.WriteStream(path)
 	if !r.OK {
 		return nil, coreMediumErr(r)

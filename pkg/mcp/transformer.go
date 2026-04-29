@@ -3,10 +3,10 @@
 package mcp
 
 import (
-	"bytes"
-	"encoding/json"
 	"mime"
-	"strings"
+
+	core "dappco.re/go"
+	"github.com/goccy/go-json"
 )
 
 // TransformerIn normalises an AI wire protocol request into a unified MCP
@@ -126,7 +126,10 @@ func (MCPNativeTransformer) Detect(body []byte, contentType, path string) bool {
 	return obj["jsonrpc"] == "2.0" && (hasMethod || hasResult || hasError)
 }
 
-func (MCPNativeTransformer) Normalise(body []byte) (MCPRequest, error) {
+func (MCPNativeTransformer) Normalise(body []byte) (
+	MCPRequest,
+	error,
+) {
 	var req MCPRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return MCPRequest{}, err
@@ -137,7 +140,10 @@ func (MCPNativeTransformer) Normalise(body []byte) (MCPRequest, error) {
 	return req, nil
 }
 
-func (MCPNativeTransformer) Transform(result MCPResult) ([]byte, error) {
+func (MCPNativeTransformer) Transform(result MCPResult) (
+	[]byte,
+	error,
+) {
 	if result.JSONRPC == "" {
 		result.JSONRPC = "2.0"
 	}
@@ -145,24 +151,24 @@ func (MCPNativeTransformer) Transform(result MCPResult) ([]byte, error) {
 }
 
 func headerHasMedia(header string, wants ...string) bool {
-	header = strings.TrimSpace(header)
+	header = core.Trim(header)
 	if header == "" {
 		return false
 	}
 
 	wantSet := make(map[string]struct{}, len(wants))
 	for _, want := range wants {
-		wantSet[strings.ToLower(strings.TrimSpace(want))] = struct{}{}
+		wantSet[core.Lower(core.Trim(want))] = struct{}{}
 	}
 
-	for _, part := range strings.Split(header, ",") {
-		media := strings.TrimSpace(part)
+	for _, part := range core.Split(header, ",") {
+		media := core.Trim(part)
 		if parsed, _, err := mime.ParseMediaType(media); err == nil {
 			media = parsed
-		} else if semi := strings.IndexByte(media, ';'); semi >= 0 {
+		} else if semi := indexByte(media, ';'); semi >= 0 {
 			media = media[:semi]
 		}
-		media = strings.ToLower(strings.TrimSpace(media))
+		media = core.Lower(core.Trim(media))
 		if _, ok := wantSet[media]; ok {
 			return true
 		}
@@ -171,27 +177,29 @@ func headerHasMedia(header string, wants ...string) bool {
 }
 
 func normaliseGatewayPath(path string) string {
-	path = strings.TrimSpace(path)
+	path = core.Trim(path)
 	if path == "" {
 		return ""
 	}
-	if i := strings.IndexAny(path, "?#"); i >= 0 {
+	if i := indexAny(path, "?#"); i >= 0 {
 		path = path[:i]
 	}
-	if !strings.HasPrefix(path, "/") {
+	if !core.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	for strings.Contains(path, "//") {
-		path = strings.ReplaceAll(path, "//", "/")
+	for core.Contains(path, "//") {
+		path = core.Replace(path, "//", "/")
 	}
 	if len(path) > 1 {
-		path = strings.TrimRight(path, "/")
+		for core.HasSuffix(path, "/") && len(path) > 1 {
+			path = core.TrimSuffix(path, "/")
+		}
 	}
 	return path
 }
 
 func decodeJSONObject(body []byte) (map[string]any, bool) {
-	body = bytes.TrimSpace(body)
+	body = trimBytes(body)
 	if len(body) == 0 {
 		return nil, false
 	}
@@ -280,8 +288,8 @@ func messagesHaveNoSystemRole(body []byte) bool {
 }
 
 func parseRawArgumentObject(raw json.RawMessage) map[string]any {
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+	raw = trimBytes(raw)
+	if len(raw) == 0 || string(raw) == "null" {
 		return map[string]any{}
 	}
 
@@ -298,7 +306,7 @@ func parseRawArgumentObject(raw json.RawMessage) map[string]any {
 }
 
 func parseArgumentString(s string) map[string]any {
-	s = strings.TrimSpace(s)
+	s = core.Trim(s)
 	if s == "" {
 		return map[string]any{}
 	}
@@ -339,7 +347,7 @@ func extractMCPText(result MCPResult) string {
 		}
 	}
 	parts = append(parts, extractTextFromAny(result.Result)...)
-	return strings.Join(parts, "\n")
+	return core.Join("\n", parts...)
 }
 
 func extractTextFromAny(v any) []string {
@@ -391,11 +399,35 @@ func extractTextFromAny(v any) []string {
 		return nil
 	default:
 		data, err := json.Marshal(typed)
-		if err != nil || len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		if err != nil || len(data) == 0 || string(data) == "null" {
 			return nil
 		}
 		return []string{string(data)}
 	}
+}
+
+func trimBytes(data []byte) []byte {
+	return []byte(core.Trim(string(data)))
+}
+
+func indexByte(value string, needle byte) int {
+	for i := 0; i < len(value); i++ {
+		if value[i] == needle {
+			return i
+		}
+	}
+	return -1
+}
+
+func indexAny(value, needles string) int {
+	for i := 0; i < len(value); i++ {
+		for j := 0; j < len(needles); j++ {
+			if value[i] == needles[j] {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func extractMCPToolCalls(result MCPResult) []MCPToolCall {

@@ -96,7 +96,11 @@ const ChannelWebviewRender = "webview.render"
 const ChannelWebviewUpdate = "webview.update"
 
 // webviewRender handles the webview_render tool call.
-func (s *Service) webviewRender(ctx context.Context, req *mcp.CallToolRequest, input WebviewRenderInput) (*mcp.CallToolResult, WebviewRenderOutput, error) {
+func (s *Service) webviewRender(ctx context.Context, req *mcp.CallToolRequest, input WebviewRenderInput) (
+	*mcp.CallToolResult,
+	WebviewRenderOutput,
+	error,
+) {
 	s.logger.Info("MCP tool execution", "tool", "webview_render", "view", input.ViewID, "user", core.Username())
 
 	if core.Trim(input.ViewID) == "" {
@@ -136,7 +140,11 @@ func (s *Service) webviewRender(ctx context.Context, req *mcp.CallToolRequest, i
 }
 
 // webviewUpdate handles the webview_update tool call.
-func (s *Service) webviewUpdate(ctx context.Context, req *mcp.CallToolRequest, input WebviewUpdateInput) (*mcp.CallToolResult, WebviewUpdateOutput, error) {
+func (s *Service) webviewUpdate(ctx context.Context, req *mcp.CallToolRequest, input WebviewUpdateInput) (
+	*mcp.CallToolResult,
+	WebviewUpdateOutput,
+	error,
+) {
 	s.logger.Info("MCP tool execution", "tool", "webview_update", "view", input.ViewID, "user", core.Username())
 
 	if core.Trim(input.ViewID) == "" {

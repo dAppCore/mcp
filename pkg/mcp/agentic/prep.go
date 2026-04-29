@@ -7,9 +7,8 @@ package agentic
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
-	"os/exec"
 	"time"
 
 	core "dappco.re/go"
@@ -84,7 +83,10 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, error) {
+func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (
+	string,
+	error,
+) {
 	if core.Trim(value) != value {
 		return "", core.E("prepWorkspace", field+" contains whitespace", nil)
 	}
@@ -186,7 +188,11 @@ type PrepOutput struct {
 	GitLog       int    `json:"git_log_entries"`
 }
 
-func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
+func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (
+	*mcp.CallToolResult,
+	PrepOutput,
+	error,
+) {
 	if input.Repo == "" {
 		return nil, PrepOutput{}, core.E("prepWorkspace", "repo is required", nil)
 	}
@@ -234,7 +240,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	// 1. Clone repo into src/ and create feature branch
 	srcDir := core.Path(wsDir, "src")
-	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
+	cloneCmd := shellCommand(ctx, "", "git", "clone", repoPath, srcDir)
 	if err := cloneCmd.Run(); err != nil {
 		return nil, PrepOutput{}, core.E("prepWorkspace", "failed to clone repository", err)
 	}
@@ -254,8 +260,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		}
 	}
 	if branchName != "" {
-		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
-		branchCmd.Dir = srcDir
+		branchCmd := shellCommand(ctx, srcDir, "git", "checkout", "-b", branchName)
 		if err := branchCmd.Run(); err != nil {
 			return nil, PrepOutput{}, core.E("prepWorkspace", "failed to create branch", err)
 		}
@@ -730,8 +735,7 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 }
 
 func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
-	cmd := exec.Command("git", "log", "--oneline", "-20")
-	cmd.Dir = repoPath
+	cmd := shellCommand(context.Background(), repoPath, "git", `log`, "--oneline", "-20")
 	output, err := cmd.Output()
 	if err != nil {
 		return 0

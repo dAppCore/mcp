@@ -3,9 +3,8 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 
 	core "dappco.re/go"
@@ -52,7 +51,11 @@ func (s *PrepSubsystem) registerEpicTool(svc *coremcp.Service) {
 	}, s.createEpic)
 }
 
-func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest, input EpicInput) (*mcp.CallToolResult, EpicOutput, error) {
+func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest, input EpicInput) (
+	*mcp.CallToolResult,
+	EpicOutput,
+	error,
+) {
 	if input.Title == "" {
 		return nil, EpicOutput{}, core.E("createEpic", "title is required", nil)
 	}
@@ -144,7 +147,10 @@ func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest
 }
 
 // createIssue creates a single issue on Forge and returns its reference.
-func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body string, labelIDs []int64) (ChildRef, error) {
+func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body string, labelIDs []int64) (
+	ChildRef,
+	error,
+) {
 	payload := map[string]any{
 		"title": title,
 	}
@@ -161,7 +167,7 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 	}
 	data := r.Value.([]byte)
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues", s.forgeURL, org, repo)
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(data))
+	req, _ := http.NewRequestWithContext(ctx, "POST", url, core.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
@@ -258,7 +264,7 @@ func (s *PrepSubsystem) createLabel(ctx context.Context, org, repo, name string)
 	payload := r.Value.([]byte)
 
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/labels", s.forgeURL, org, repo)
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, _ := http.NewRequestWithContext(ctx, "POST", url, core.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 

@@ -6,10 +6,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	"dappco.re/go/ws"
 	"github.com/gorilla/websocket"
@@ -45,7 +45,7 @@ func newConnectedBrainToolSubsystem(t *testing.T) (*Subsystem, <-chan ide.Bridge
 	go hub.Run(ctx)
 
 	cfg := ide.DefaultConfig()
-	cfg.LaravelWSURL = "ws" + strings.TrimPrefix(srv.URL, "http")
+	cfg.LaravelWSURL = "ws" + core.TrimPrefix(srv.URL, "http")
 	cfg.ReconnectInterval = 10 * time.Millisecond
 	cfg.MaxReconnectInterval = 10 * time.Millisecond
 
@@ -87,13 +87,21 @@ func readBrainToolBridgeMessage(t *testing.T, messages <-chan ide.BridgeMessage)
 	}
 }
 
+func brainRepeatString(value string, count int) string {
+	b := core.NewBuilder()
+	for range count {
+		b.WriteString(value)
+	}
+	return b.String()
+}
+
 func assertBrainOrgValidationError(t *testing.T, err error) {
 	t.Helper()
 
 	if err == nil {
 		t.Fatal("expected org validation error")
 	}
-	if !strings.Contains(err.Error(), "org exceeds maximum length of 128 characters") {
+	if !core.Contains(err.Error(), "org exceeds maximum length of 128 characters") {
 		t.Fatalf("expected org length error, got %v", err)
 	}
 }
@@ -107,7 +115,7 @@ func TestBrainRemember_Good_OrgLengthBoundary(t *testing.T) {
 	}{
 		{name: "non_empty", org: "core"},
 		{name: "empty", org: ""},
-		{name: "boundary", org: strings.Repeat("a", brainOrgMaxLength)},
+		{name: "boundary", org: brainRepeatString("a", brainOrgMaxLength)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, out, err := sub.brainRemember(context.Background(), nil, RememberInput{
@@ -143,7 +151,7 @@ func TestBrainRemember_Bad_OrgTooLong(t *testing.T) {
 	_, _, err := sub.brainRemember(context.Background(), nil, RememberInput{
 		Content: "test memory",
 		Type:    "observation",
-		Org:     strings.Repeat("a", brainOrgMaxLength+1),
+		Org:     brainRepeatString("a", brainOrgMaxLength+1),
 	})
 
 	assertBrainOrgValidationError(t, err)
@@ -151,7 +159,7 @@ func TestBrainRemember_Bad_OrgTooLong(t *testing.T) {
 
 func TestBrainOrgValidation_Bad_RecallAndListRejectBeforeBridge(t *testing.T) {
 	sub := New(nil)
-	tooLong := strings.Repeat("a", brainOrgMaxLength+1)
+	tooLong := brainRepeatString("a", brainOrgMaxLength+1)
 
 	_, _, err := sub.brainRecall(context.Background(), nil, RecallInput{
 		Query:  "test",

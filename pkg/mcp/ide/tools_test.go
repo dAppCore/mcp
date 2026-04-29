@@ -2,7 +2,7 @@ package ide
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -958,7 +958,8 @@ func TestToolsDashboard_DashboardState_Good(t *testing.T) {
 	t.Cleanup(resetDashboardState)
 
 	sub := newNilBridgeSubsystem()
-	_, out, err := sub.dashboardState(context.Background(), nil, DashboardStateInput{})
+	DashboardState := sub.dashboardState
+	_, out, err := DashboardState(context.Background(), nil, DashboardStateInput{})
 	if err != nil {
 		t.Fatalf("dashboardState failed: %v", err)
 	}
@@ -974,7 +975,8 @@ func TestToolsDashboard_DashboardUpdate_Good(t *testing.T) {
 
 	sub := newNilBridgeSubsystem()
 
-	_, updateOut, err := sub.dashboardUpdate(context.Background(), nil, DashboardUpdateInput{
+	DashboardUpdate := sub.dashboardUpdate
+	_, updateOut, err := DashboardUpdate(context.Background(), nil, DashboardUpdateInput{
 		State: map[string]any{"theme": "dark"},
 	})
 	if err != nil {
@@ -1003,14 +1005,15 @@ func TestToolsDashboard_DashboardUpdate_Ugly(t *testing.T) {
 
 	sub := newNilBridgeSubsystem()
 
-	_, _, err := sub.dashboardUpdate(context.Background(), nil, DashboardUpdateInput{
+	DashboardUpdate := sub.dashboardUpdate
+	_, _, err := DashboardUpdate(context.Background(), nil, DashboardUpdateInput{
 		State: map[string]any{"theme": "dark", "sidebar": true},
 	})
 	if err != nil {
 		t.Fatalf("seed dashboardUpdate failed: %v", err)
 	}
 
-	_, out, err := sub.dashboardUpdate(context.Background(), nil, DashboardUpdateInput{
+	_, out, err := DashboardUpdate(context.Background(), nil, DashboardUpdateInput{
 		State:   map[string]any{"theme": "light"},
 		Replace: true,
 	})

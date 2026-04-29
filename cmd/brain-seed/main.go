@@ -16,8 +16,6 @@ package main
 import (
 	"context"
 	"flag"
-	"os"
-	"path/filepath"
 	"regexp"
 
 	core "dappco.re/go"
@@ -52,7 +50,7 @@ func main() {
 	if *apiKey == "" && !*dryRun {
 		core.Println("ERROR: -api-key is required (or use -dry-run)")
 		core.Println("  Generate one at: https://lthn.sh/admin/mcp/api-keys")
-		os.Exit(1)
+		core.Exit(1)
 	}
 
 	if *dryRun {
@@ -72,10 +70,9 @@ func main() {
 	// Discover memory files
 	memPath := *memoryPath
 	if memPath == "" {
-		home, _ := os.UserHomeDir()
-		memPath = filepath.Join(home, ".claude", "projects", "*", "memory")
+		memPath = core.PathJoin(homeDir(), ".claude", "projects", "*", "memory")
 	}
-	memFiles, _ := filepath.Glob(filepath.Join(memPath, "*.md"))
+	memFiles := core.PathGlob(core.PathJoin(memPath, "*.md"))
 	core.Print(nil, "\nFound %d memory files", len(memFiles))
 
 	// Discover plan files
@@ -83,20 +80,18 @@ func main() {
 	if *plans {
 		pPath := *planPath
 		if pPath == "" {
-			home, _ := os.UserHomeDir()
-			pPath = filepath.Join(home, "Code", "*", "docs", "plans")
+			pPath = core.PathJoin(homeDir(), "Code", "*", "docs", "plans")
 		}
-		planFiles, _ = filepath.Glob(filepath.Join(pPath, "*.md"))
+		planFiles = core.PathGlob(core.PathJoin(pPath, "*.md"))
 		// Also check nested dirs (completed/, etc.)
-		nested, _ := filepath.Glob(filepath.Join(pPath, "*", "*.md"))
+		nested := core.PathGlob(core.PathJoin(pPath, "*", "*.md"))
 		planFiles = append(planFiles, nested...)
 
 		// Also check host-uk nested repos
-		home, _ := os.UserHomeDir()
-		hostUkPath := filepath.Join(home, "Code", "host-uk", "*", "docs", "plans")
-		hostUkFiles, _ := filepath.Glob(filepath.Join(hostUkPath, "*.md"))
+		hostUkPath := core.PathJoin(homeDir(), "Code", "host-uk", "*", "docs", "plans")
+		hostUkFiles := core.PathGlob(core.PathJoin(hostUkPath, "*.md"))
 		planFiles = append(planFiles, hostUkFiles...)
-		hostUkNested, _ := filepath.Glob(filepath.Join(hostUkPath, "*", "*.md"))
+		hostUkNested := core.PathGlob(core.PathJoin(hostUkPath, "*", "*.md"))
 		planFiles = append(planFiles, hostUkNested...)
 
 		core.Print(nil, "Found %d plan files", len(planFiles))
@@ -107,8 +102,7 @@ func main() {
 	if *claudeMd {
 		cPath := *codePath
 		if cPath == "" {
-			home, _ := os.UserHomeDir()
-			cPath = filepath.Join(home, "Code")
+			cPath = core.PathJoin(homeDir(), "Code")
 		}
 		claudeFiles = discoverClaudeMdFiles(cPath)
 		core.Print(nil, "Found %d CLAUDE.md files", len(claudeFiles))
@@ -123,7 +117,7 @@ func main() {
 	for _, f := range memFiles {
 		project := extractProject(f)
 		sections := parseMarkdownSections(f)
-		filename := core.TrimSuffix(filepath.Base(f), ".md")
+		filename := core.TrimSuffix(core.PathBase(f), ".md")
 
 		if len(sections) == 0 {
 			core.Warn("brain-seed: skip file (no sections)", "project", project, "file", filename)
@@ -168,7 +162,7 @@ func main() {
 		for _, f := range planFiles {
 			project := extractProjectFromPlan(f)
 			sections := parseMarkdownSections(f)
-			filename := core.TrimSuffix(filepath.Base(f), ".md")
+			filename := core.TrimSuffix(core.PathBase(f), ".md")
 
 			if len(sections) == 0 {
 				skipped++
@@ -252,7 +246,15 @@ func main() {
 }
 
 // callBrainRemember sends a memory to OpenBrain via /v1/brain/remember.
-func callBrainRemember(content, memType string, tags []string, project string, confidence float64) error {
+func callBrainRemember(
+	content,
+	memType string,
+	tags []string,
+	project string,
+	confidence float64,
+) (
+	_ error, // result
+) {
 	if openbrain == nil {
 		openbrain = brainclient.New(brainclient.Options{
 			URL:     *apiURL,
@@ -304,19 +306,23 @@ func discoverClaudeMdFiles(codePath string) []string {
 	var files []string
 
 	// Walk up to 4 levels deep, skip node_modules/vendor/.claude
-	if err := filepath.WalkDir(codePath, func(path string, d os.DirEntry, err error) error {
+	if err := core.PathWalkDir(codePath, func(path string, d core.FsDirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if d.IsDir() {
 			name := d.Name()
 			if name == "node_modules" || name == "vendor" || name == ".claude" {
-				return filepath.SkipDir
+				return core.PathSkipDir
 			}
 			// Limit depth
-			rel, _ := filepath.Rel(codePath, path)
-			if len(core.Split(rel, string(os.PathSeparator))) > 4 {
-				return filepath.SkipDir
+			relResult := core.PathRel(codePath, path)
+			rel := ""
+			if relResult.OK {
+				rel = relResult.Value.(string)
+			}
+			if len(core.Split(rel, string(core.PathSeparator))) > 4 {
+				return core.PathSkipDir
 			}
 			return nil
 		}
@@ -325,7 +331,7 @@ func discoverClaudeMdFiles(codePath string) []string {
 		}
 		return nil
 	}); err != nil {
-		core.Error("brain-seed: failed to discover CLAUDE.md files", "path", codePath, "err", err)
+		core.Error("brain-seed: failed to discover CLAUDE.md files", `path`, codePath, "err", err)
 	}
 
 	return files
@@ -377,7 +383,7 @@ func parseMarkdownSections(path string) []section {
 	// If no headings found, treat entire file as one section
 	if len(sections) == 0 && core.Trim(data) != "" {
 		sections = append(sections, section{
-			heading: core.TrimSuffix(filepath.Base(path), ".md"),
+			heading: core.TrimSuffix(core.PathBase(path), ".md"),
 			content: core.Trim(data),
 		})
 	}
@@ -385,7 +391,18 @@ func parseMarkdownSections(path string) []section {
 	return sections
 }
 
-func readLocal(path string) (string, error) {
+func homeDir() string {
+	home := core.UserHomeDir()
+	if !home.OK {
+		return ""
+	}
+	return home.Value.(string)
+}
+
+func readLocal(path string) (
+	string,
+	error,
+) {
 	r := (&core.Fs{}).New("/").Read(path)
 	if !r.OK {
 		if err, ok := r.Value.(error); ok && err != nil {

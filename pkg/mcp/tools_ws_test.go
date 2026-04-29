@@ -178,3 +178,71 @@ func TestServiceProcessService_Nil(t *testing.T) {
 		t.Error("Expected ProcessService() to return nil when not configured")
 	}
 }
+
+// moved AX-7 triplet TestToolsWs_NewProcessEventCallback_Good
+func TestToolsWs_NewProcessEventCallback_Good(t *T) {
+	hub := ws.NewHub()
+	cb := NewProcessEventCallback(hub)
+	AssertNotNil(t, cb)
+	AssertEqual(t, hub, cb.hub)
+}
+
+// moved AX-7 triplet TestToolsWs_NewProcessEventCallback_Bad
+func TestToolsWs_NewProcessEventCallback_Bad(t *T) {
+	cb := NewProcessEventCallback(nil)
+	AssertNotNil(t, cb)
+	AssertNil(t, cb.hub)
+}
+
+// moved AX-7 triplet TestToolsWs_NewProcessEventCallback_Ugly
+func TestToolsWs_NewProcessEventCallback_Ugly(t *T) {
+	cb := NewProcessEventCallback(ws.NewHub())
+	cb.OnProcessOutput("", "")
+	AssertNotNil(t, cb.hub)
+}
+
+// moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessOutput_Good
+func TestToolsWs_ProcessEventCallback_OnProcessOutput_Good(t *T) {
+	hub := ws.NewHub()
+	cb := NewProcessEventCallback(hub)
+	cb.OnProcessOutput("proc", "line")
+	AssertEqual(t, 1, hub.Stats().Channels)
+}
+
+// moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessOutput_Bad
+func TestToolsWs_ProcessEventCallback_OnProcessOutput_Bad(t *T) {
+	cb := NewProcessEventCallback(nil)
+	AssertNotPanics(t, func() { cb.OnProcessOutput("proc", "line") })
+	AssertNil(t, cb.hub)
+}
+
+// moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessOutput_Ugly
+func TestToolsWs_ProcessEventCallback_OnProcessOutput_Ugly(t *T) {
+	hub := ws.NewHub()
+	cb := NewProcessEventCallback(hub)
+	cb.OnProcessOutput("", "")
+	AssertEqual(t, 1, hub.Stats().Channels)
+}
+
+// moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessStatus_Good
+func TestToolsWs_ProcessEventCallback_OnProcessStatus_Good(t *T) {
+	hub := ws.NewHub()
+	cb := NewProcessEventCallback(hub)
+	cb.OnProcessStatus("proc", "exited", 0)
+	AssertEqual(t, 1, hub.Stats().Channels)
+}
+
+// moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessStatus_Bad
+func TestToolsWs_ProcessEventCallback_OnProcessStatus_Bad(t *T) {
+	cb := NewProcessEventCallback(nil)
+	AssertNotPanics(t, func() { cb.OnProcessStatus("proc", "exited", 0) })
+	AssertNil(t, cb.hub)
+}
+
+// moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessStatus_Ugly
+func TestToolsWs_ProcessEventCallback_OnProcessStatus_Ugly(t *T) {
+	hub := ws.NewHub()
+	cb := NewProcessEventCallback(hub)
+	cb.OnProcessStatus("", "", -1)
+	AssertEqual(t, 1, hub.Stats().Channels)
+}

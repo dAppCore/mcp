@@ -91,7 +91,11 @@ func (s *Service) registerMetricsTools(server *mcp.Server) {
 }
 
 // metricsRecord handles the metrics_record tool call.
-func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, input MetricsRecordInput) (*mcp.CallToolResult, MetricsRecordOutput, error) {
+func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, input MetricsRecordInput) (
+	*mcp.CallToolResult,
+	MetricsRecordOutput,
+	error,
+) {
 	s.logger.Info("MCP tool execution", "tool", "metrics_record", "type", input.Type, "agent_id", input.AgentID, "repo", input.Repo, "user", core.Username())
 
 	// Validate input
@@ -121,7 +125,11 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 }
 
 // metricsQuery handles the metrics_query tool call.
-func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, input MetricsQueryInput) (*mcp.CallToolResult, MetricsQueryOutput, error) {
+func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, input MetricsQueryInput) (
+	*mcp.CallToolResult,
+	MetricsQueryOutput,
+	error,
+) {
 	// Apply defaults
 	since := input.Since
 	if since == "" {
@@ -194,7 +202,10 @@ func convertMetricCounts(data any) []MetricCount {
 }
 
 // parseDuration parses a duration string like "7d", "24h", "30m".
-func parseDuration(s string) (time.Duration, error) {
+func parseDuration(s string) (
+	time.Duration,
+	error,
+) {
 	if s == "" {
 		return 0, core.E("parseDuration", "duration cannot be empty", nil)
 	}

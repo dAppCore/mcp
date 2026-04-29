@@ -7,7 +7,6 @@ import (
 	"context"
 	goio "io"
 	"net"
-	"os"
 	"sync"
 
 	core "dappco.re/go"
@@ -25,7 +24,7 @@ var diagMu sync.Mutex
 
 // diagWriter is the destination for warning and diagnostic messages.
 // Use diagPrintf to write to it safely.
-var diagWriter goio.Writer = os.Stderr
+var diagWriter goio.Writer = core.Stderr()
 
 // diagPrintf writes a formatted message to diagWriter under the mutex.
 func diagPrintf(format string, args ...any) {
@@ -62,7 +61,10 @@ type TCPTransport struct {
 //
 //	t, err := NewTCPTransport("127.0.0.1:9100")
 //	t, err := NewTCPTransport(":9100") // defaults to 127.0.0.1:9100
-func NewTCPTransport(addr string) (*TCPTransport, error) {
+func NewTCPTransport(addr string) (
+	*TCPTransport,
+	error,
+) {
 	addr = normalizeTCPAddr(addr)
 
 	host, port, _ := net.SplitHostPort(addr)
@@ -101,7 +103,12 @@ func normalizeTCPAddr(addr string) string {
 //	if err := svc.ServeTCP(ctx, "127.0.0.1:9100"); err != nil {
 //	    core.Fatal("tcp transport failed", "err", err)
 //	}
-func (s *Service) ServeTCP(ctx context.Context, addr string) error {
+func (s *Service) ServeTCP(
+	ctx context.Context,
+	addr string,
+) (
+	_ error, // result
+) {
 	t, err := NewTCPTransport(addr)
 	if err != nil {
 		return err
@@ -159,7 +166,10 @@ type connTransport struct {
 	conn net.Conn
 }
 
-func (t *connTransport) Connect(ctx context.Context) (mcp.Connection, error) {
+func (t *connTransport) Connect(ctx context.Context) (
+	mcp.Connection,
+	error,
+) {
 	scanner := bufio.NewScanner(t.conn)
 	scanner.Buffer(make([]byte, 64*1024), maxMCPMessageSize)
 	return &connConnection{
@@ -174,7 +184,10 @@ type connConnection struct {
 	scanner *bufio.Scanner
 }
 
-func (c *connConnection) Read(ctx context.Context) (jsonrpc.Message, error) {
+func (c *connConnection) Read(ctx context.Context) (
+	jsonrpc.Message,
+	error,
+) {
 	// Blocks until line is read
 	if !c.scanner.Scan() {
 		if err := c.scanner.Err(); err != nil {
@@ -187,7 +200,12 @@ func (c *connConnection) Read(ctx context.Context) (jsonrpc.Message, error) {
 	return jsonrpc.DecodeMessage(line)
 }
 
-func (c *connConnection) Write(ctx context.Context, msg jsonrpc.Message) error {
+func (c *connConnection) Write(
+	ctx context.Context,
+	msg jsonrpc.Message,
+) (
+	_ error, // result
+) {
 	if c == nil || c.conn == nil {
 		return core.E("mcp.connConnection.Write", "connection is not available", nil)
 	}
@@ -204,7 +222,9 @@ func (c *connConnection) Write(ctx context.Context, msg jsonrpc.Message) error {
 	return err
 }
 
-func (c *connConnection) Close() error {
+func (c *connConnection) Close() (
+	_ error, // result
+) {
 	return c.conn.Close()
 }
 

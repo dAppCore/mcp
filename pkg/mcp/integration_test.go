@@ -2,8 +2,6 @@ package mcp
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 
 	core "dappco.re/go"
 )
@@ -26,7 +24,9 @@ func TestIntegration_FileTools(t *core.T) {
 	core.AssertEqual(t, "test.txt", writeOutput.Path)
 
 	// Verify on disk
-	content, _ := os.ReadFile(filepath.Join(tmpDir, "test.txt"))
+	readResult := core.ReadFile(core.PathJoin(tmpDir, "test.txt"))
+	core.AssertTrue(t, readResult.OK)
+	content := readResult.Value.([]byte)
 	core.AssertEqual(t, "hello world", string(content))
 
 	// 2. Test file_read
@@ -65,7 +65,9 @@ func TestIntegration_FileTools(t *core.T) {
 	core.AssertNoError(t, err)
 	core.AssertEqual(t, 3, editOutput.Replacements)
 
-	content, _ = os.ReadFile(filepath.Join(tmpDir, "multi.txt"))
+	readResult = core.ReadFile(core.PathJoin(tmpDir, "multi.txt"))
+	core.AssertTrue(t, readResult.OK)
+	content = readResult.Value.([]byte)
 	core.AssertEqual(t, "xyz xyz xyz", string(content))
 
 	// 5. Test dir_list

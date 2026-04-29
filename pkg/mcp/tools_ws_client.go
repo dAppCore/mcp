@@ -51,7 +51,7 @@ type WSSendInput struct {
 type WSSendOutput struct {
 	Success bool   `json:"success"` // true when the message was written
 	ID      string `json:"id"`      // e.g. "ws-0af3…"
-	Bytes   int    `json:"bytes"`   // number of bytes written
+	Bytes   int    "json:\"bytes\"" // number of bytes written
 }
 
 // WSCloseInput contains parameters for closing a WebSocket connection.
@@ -107,7 +107,11 @@ func (s *Service) registerWSClientTools(server *mcp.Server) {
 }
 
 // wsConnect handles the ws_connect tool call.
-func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input WSConnectInput) (*mcp.CallToolResult, WSConnectOutput, error) {
+func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input WSConnectInput) (
+	*mcp.CallToolResult,
+	WSConnectOutput,
+	error,
+) {
 	s.logger.Security("MCP tool execution", "tool", "ws_connect", "url", input.URL, "user", core.Username())
 
 	if core.Trim(input.URL) == "" {
@@ -157,7 +161,11 @@ func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input
 }
 
 // wsSend handles the ws_send tool call.
-func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WSSendInput) (*mcp.CallToolResult, WSSendOutput, error) {
+func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WSSendInput) (
+	*mcp.CallToolResult,
+	WSSendOutput,
+	error,
+) {
 	s.logger.Info("MCP tool execution", "tool", "ws_send", "id", input.ID, "binary", input.Binary, "user", core.Username())
 
 	if core.Trim(input.ID) == "" {
@@ -190,7 +198,11 @@ func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WS
 }
 
 // wsClose handles the ws_close tool call.
-func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input WSCloseInput) (*mcp.CallToolResult, WSCloseOutput, error) {
+func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input WSCloseInput) (
+	*mcp.CallToolResult,
+	WSCloseOutput,
+	error,
+) {
 	s.logger.Info("MCP tool execution", "tool", "ws_close", "id", input.ID, "user", core.Username())
 
 	if core.Trim(input.ID) == "" {

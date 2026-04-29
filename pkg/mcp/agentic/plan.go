@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"time"
 
 	core "dappco.re/go"
@@ -76,7 +76,7 @@ type PlanCreateInput struct {
 type PlanCreateOutput struct {
 	Success bool   `json:"success"`
 	ID      string `json:"id"`
-	Path    string `json:"path"`
+	Path    string "json:\"path\""
 }
 
 // PlanReadInput is the input for agentic_plan_read.
@@ -208,7 +208,11 @@ func (s *PrepSubsystem) registerPlanTools(svc *coremcp.Service) {
 
 // --- Handlers ---
 
-func (s *PrepSubsystem) planCreate(_ context.Context, _ *mcp.CallToolRequest, input PlanCreateInput) (*mcp.CallToolResult, PlanCreateOutput, error) {
+func (s *PrepSubsystem) planCreate(_ context.Context, _ *mcp.CallToolRequest, input PlanCreateInput) (
+	*mcp.CallToolResult,
+	PlanCreateOutput,
+	error,
+) {
 	if input.Title == "" {
 		return nil, PlanCreateOutput{}, core.E("planCreate", "title is required", nil)
 	}
@@ -252,7 +256,11 @@ func (s *PrepSubsystem) planCreate(_ context.Context, _ *mcp.CallToolRequest, in
 	}, nil
 }
 
-func (s *PrepSubsystem) planRead(_ context.Context, _ *mcp.CallToolRequest, input PlanReadInput) (*mcp.CallToolResult, PlanReadOutput, error) {
+func (s *PrepSubsystem) planRead(_ context.Context, _ *mcp.CallToolRequest, input PlanReadInput) (
+	*mcp.CallToolResult,
+	PlanReadOutput,
+	error,
+) {
 	if input.ID == "" {
 		return nil, PlanReadOutput{}, core.E("planRead", "id is required", nil)
 	}
@@ -268,7 +276,11 @@ func (s *PrepSubsystem) planRead(_ context.Context, _ *mcp.CallToolRequest, inpu
 	}, nil
 }
 
-func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, input PlanUpdateInput) (*mcp.CallToolResult, PlanUpdateOutput, error) {
+func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, input PlanUpdateInput) (
+	*mcp.CallToolResult,
+	PlanUpdateOutput,
+	error,
+) {
 	if input.ID == "" {
 		return nil, PlanUpdateOutput{}, core.E("planUpdate", "id is required", nil)
 	}
@@ -313,7 +325,11 @@ func (s *PrepSubsystem) planUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 	}, nil
 }
 
-func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, input PlanDeleteInput) (*mcp.CallToolResult, PlanDeleteOutput, error) {
+func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, input PlanDeleteInput) (
+	*mcp.CallToolResult,
+	PlanDeleteOutput,
+	error,
+) {
 	if input.ID == "" {
 		return nil, PlanDeleteOutput{}, core.E("planDelete", "id is required", nil)
 	}
@@ -333,7 +349,11 @@ func (s *PrepSubsystem) planDelete(_ context.Context, _ *mcp.CallToolRequest, in
 	}, nil
 }
 
-func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, input PlanListInput) (*mcp.CallToolResult, PlanListOutput, error) {
+func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, input PlanListInput) (
+	*mcp.CallToolResult,
+	PlanListOutput,
+	error,
+) {
 	dir := s.plansDir()
 	if err := coreio.Local.EnsureDir(dir); err != nil {
 		return nil, PlanListOutput{}, core.E("planList", "failed to access plans directory", err)
@@ -374,7 +394,11 @@ func (s *PrepSubsystem) planList(_ context.Context, _ *mcp.CallToolRequest, inpu
 	}, nil
 }
 
-func (s *PrepSubsystem) planCheckpoint(_ context.Context, _ *mcp.CallToolRequest, input PlanCheckpointInput) (*mcp.CallToolResult, PlanCheckpointOutput, error) {
+func (s *PrepSubsystem) planCheckpoint(_ context.Context, _ *mcp.CallToolRequest, input PlanCheckpointInput) (
+	*mcp.CallToolResult,
+	PlanCheckpointOutput,
+	error,
+) {
 	if input.ID == "" {
 		return nil, PlanCheckpointOutput{}, core.E("planCheckpoint", "id is required", nil)
 	}
@@ -456,7 +480,10 @@ func generatePlanID(title string) string {
 	return slug + "-" + hex.EncodeToString(rnd)
 }
 
-func readPlan(dir, id string) (*Plan, error) {
+func readPlan(dir, id string) (
+	*Plan,
+	error,
+) {
 	data, err := coreio.Local.Read(planPath(dir, id))
 	if err != nil {
 		return nil, core.E("readPlan", "plan not found: "+id, err)
@@ -469,7 +496,10 @@ func readPlan(dir, id string) (*Plan, error) {
 	return &plan, nil
 }
 
-func writePlan(dir string, plan *Plan) (string, error) {
+func writePlan(dir string, plan *Plan) (
+	string,
+	error,
+) {
 	if err := coreio.Local.EnsureDir(dir); err != nil {
 		return "", core.E("writePlan", "failed to create plans directory", err)
 	}

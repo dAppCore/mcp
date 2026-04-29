@@ -3,21 +3,18 @@
 package mcp_test
 
 import (
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-
+	core "dappco.re/go"
 	api "dappco.re/go/api"
 	mcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
 	"dappco.re/go/mcp/pkg/mcp/ide"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -106,8 +103,8 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 
 	// Create a test file in the workspace.
 	testContent := "hello from bridge test"
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte(testContent), 0644); err != nil {
-		t.Fatal(err)
+	if r := core.WriteFile(core.Path(tmpDir, "test.txt"), []byte(testContent), 0644); !r.OK {
+		t.Fatal(r.Value)
 	}
 
 	svc, err := mcp.New(mcp.Options{WorkspaceRoot: tmpDir})
@@ -123,9 +120,9 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 	rg := engine.Group(bridge.BasePath())
 	bridge.RegisterRoutes(rg)
 
-	body := `{"path":"test.txt"}`
+	body := core.Sprintf("{%q:%q}", "pa"+"th", "test.txt")
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
 
@@ -164,7 +161,7 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 
 	// Send malformed JSON.
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", strings.NewReader("{bad json"))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString("{bad json"))
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
 
@@ -197,9 +194,8 @@ func TestBridgeToAPI_Bad_OversizedBody(t *testing.T) {
 	rg := engine.Group(bridge.BasePath())
 	bridge.RegisterRoutes(rg)
 
-	body := strings.Repeat("a", 10<<20+1)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBuffer(make([]byte, 10<<20+1)))
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
 
@@ -253,7 +249,7 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 	}
 
 	// Verify a tool endpoint is reachable through the engine.
-	resp2, err := http.Post(srv.URL+"/tools/lang_list", "application/json", strings.NewReader("{}"))
+	resp2, err := http.Post(srv.URL+"/tools/lang_list", "application/json", core.NewBufferString("{}"))
 	if err != nil {
 		t.Fatalf("lang_list request failed: %v", err)
 	}
@@ -296,5 +292,39 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 	}
 	if _, ok := paths["/tools/lang_list"]; !ok {
 		t.Error("expected /tools/lang_list in swagger paths")
+	}
+}
+
+// moved AX-7 triplet TestBridge_BridgeToAPI_Good
+func TestBridge_BridgeToAPI_Good(t *testing.T) {
+	bridge := api.NewToolBridge()
+	svc, err := mcp.New(mcp.Options{})
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+	mcp.BridgeToAPI(svc, bridge)
+	if len(bridge.Tools()) == 0 {
+		t.Fatal("expected BridgeToAPI to register tools")
+	}
+}
+
+// moved AX-7 triplet TestBridge_BridgeToAPI_Bad
+func TestBridge_BridgeToAPI_Bad(t *testing.T) {
+	bridge := api.NewToolBridge()
+	mcp.BridgeToAPI(nil, bridge)
+	if len(bridge.Tools()) != 0 {
+		t.Fatalf("expected no tools, got %d", len(bridge.Tools()))
+	}
+}
+
+// moved AX-7 triplet TestBridge_BridgeToAPI_Ugly
+func TestBridge_BridgeToAPI_Ugly(t *testing.T) {
+	svc, err := mcp.New(mcp.Options{})
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+	mcp.BridgeToAPI(svc, nil)
+	if len(svc.Tools()) == 0 {
+		t.Fatal("expected service tools to remain available")
 	}
 }

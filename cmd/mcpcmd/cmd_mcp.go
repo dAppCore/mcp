@@ -13,9 +13,6 @@ package mcpcmd
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 
 	core "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp"
@@ -100,7 +97,9 @@ func firstNonEmpty(values ...string) string {
 //	if err := runServe(); err != nil {
 //	    core.Error("mcp serve failed", "err", err)
 //	}
-func runServe() error {
+func runServe() (
+	_ error, // result
+) {
 	opts := mcp.Options{}
 
 	if unrestrictedFlag {
@@ -127,17 +126,6 @@ func runServe() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		select {
-		case <-sigCh:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
 
 	return runMCPService(svc, ctx)
 }

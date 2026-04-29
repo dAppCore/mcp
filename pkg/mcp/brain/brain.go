@@ -73,6 +73,10 @@ func (s *Subsystem) handleBridgeMessage(msg ide.BridgeMessage) {
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
-func (s *Subsystem) Shutdown(_ context.Context) error {
+func (s *Subsystem) Shutdown(
+	_ context.Context,
+) (
+	_ error, // result
+) {
 	return nil
 }

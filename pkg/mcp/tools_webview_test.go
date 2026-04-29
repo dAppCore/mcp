@@ -1,9 +1,7 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -11,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/webview"
 )
 
@@ -229,7 +228,7 @@ func TestWaitForSelector_Good(t *testing.T) {
 	err := waitForSelector(ctx, 200*time.Millisecond, "#ready", func(selector string) error {
 		attempts++
 		if attempts < 3 {
-			return errors.New("element not found: " + selector)
+			return core.NewError("element not found: " + selector)
 		}
 		return nil
 	})
@@ -247,7 +246,7 @@ func TestWaitForSelector_Bad_Timeout(t *testing.T) {
 
 	start := time.Now()
 	err := waitForSelector(ctx, 50*time.Millisecond, "#missing", func(selector string) error {
-		return errors.New("element not found: " + selector)
+		return core.NewError("element not found: " + selector)
 	})
 	if err == nil {
 		t.Fatal("expected waitForSelector to time out")
@@ -322,7 +321,7 @@ func TestWebviewConsoleOutput_Good(t *testing.T) {
 	output := WebviewConsoleOutput{
 		Messages: []WebviewConsoleMessage{
 			{
-				Type:      "log",
+				Type:      `log`,
 				Text:      "Hello, world!",
 				Timestamp: "2024-01-01T00:00:00Z",
 			},
@@ -343,7 +342,7 @@ func TestWebviewConsoleOutput_Good(t *testing.T) {
 	if len(output.Messages) != 2 {
 		t.Fatalf("Expected 2 messages, got %d", len(output.Messages))
 	}
-	if output.Messages[0].Type != "log" {
+	if output.Messages[0].Type != `log` {
 		t.Errorf("Expected type 'log', got %q", output.Messages[0].Type)
 	}
 	if output.Messages[1].Line != 42 {
@@ -410,7 +409,7 @@ func TestNormalizeScreenshotData_Good_Png(t *testing.T) {
 	if format != "png" {
 		t.Fatalf("expected png format, got %q", format)
 	}
-	if !bytes.Equal(out, src) {
+	if string(out) != string(src) {
 		t.Fatal("expected png output to preserve the original bytes")
 	}
 }
@@ -425,11 +424,11 @@ func TestNormalizeScreenshotData_Good_Jpeg(t *testing.T) {
 	if format != "jpeg" {
 		t.Fatalf("expected jpeg format, got %q", format)
 	}
-	if bytes.Equal(out, src) {
+	if string(out) == string(src) {
 		t.Fatal("expected jpeg output to differ from png input")
 	}
 
-	if _, err := jpeg.Decode(bytes.NewReader(out)); err != nil {
+	if _, err := jpeg.Decode(core.NewBuffer(out)); err != nil {
 		t.Fatalf("expected output to decode as an image: %v", err)
 	}
 }
@@ -448,8 +447,8 @@ func mustEncodeTestPNG(t *testing.T) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	img.Set(0, 0, color.RGBA{R: 200, G: 80, B: 40, A: 255})
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+	buf := core.NewBuffer()
+	if err := png.Encode(buf, img); err != nil {
 		t.Fatalf("png encode failed: %v", err)
 	}
 	return buf.Bytes()

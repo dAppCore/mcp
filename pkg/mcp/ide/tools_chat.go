@@ -146,7 +146,11 @@ func (s *Subsystem) registerChatTools(svc *coremcp.Service) {
 // chatSend forwards a chat message to the Laravel backend via bridge.
 // The subsystem also stores the message locally so history lookups can
 // return something useful before the backend answers.
-func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input ChatSendInput) (*mcp.CallToolResult, ChatSendOutput, error) {
+func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input ChatSendInput) (
+	*mcp.CallToolResult,
+	ChatSendOutput,
+	error,
+) {
 	if s.bridge == nil {
 		return nil, ChatSendOutput{}, errBridgeNotAvailable
 	}
@@ -172,7 +176,11 @@ func (s *Subsystem) chatSend(_ context.Context, _ *mcp.CallToolRequest, input Ch
 
 // chatHistory returns the local message history for a session and refreshes
 // the Laravel backend when the bridge is available.
-func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input ChatHistoryInput) (*mcp.CallToolResult, ChatHistoryOutput, error) {
+func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input ChatHistoryInput) (
+	*mcp.CallToolResult,
+	ChatHistoryOutput,
+	error,
+) {
 	if s.bridge != nil {
 		// Request history via bridge when available; the local cache still
 		// provides an immediate response in headless mode.
@@ -190,7 +198,11 @@ func (s *Subsystem) chatHistory(_ context.Context, _ *mcp.CallToolRequest, input
 
 // sessionList returns the local session cache and refreshes the Laravel
 // backend when the bridge is available.
-func (s *Subsystem) sessionList(_ context.Context, _ *mcp.CallToolRequest, _ SessionListInput) (*mcp.CallToolResult, SessionListOutput, error) {
+func (s *Subsystem) sessionList(_ context.Context, _ *mcp.CallToolRequest, _ SessionListInput) (
+	*mcp.CallToolResult,
+	SessionListOutput,
+	error,
+) {
 	if s.bridge != nil {
 		s.sendBridgeBestEffort(BridgeMessage{Type: "session_list"})
 	}
@@ -199,7 +211,11 @@ func (s *Subsystem) sessionList(_ context.Context, _ *mcp.CallToolRequest, _ Ses
 
 // sessionCreate creates a local session record immediately and forwards the
 // request to the Laravel backend when the bridge is available.
-func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, input SessionCreateInput) (*mcp.CallToolResult, SessionCreateOutput, error) {
+func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, input SessionCreateInput) (
+	*mcp.CallToolResult,
+	SessionCreateOutput,
+	error,
+) {
 	if s.bridge != nil {
 		if err := s.bridge.Send(BridgeMessage{
 			Type: "session_create",
@@ -223,7 +239,11 @@ func (s *Subsystem) sessionCreate(_ context.Context, _ *mcp.CallToolRequest, inp
 
 // planStatus returns the local best-effort session status and refreshes the
 // Laravel backend when the bridge is available.
-func (s *Subsystem) planStatus(_ context.Context, _ *mcp.CallToolRequest, input PlanStatusInput) (*mcp.CallToolResult, PlanStatusOutput, error) {
+func (s *Subsystem) planStatus(_ context.Context, _ *mcp.CallToolRequest, input PlanStatusInput) (
+	*mcp.CallToolResult,
+	PlanStatusOutput,
+	error,
+) {
 	if s.bridge != nil {
 		s.sendBridgeBestEffort(BridgeMessage{
 			Type:      "plan_status",

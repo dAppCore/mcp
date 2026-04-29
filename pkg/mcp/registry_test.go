@@ -4,10 +4,11 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/process"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {
@@ -59,7 +60,7 @@ func TestToolRegistry_Good_SchemaExtraction(t *testing.T) {
 		t.Fatal("expected properties map in InputSchema")
 	}
 
-	if _, ok := props["path"]; !ok {
+	if _, ok := props[`path`]; !ok {
 		t.Error("expected 'path' property in file_read InputSchema")
 	}
 }
@@ -296,7 +297,99 @@ func TestToolRegistry_Bad_InvalidRESTInputIsClassified(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected REST handler error for malformed JSON")
 	}
-	if !errors.Is(err, errInvalidRESTInput) {
+	if !core.Is(err, errInvalidRESTInput) {
 		t.Fatalf("expected invalid REST input error, got %v", err)
 	}
+}
+
+// moved AX-7 triplet TestRegistry_AddToolRecorded_Good
+func TestRegistry_AddToolRecorded_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AddToolRecorded(svc, svc.Server(), "ax7", &sdkmcp.Tool{Name: "ax7_echo", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest, struct{}) (*sdkmcp.CallToolResult, map[string]string, error) {
+		return nil, map[string]string{"ok": "true"}, nil
+	})
+	AssertContains(t, toolNames(svc.Tools()), "ax7_echo")
+}
+
+// moved AX-7 triplet TestRegistry_AddToolRecorded_Bad
+func TestRegistry_AddToolRecorded_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertPanics(t, func() {
+		AddToolRecorded(svc, nil, "ax7", &sdkmcp.Tool{Name: "ax7_bad", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest, struct{}) (*sdkmcp.CallToolResult, map[string]string, error) {
+			return nil, map[string]string{}, nil
+		})
+	})
+	AssertFalse(t, Contains(Join(",", toolNames(svc.Tools())...), "ax7_bad"))
+}
+
+// moved AX-7 triplet TestRegistry_AddToolRecorded_Ugly
+func TestRegistry_AddToolRecorded_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AddToolRecorded(svc, svc.Server(), "", &sdkmcp.Tool{Name: "ax7_empty_group", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest, struct{}) (*sdkmcp.CallToolResult, map[string]string, error) {
+		return nil, map[string]string{"ok": ""}, nil
+	})
+	AssertContains(t, toolNames(svc.Tools()), "ax7_empty_group")
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Error_Good
+func TestRegistry_InputError_Error_Good(t *T) {
+	err := invalidRESTInputError(core.NewError("bad json"))
+	AssertContains(t, err.Error(), "bad json")
+	AssertTrue(t, core.Is(err, errInvalidRESTInput))
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Error_Bad
+func TestRegistry_InputError_Error_Bad(t *T) {
+	var err *restInputError
+	AssertEqual(t, "invalid REST input", err.Error())
+	AssertNil(t, err)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Error_Ugly
+func TestRegistry_InputError_Error_Ugly(t *T) {
+	err := invalidRESTInputError(nil)
+	AssertEqual(t, "invalid REST input", err.Error())
+	AssertNil(t, err.(*restInputError).Unwrap())
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Is_Good
+func TestRegistry_InputError_Is_Good(t *T) {
+	err := invalidRESTInputError(core.NewError("bad json"))
+	AssertTrue(t, core.Is(err, errInvalidRESTInput))
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Is_Bad
+func TestRegistry_InputError_Is_Bad(t *T) {
+	err := core.NewError("plain")
+	AssertFalse(t, core.Is(err, errInvalidRESTInput))
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Is_Ugly
+func TestRegistry_InputError_Is_Ugly(t *T) {
+	err := &restInputError{}
+	AssertTrue(t, core.Is(err, &restInputError{}))
+	AssertEqual(t, "invalid REST input", err.Error())
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Unwrap_Good
+func TestRegistry_InputError_Unwrap_Good(t *T) {
+	cause := core.NewError("bad json")
+	err := invalidRESTInputError(cause)
+	AssertErrorIs(t, err.(*restInputError).Unwrap(), cause)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Unwrap_Bad
+func TestRegistry_InputError_Unwrap_Bad(t *T) {
+	var err *restInputError
+	AssertNil(t, err.Unwrap())
+	AssertEqual(t, "invalid REST input", err.Error())
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Unwrap_Ugly
+func TestRegistry_InputError_Unwrap_Ugly(t *T) {
+	err := invalidRESTInputError(nil)
+	AssertNil(t, err.(*restInputError).Unwrap())
+	AssertTrue(t, core.Is(err, errInvalidRESTInput))
 }

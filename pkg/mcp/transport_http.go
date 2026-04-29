@@ -5,7 +5,7 @@ package mcp
 import (
 	"context"
 	// Note: AX-6 — HTTP transport boundary needs streaming JSON encode/decode against ResponseWriter and MaxBytesReader.
-	"encoding/json"
+	"github.com/goccy/go-json"
 	// Note: AX-6 — structural HTTP transport requires binding an explicit TCP listener.
 	"net"
 	// Note: AX-6 — structural HTTP transport boundary requires handlers, requests, status codes, and server lifecycle APIs.
@@ -41,7 +41,12 @@ const DefaultHTTPAddr = "127.0.0.1:9101"
 //   - /v1/tools/<tool_name>: auto-mounted REST bridge for MCP tools
 //   - /health: unauthenticated health endpoint
 //   - /.well-known/mcp-servers.json: MCP portal discovery
-func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
+func (s *Service) ServeHTTP(
+	ctx context.Context,
+	addr string,
+) (
+	_ error, // result
+) {
 	if addr == "" {
 		addr = DefaultHTTPAddr
 	}

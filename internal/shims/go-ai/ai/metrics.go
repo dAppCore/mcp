@@ -18,7 +18,11 @@ var events struct {
 	items []Event
 }
 
-func Record(event Event) error {
+func Record(
+	event Event,
+) (
+	_ error, // result
+) {
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
 	}
@@ -28,7 +32,10 @@ func Record(event Event) error {
 	return nil
 }
 
-func ReadEvents(since time.Time) ([]Event, error) {
+func ReadEvents(since time.Time) (
+	[]Event,
+	error,
+) {
 	events.Lock()
 	defer events.Unlock()
 	out := make([]Event, 0, len(events.items))

@@ -15,10 +15,15 @@ import (
 //	if err := svc.ServeUnix(ctx, "/tmp/core-mcp.sock"); err != nil {
 //	    core.Fatal("unix transport failed", "err", err)
 //	}
-func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
+func (s *Service) ServeUnix(
+	ctx context.Context,
+	socketPath string,
+) (
+	_ error, // result
+) {
 	// Clean up any stale socket file
 	if err := localMedium.Delete(socketPath); err != nil {
-		s.logger.Warn("Failed to remove stale socket", "path", socketPath, "err", err)
+		s.logger.Warn("Failed to remove stale socket", `path`, socketPath, "err", err)
 	}
 
 	listener, err := net.Listen("unix", socketPath)
@@ -27,10 +32,10 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	}
 	defer func() {
 		if err := listener.Close(); err != nil {
-			s.logger.Warn("Failed to close Unix listener", "path", socketPath, "err", err)
+			s.logger.Warn("Failed to close Unix listener", `path`, socketPath, "err", err)
 		}
 		if err := localMedium.Delete(socketPath); err != nil {
-			s.logger.Warn("Failed to remove Unix socket", "path", socketPath, "err", err)
+			s.logger.Warn("Failed to remove Unix socket", `path`, socketPath, "err", err)
 		}
 	}()
 
@@ -38,11 +43,11 @@ func (s *Service) ServeUnix(ctx context.Context, socketPath string) error {
 	go func() {
 		<-ctx.Done()
 		if err := listener.Close(); err != nil {
-			s.logger.Warn("Failed to close Unix listener on cancellation", "path", socketPath, "err", err)
+			s.logger.Warn("Failed to close Unix listener on cancellation", `path`, socketPath, "err", err)
 		}
 	}()
 
-	s.logger.Security("MCP Unix server listening", "path", socketPath, "user", core.Username())
+	s.logger.Security("MCP Unix server listening", `path`, socketPath, "user", core.Username())
 
 	for {
 		conn, err := listener.Accept()

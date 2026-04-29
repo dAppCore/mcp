@@ -3,8 +3,6 @@
 package mcp
 
 import (
-	// Note: AX-6 — screenshot normalization needs bytes.NewReader for image.Decode on captured byte slices.
-	"bytes"
 	"context"
 	"encoding/base64"
 	"image"
@@ -31,7 +29,9 @@ var (
 )
 
 // closeWebviewConnection closes and clears the shared browser connection.
-func closeWebviewConnection() error {
+func closeWebviewConnection() (
+	_ error, // result
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -140,7 +140,7 @@ type WebviewConsoleInput struct {
 
 // WebviewConsoleOutput contains console messages.
 //
-//	// out.Count == 5, out.Messages[0].Type == "log"
+//	// out.Count == 5, out.Messages[0].Type == `log`
 type WebviewConsoleOutput struct {
 	Messages []WebviewConsoleMessage `json:"messages"` // captured console entries
 	Count    int                     `json:"count"`    // number of messages
@@ -148,9 +148,9 @@ type WebviewConsoleOutput struct {
 
 // WebviewConsoleMessage represents a single browser console entry.
 //
-//	// msg.Type == "log", msg.Text == "App loaded"
+//	// msg.Type == `log`, msg.Text == "App loaded"
 type WebviewConsoleMessage struct {
-	Type      string `json:"type"`           // e.g. "log", "warn", "error"
+	Type      string `json:"type"`           // e.g. browser console levels
 	Text      string `json:"text"`           // e.g. "App loaded"
 	Timestamp string `json:"timestamp"`      // RFC3339 formatted
 	URL       string `json:"url,omitempty"`  // source file URL
@@ -284,7 +284,11 @@ func (s *Service) registerWebviewTools(server *mcp.Server) {
 }
 
 // webviewConnect handles the webview_connect tool call.
-func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewConnectInput) (*mcp.CallToolResult, WebviewConnectOutput, error) {
+func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewConnectInput) (
+	*mcp.CallToolResult,
+	WebviewConnectOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -327,7 +331,11 @@ func (s *Service) webviewConnect(ctx context.Context, req *mcp.CallToolRequest, 
 }
 
 // webviewDisconnect handles the webview_disconnect tool call.
-func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewDisconnectInput) (*mcp.CallToolResult, WebviewDisconnectOutput, error) {
+func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolRequest, input WebviewDisconnectInput) (
+	*mcp.CallToolResult,
+	WebviewDisconnectOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -354,7 +362,11 @@ func (s *Service) webviewDisconnect(ctx context.Context, req *mcp.CallToolReques
 }
 
 // webviewNavigate handles the webview_navigate tool call.
-func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest, input WebviewNavigateInput) (*mcp.CallToolResult, WebviewNavigateOutput, error) {
+func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest, input WebviewNavigateInput) (
+	*mcp.CallToolResult,
+	WebviewNavigateOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -380,7 +392,11 @@ func (s *Service) webviewNavigate(ctx context.Context, req *mcp.CallToolRequest,
 }
 
 // webviewClick handles the webview_click tool call.
-func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, input WebviewClickInput) (*mcp.CallToolResult, WebviewClickOutput, error) {
+func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, input WebviewClickInput) (
+	*mcp.CallToolResult,
+	WebviewClickOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -403,7 +419,11 @@ func (s *Service) webviewClick(ctx context.Context, req *mcp.CallToolRequest, in
 }
 
 // webviewType handles the webview_type tool call.
-func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, input WebviewTypeInput) (*mcp.CallToolResult, WebviewTypeOutput, error) {
+func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, input WebviewTypeInput) (
+	*mcp.CallToolResult,
+	WebviewTypeOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -426,7 +446,11 @@ func (s *Service) webviewType(ctx context.Context, req *mcp.CallToolRequest, inp
 }
 
 // webviewQuery handles the webview_query tool call.
-func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, input WebviewQueryInput) (*mcp.CallToolResult, WebviewQueryOutput, error) {
+func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, input WebviewQueryInput) (
+	*mcp.CallToolResult,
+	WebviewQueryOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -487,7 +511,11 @@ func (s *Service) webviewQuery(ctx context.Context, req *mcp.CallToolRequest, in
 }
 
 // webviewConsole handles the webview_console tool call.
-func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, input WebviewConsoleInput) (*mcp.CallToolResult, WebviewConsoleOutput, error) {
+func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, input WebviewConsoleInput) (
+	*mcp.CallToolResult,
+	WebviewConsoleOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -522,7 +550,11 @@ func (s *Service) webviewConsole(ctx context.Context, req *mcp.CallToolRequest, 
 }
 
 // webviewEval handles the webview_eval tool call.
-func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, input WebviewEvalInput) (*mcp.CallToolResult, WebviewEvalOutput, error) {
+func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, input WebviewEvalInput) (
+	*mcp.CallToolResult,
+	WebviewEvalOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -552,7 +584,11 @@ func (s *Service) webviewEval(ctx context.Context, req *mcp.CallToolRequest, inp
 }
 
 // webviewScreenshot handles the webview_screenshot tool call.
-func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolRequest, input WebviewScreenshotInput) (*mcp.CallToolResult, WebviewScreenshotOutput, error) {
+func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolRequest, input WebviewScreenshotInput) (
+	*mcp.CallToolResult,
+	WebviewScreenshotOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -589,12 +625,16 @@ func (s *Service) webviewScreenshot(ctx context.Context, req *mcp.CallToolReques
 // normalizeScreenshotData converts screenshot bytes into the requested format.
 // PNG is preserved as-is. JPEG requests are re-encoded so the output matches
 // the declared format in WebviewScreenshotOutput.
-func normalizeScreenshotData(data []byte, format string) ([]byte, string, error) {
+func normalizeScreenshotData(data []byte, format string) (
+	[]byte,
+	string,
+	error,
+) {
 	switch format {
 	case "", "png":
 		return data, "png", nil
 	case "jpeg", "jpg":
-		img, _, err := image.Decode(bytes.NewReader(data))
+		img, _, err := image.Decode(core.NewBuffer(data))
 		if err != nil {
 			return nil, "", err
 		}
@@ -609,7 +649,11 @@ func normalizeScreenshotData(data []byte, format string) ([]byte, string, error)
 }
 
 // webviewWait handles the webview_wait tool call.
-func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, input WebviewWaitInput) (*mcp.CallToolResult, WebviewWaitOutput, error) {
+func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, input WebviewWaitInput) (
+	*mcp.CallToolResult,
+	WebviewWaitOutput,
+	error,
+) {
 	webviewMu.Lock()
 	defer webviewMu.Unlock()
 
@@ -645,7 +689,14 @@ func (s *Service) webviewWait(ctx context.Context, req *mcp.CallToolRequest, inp
 // waitForSelector polls until the selector exists or the timeout elapses.
 // Query helpers in go-webview report "element not found" as an error, so we
 // keep retrying until we see the element or hit the deadline.
-func waitForSelector(ctx context.Context, timeout time.Duration, selector string, query func(string) error) error {
+func waitForSelector(
+	ctx context.Context,
+	timeout time.Duration,
+	selector string,
+	query func(string) error,
+) (
+	_ error, // result
+) {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}

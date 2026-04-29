@@ -3,14 +3,15 @@
 package mcp
 
 import (
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"testing"
 )
 
 func TestNegotiate_OpenAI_Good(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}]}`)
 
-	if _, ok := NegotiateTransformer(body, "", "/v1/chat/completions").(OpenAITransformer); !ok {
+	OpenAI := NegotiateTransformer(body, "", "/v1/chat/completions")
+	if _, ok := OpenAI.(OpenAITransformer); !ok {
 		t.Fatal("expected OpenAITransformer for chat completions path")
 	}
 }
@@ -18,7 +19,8 @@ func TestNegotiate_OpenAI_Good(t *testing.T) {
 func TestNegotiate_Anthropic_Good(t *testing.T) {
 	body := []byte(`{"model":"claude-3-5-sonnet","max_tokens":128,"messages":[{"role":"user","content":"hello"}]}`)
 
-	if _, ok := NegotiateTransformer(body, "", "/v1/messages").(AnthropicTransformer); !ok {
+	Anthropic := NegotiateTransformer(body, "", "/v1/messages")
+	if _, ok := Anthropic.(AnthropicTransformer); !ok {
 		t.Fatal("expected AnthropicTransformer for messages path")
 	}
 }
@@ -26,7 +28,8 @@ func TestNegotiate_Anthropic_Good(t *testing.T) {
 func TestNegotiate_MCPNative_Good(t *testing.T) {
 	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
 
-	if _, ok := NegotiateTransformer(body, "application/mcp+json", "/mcp").(MCPNativeTransformer); !ok {
+	MCPNative := NegotiateTransformer(body, "application/mcp+json", "/mcp")
+	if _, ok := MCPNative.(MCPNativeTransformer); !ok {
 		t.Fatal("expected MCPNativeTransformer for native MCP request")
 	}
 }
@@ -75,8 +78,8 @@ func TestOpenAITransformer_Normalise_Good(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected argument map, got %T", req.Params["arguments"])
 	}
-	if args["path"] != "README.md" {
-		t.Fatalf("expected README.md path, got %v", args["path"])
+	if args[`path`] != "README.md" {
+		t.Fatalf("expected README.md path, got %v", args[`path`])
 	}
 }
 
@@ -119,7 +122,7 @@ func TestAnthropicTransformer_Normalise_Good(t *testing.T) {
 						"type": "tool_use",
 						"id": "toolu_1",
 						"name": "file_read",
-						"input": {"path":"README.md"}
+							"input": {` + "\"path\"" + `:"README.md"}
 					}
 				]
 			}
@@ -143,8 +146,8 @@ func TestAnthropicTransformer_Normalise_Good(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected argument map, got %T", req.Params["arguments"])
 	}
-	if args["path"] != "README.md" {
-		t.Fatalf("expected README.md path, got %v", args["path"])
+	if args[`path`] != "README.md" {
+		t.Fatalf("expected README.md path, got %v", args[`path`])
 	}
 }
 
@@ -185,7 +188,92 @@ func TestHoneypotTransformer_Detect_FallbackOnGarbage(t *testing.T) {
 func TestNegotiate_Priority_Ugly(t *testing.T) {
 	body := []byte(`{"model":"claude-3-5-sonnet","max_tokens":128,"messages":[{"role":"user","content":"hello"}]}`)
 
-	if _, ok := NegotiateTransformer(body, "application/openai+json", "/v1/messages").(OpenAITransformer); !ok {
+	Priority := "application/openai+json"
+	if _, ok := NegotiateTransformer(body, Priority, "/v1/messages").(OpenAITransformer); !ok {
 		t.Fatal("expected explicit OpenAI media type to beat path/body inspection")
 	}
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Detect_Good
+func TestTransformer_MCPNativeTransformer_Detect_Good(t *T) {
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+	got := (MCPNativeTransformer{}).Detect(body, "", "")
+	AssertTrue(t, got)
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Detect_Bad
+func TestTransformer_MCPNativeTransformer_Detect_Bad(t *T) {
+	got := (MCPNativeTransformer{}).Detect([]byte(`{"method":"tools/list"}`), "", "")
+	AssertFalse(t, got)
+	AssertFalse(t, (MCPNativeTransformer{}).Detect([]byte(`bad`), "", ""))
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Detect_Ugly
+func TestTransformer_MCPNativeTransformer_Detect_Ugly(t *T) {
+	got := (MCPNativeTransformer{}).Detect(nil, "application/mcp+json", "")
+	AssertTrue(t, got)
+	AssertTrue(t, (MCPNativeTransformer{}).Detect(nil, "", "/mcp"))
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Normalise_Good
+func TestTransformer_MCPNativeTransformer_Normalise_Good(t *T) {
+	req, err := (MCPNativeTransformer{}).Normalise([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	AssertNoError(t, err)
+	AssertEqual(t, "tools/list", req.Method)
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Normalise_Bad
+func TestTransformer_MCPNativeTransformer_Normalise_Bad(t *T) {
+	req, err := (MCPNativeTransformer{}).Normalise([]byte(`bad`))
+	AssertError(t, err)
+	AssertEqual(t, MCPRequest{}, req)
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Normalise_Ugly
+func TestTransformer_MCPNativeTransformer_Normalise_Ugly(t *T) {
+	req, err := (MCPNativeTransformer{}).Normalise([]byte(`{"method":"ping"}`))
+	AssertNoError(t, err)
+	AssertEqual(t, "2.0", req.JSONRPC)
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Transform_Good
+func TestTransformer_MCPNativeTransformer_Transform_Good(t *T) {
+	out, err := (MCPNativeTransformer{}).Transform(MCPResult{ID: 1, Result: map[string]any{"ok": true}})
+	AssertNoError(t, err)
+	AssertContains(t, string(out), `"jsonrpc":"2.0"`)
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Transform_Bad
+func TestTransformer_MCPNativeTransformer_Transform_Bad(t *T) {
+	_, err := (MCPNativeTransformer{}).Transform(MCPResult{Result: make(chan int)})
+	AssertError(t, err)
+	AssertContains(t, err.Error(), "unsupported type")
+}
+
+// moved AX-7 triplet TestTransformer_MCPNativeTransformer_Transform_Ugly
+func TestTransformer_MCPNativeTransformer_Transform_Ugly(t *T) {
+	out, err := (MCPNativeTransformer{}).Transform(MCPResult{JSONRPC: "2.0", Error: map[string]any{"code": -1}})
+	AssertNoError(t, err)
+	AssertContains(t, string(out), `"error"`)
+}
+
+// moved AX-7 triplet TestTransformer_NegotiateTransformer_Good
+func TestTransformer_NegotiateTransformer_Good(t *T) {
+	body := []byte(`{"model":"gpt","messages":[{"role":"user","content":"hi"}]}`)
+	got := NegotiateTransformer(body, "application/openai+json", "")
+	AssertTrue(t, reflectTransformer[OpenAITransformer](got))
+}
+
+// moved AX-7 triplet TestTransformer_NegotiateTransformer_Bad
+func TestTransformer_NegotiateTransformer_Bad(t *T) {
+	got := NegotiateTransformer([]byte(`{}`), "", "")
+	AssertTrue(t, reflectTransformer[MCPNativeTransformer](got))
+	AssertFalse(t, reflectTransformer[OpenAITransformer](got))
+}
+
+// moved AX-7 triplet TestTransformer_NegotiateTransformer_Ugly
+func TestTransformer_NegotiateTransformer_Ugly(t *T) {
+	got := NegotiateTransformer([]byte(`not-json`), "", "/mcp")
+	AssertTrue(t, reflectTransformer[HoneypotTransformer](got))
+	AssertFalse(t, reflectTransformer[AnthropicTransformer](got))
 }

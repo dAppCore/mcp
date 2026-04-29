@@ -4,11 +4,12 @@ package brain
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"testing"
 	"time"
 
 	"dappco.re/go/mcp/pkg/mcp/ide"
+	"dappco.re/go/ws"
 )
 
 type recordingNotifier struct {
@@ -282,4 +283,111 @@ func TestListOutput_Good_RoundTrip(t *testing.T) {
 	if !out.Success || out.Count != 2 || len(out.Memories) != 2 {
 		t.Errorf("round-trip mismatch: %+v", out)
 	}
+}
+
+// moved AX-7 triplet TestBrain_New_Good
+func TestBrain_New_Good(t *T) {
+	bridge := ide.NewBridge(ws.NewHub(), ide.DefaultConfig())
+	sub := New(bridge)
+	AssertEqual(t, bridge, sub.bridge)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestBrain_New_Bad
+func TestBrain_New_Bad(t *T) {
+	sub := New(nil)
+	AssertNil(t, sub.bridge)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestBrain_New_Ugly
+func TestBrain_New_Ugly(t *T) {
+	sub := New(ide.NewBridge(nil, ide.DefaultConfig()))
+	AssertNotNil(t, sub.bridge)
+	AssertNoError(t, sub.Shutdown(context.Background()))
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_Name_Good
+func TestBrain_Subsystem_Name_Good(t *T) {
+	sub := New(nil)
+	AssertEqual(t, "brain", sub.Name())
+	AssertNil(t, sub.bridge)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_Name_Bad
+func TestBrain_Subsystem_Name_Bad(t *T) {
+	var sub *Subsystem
+	AssertEqual(t, "brain", sub.Name())
+	AssertNil(t, sub)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_Name_Ugly
+func TestBrain_Subsystem_Name_Ugly(t *T) {
+	sub := &Subsystem{}
+	AssertEqual(t, "brain", sub.Name())
+	AssertNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_RegisterTools_Good
+func TestBrain_Subsystem_RegisterTools_Good(t *T) {
+	svc := brainMCPServiceForTest(t)
+	New(nil).RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_RegisterTools_Bad
+func TestBrain_Subsystem_RegisterTools_Bad(t *T) {
+	sub := New(nil)
+	AssertPanics(t, func() { sub.RegisterTools(nil) })
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_RegisterTools_Ugly
+func TestBrain_Subsystem_RegisterTools_Ugly(t *T) {
+	svc := brainMCPServiceForTest(t)
+	(&Subsystem{}).RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_SetNotifier_Good
+func TestBrain_Subsystem_SetNotifier_Good(t *T) {
+	sub := New(nil)
+	notifier := &recordingNotifier{}
+	sub.SetNotifier(notifier)
+	AssertEqual(t, notifier, sub.notifier)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_SetNotifier_Bad
+func TestBrain_Subsystem_SetNotifier_Bad(t *T) {
+	sub := New(nil)
+	sub.SetNotifier(nil)
+	AssertNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_SetNotifier_Ugly
+func TestBrain_Subsystem_SetNotifier_Ugly(t *T) {
+	sub := &Subsystem{}
+	sub.SetNotifier(&recordingNotifier{})
+	AssertNotNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_Shutdown_Good
+func TestBrain_Subsystem_Shutdown_Good(t *T) {
+	sub := New(nil)
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_Shutdown_Bad
+func TestBrain_Subsystem_Shutdown_Bad(t *T) {
+	sub := New(nil)
+	err := sub.Shutdown(nil)
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestBrain_Subsystem_Shutdown_Ugly
+func TestBrain_Subsystem_Shutdown_Ugly(t *T) {
+	var sub *Subsystem
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
 }

@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"context"
-	"os"
 
 	core "dappco.re/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -16,10 +15,18 @@ import (
 //	if err := svc.ServeStdio(ctx); err != nil {
 //	    core.Fatal("stdio transport failed", "err", err)
 //	}
-func (s *Service) ServeStdio(ctx context.Context) error {
+func (s *Service) ServeStdio(
+	ctx context.Context,
+) (
+	_ error, // result
+) {
 	s.logger.Info("MCP Stdio server starting", "user", core.Username())
+	reader, ok := core.Stdin().(core.ReadCloser)
+	if !ok {
+		return core.NewError("stdin is not closable")
+	}
 	return s.server.Run(ctx, &mcp.IOTransport{
-		Reader: os.Stdin,
+		Reader: reader,
 		Writer: sharedStdout,
 	})
 }

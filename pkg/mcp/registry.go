@@ -37,19 +37,27 @@ func (e *restInputError) Error() string {
 	return "invalid REST input: " + e.cause.Error()
 }
 
-func (e *restInputError) Unwrap() error {
+func (e *restInputError) Unwrap() (
+	_ error, // result
+) {
 	if e == nil {
 		return nil
 	}
 	return e.cause
 }
 
-func (e *restInputError) Is(target error) bool {
+func (e *restInputError) Is(
+	target error,
+) bool {
 	_, ok := target.(*restInputError)
 	return ok
 }
 
-func invalidRESTInputError(cause error) error {
+func invalidRESTInputError(
+	cause error,
+) (
+	_ error, // result
+) {
 	return &restInputError{cause: cause}
 }
 
@@ -226,7 +234,7 @@ func schemaForType(t reflect.Type, seen map[reflect.Type]bool) map[string]any {
 				continue
 			}
 
-			jsonTag := f.Tag.Get("json")
+			jsonTag := f.Tag.Get(`json`)
 			if jsonTag == "-" {
 				continue
 			}

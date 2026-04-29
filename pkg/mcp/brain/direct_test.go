@@ -4,12 +4,13 @@ package brain
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
@@ -508,4 +509,140 @@ func TestDirectList_Good_DefaultLimit(t *testing.T) {
 	if !out.Success || out.Count != 0 {
 		t.Fatalf("expected empty list, got %+v", out)
 	}
+}
+
+// moved AX-7 triplet TestDirect_NewDirect_Good
+func TestDirect_NewDirect_Good(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	sub := NewDirect()
+	AssertNotNil(t, sub)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirect_Bad
+func TestDirect_NewDirect_Bad(t *T) {
+	t.Setenv("CORE_BRAIN_URL", "://bad")
+	sub := NewDirect()
+	AssertNotNil(t, sub.apiClient)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirect_Ugly
+func TestDirect_NewDirect_Ugly(t *T) {
+	t.Setenv("HOME", "")
+	sub := NewDirect()
+	AssertNotNil(t, sub.client())
+	AssertNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_NewDirectWithClient_Good
+func TestDirect_NewDirectWithClient_Good(t *T) {
+	client := brainclient.New(brainclient.Options{URL: brainclient.DefaultURL, Key: "test"})
+	sub := NewDirectWithClient(client)
+	AssertEqual(t, client, sub.apiClient)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirectWithClient_Bad
+func TestDirect_NewDirectWithClient_Bad(t *T) {
+	sub := NewDirectWithClient(nil)
+	AssertNotNil(t, sub.apiClient)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirectWithClient_Ugly
+func TestDirect_NewDirectWithClient_Ugly(t *T) {
+	client := brainclient.New(brainclient.Options{})
+	sub := NewDirectWithClient(client)
+	AssertEqual(t, client, sub.client())
+	AssertNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_OnChannel_Good
+func TestDirect_DirectSubsystem_OnChannel_Good(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	called := false
+	sub.OnChannel(func(_ context.Context, channel string, data any) {
+		called = channel == coremcp.ChannelBrainRememberDone && data != nil
+	})
+	sub.onChannel(context.Background(), coremcp.ChannelBrainRememberDone, map[string]any{"id": "m1"})
+	AssertTrue(t, called)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_OnChannel_Bad
+func TestDirect_DirectSubsystem_OnChannel_Bad(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	sub.OnChannel(nil)
+	AssertNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_OnChannel_Ugly
+func TestDirect_DirectSubsystem_OnChannel_Ugly(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	sub.OnChannel(func(context.Context, string, any) {})
+	sub.OnChannel(func(context.Context, string, any) {})
+	AssertNotNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Name_Good
+func TestDirect_DirectSubsystem_Name_Good(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	AssertEqual(t, "brain", sub.Name())
+	AssertNotNil(t, sub.apiClient)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Name_Bad
+func TestDirect_DirectSubsystem_Name_Bad(t *T) {
+	var sub *DirectSubsystem
+	AssertEqual(t, "brain", sub.Name())
+	AssertNil(t, sub)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Name_Ugly
+func TestDirect_DirectSubsystem_Name_Ugly(t *T) {
+	sub := &DirectSubsystem{}
+	AssertEqual(t, "brain", sub.Name())
+	AssertNotNil(t, sub.client())
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_RegisterTools_Good
+func TestDirect_DirectSubsystem_RegisterTools_Good(t *T) {
+	svc := brainMCPServiceForTest(t)
+	NewDirectWithClient(brainclient.New(brainclient.Options{})).RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_RegisterTools_Bad
+func TestDirect_DirectSubsystem_RegisterTools_Bad(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	AssertPanics(t, func() { sub.RegisterTools(nil) })
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_RegisterTools_Ugly
+func TestDirect_DirectSubsystem_RegisterTools_Ugly(t *T) {
+	svc := brainMCPServiceForTest(t)
+	(&DirectSubsystem{}).RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Good
+func TestDirect_DirectSubsystem_Shutdown_Good(t *T) {
+	sub := NewDirect()
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Bad
+func TestDirect_DirectSubsystem_Shutdown_Bad(t *T) {
+	sub := NewDirect()
+	err := sub.Shutdown(nil)
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Ugly
+func TestDirect_DirectSubsystem_Shutdown_Ugly(t *T) {
+	var sub *DirectSubsystem
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
 }

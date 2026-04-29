@@ -4,8 +4,6 @@ package agentic
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"syscall"
 	"time"
 
@@ -49,7 +47,11 @@ func (s *PrepSubsystem) registerDispatchTool(svc *coremcp.Service) {
 
 // agentCommand returns the command and args for a given agent type.
 // Supports model variants: "gemini", "gemini:flash", "gemini:pro", "claude", "claude:haiku".
-func agentCommand(agent, prompt string) (string, []string, error) {
+func agentCommand(agent, prompt string) (
+	string,
+	[]string,
+	error,
+) {
 	parts := core.SplitN(agent, ":", 2)
 	base := parts[0]
 	model := ""
@@ -73,7 +75,10 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 		}
 		return "claude", args, nil
 	case "local":
-		home, _ := os.UserHomeDir()
+		home := ""
+		if r := core.UserHomeDir(); r.OK {
+			home, _ = r.Value.(string)
+		}
 		script := core.Path(home, "Code", "core", "agent", "scripts", "local-agent.sh")
 		return "bash", []string{script, prompt}, nil
 	default:
@@ -81,7 +86,11 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 	}
 }
 
-func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
+func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (
+	*mcp.CallToolResult,
+	DispatchOutput,
+	error,
+) {
 	progress := coremcp.NewProgressNotifier(ctx, req)
 	const dispatchProgressTotal = 4
 
@@ -189,29 +198,30 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 
 	outputFile := core.Path(wsDir, core.Sprintf("agent-%s.log", input.Agent))
-	outFile, err := os.Create(outputFile)
-	if err != nil {
-		return nil, DispatchOutput{}, core.E("dispatch", "failed to create log file", err)
+	outResult := core.Create(outputFile)
+	if !outResult.OK {
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to create log file", resultError(outResult))
 	}
+	outFile := outResult.Value.(*core.OSFile)
 
 	// Fully detach from terminal:
 	// - Setpgid: own process group
 	// - Stdin from /dev/null
 	// - TERM=dumb prevents terminal control sequences
 	// - NO_COLOR=1 disables colour output
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
+	devNullResult := core.Open("/dev/null")
+	if !devNullResult.OK {
 		outFile.Close()
-		return nil, DispatchOutput{}, core.E("dispatch", "failed to open /dev/null", err)
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to open /dev/null", resultError(devNullResult))
 	}
+	devNull := devNullResult.Value.(*core.OSFile)
 	defer devNull.Close()
 
-	cmd := exec.Command(command, args...)
-	cmd.Dir = srcDir
+	cmd := shellCommand(context.Background(), srcDir, command, args...)
 	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
-	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
+	cmd.Env = append(core.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {

@@ -4,7 +4,7 @@ package agentic
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 
 	core "dappco.re/go"
@@ -35,7 +35,11 @@ type ScanIssue struct {
 	URL      string   `json:"url"`
 }
 
-func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input ScanInput) (*mcp.CallToolResult, ScanOutput, error) {
+func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input ScanInput) (
+	*mcp.CallToolResult,
+	ScanOutput,
+	error,
+) {
 	if s.forgeToken == "" {
 		return nil, ScanOutput{}, core.E("scan", "no Forge token configured", nil)
 	}
@@ -97,7 +101,10 @@ func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input 
 	}, nil
 }
 
-func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string, error) {
+func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) (
+	[]string,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/orgs/%s/repos?limit=50", s.forgeURL, org)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
@@ -123,7 +130,10 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 	return names, nil
 }
 
-func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label string) ([]ScanIssue, error) {
+func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label string) (
+	[]ScanIssue,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues?state=open&labels=%s&limit=10&type=issues",
 		s.forgeURL, org, repo, label)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)

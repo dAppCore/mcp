@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"reflect"
 	"strconv"
 	"time"
@@ -91,7 +91,10 @@ func extractBearerToken(raw string) string {
 	return ""
 }
 
-func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
+func parseAuthClaims(authToken, apiToken string) (
+	*authClaims,
+	error,
+) {
 	cfg := currentAuthConfig(apiToken)
 	if cfg.apiToken == "" {
 		return nil, nil
@@ -158,7 +161,10 @@ func parseAuthClaims(authToken, apiToken string) (*authClaims, error) {
 	return &claims, nil
 }
 
-func decodeJWTSection(value string) ([]byte, error) {
+func decodeJWTSection(value string) (
+	[]byte,
+	error,
+) {
 	raw, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
 		return nil, err
@@ -170,7 +176,10 @@ func encodeJWTSection(value []byte) string {
 	return base64.RawURLEncoding.EncodeToString(value)
 }
 
-func mintJWTToken(rawClaims authClaims, cfg authConfig) (string, error) {
+func mintJWTToken(rawClaims authClaims, cfg authConfig) (
+	string,
+	error,
+) {
 	now := time.Now().Unix()
 	if rawClaims.IssuedAt == 0 {
 		rawClaims.IssuedAt = now
@@ -198,7 +207,11 @@ func mintJWTToken(rawClaims authClaims, cfg authConfig) (string, error) {
 	return signingInput + "." + encodeJWTSection(signature), nil
 }
 
-func authClaimsFromToolRequest(ctx context.Context, req *mcp.CallToolRequest, apiToken string) (claims *authClaims, inTransport bool, err error) {
+func authClaimsFromToolRequest(ctx context.Context, req *mcp.CallToolRequest, apiToken string) (
+	claims *authClaims,
+	inTransport bool,
+	err error,
+) {
 	cfg := currentAuthConfig(apiToken)
 	if cfg.apiToken == "" {
 		return nil, false, nil
@@ -223,7 +236,14 @@ func authClaimsFromToolRequest(ctx context.Context, req *mcp.CallToolRequest, ap
 	return nil, false, nil
 }
 
-func (s *Service) authorizeToolAccess(ctx context.Context, req *mcp.CallToolRequest, tool string, input any) error {
+func (s *Service) authorizeToolAccess(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	tool string,
+	input any,
+) (
+	_ error, // result
+) {
 	apiToken := core.Env("MCP_AUTH_TOKEN")
 	cfg := currentAuthConfig(apiToken)
 	if cfg.apiToken == "" {
@@ -368,7 +388,7 @@ func workspaceFromStruct(v reflect.Value) string {
 		}
 
 		keys := []string{core.Lower(ft.Name)}
-		if tag := ft.Tag.Get("json"); tag != "" {
+		if tag := ft.Tag.Get(`json`); tag != "" {
 			keys = append(keys, core.Lower(core.Split(tag, ",")[0]))
 		}
 		for _, candidate := range keys {

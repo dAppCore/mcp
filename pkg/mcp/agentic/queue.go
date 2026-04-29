@@ -3,17 +3,13 @@
 package agentic
 
 import (
-	"os"
-	"os/exec"
+	"context"
 	"syscall"
 	"time"
 
 	core "dappco.re/go"
 	"gopkg.in/yaml.v3"
 )
-
-// os.Create, os.Open, os.DevNull, os.Environ, os.FindProcess are used for
-// process spawning and management — no core equivalents for these OS primitives.
 
 // DispatchConfig controls agent dispatch behaviour.
 type DispatchConfig struct {
@@ -158,8 +154,7 @@ func (s *PrepSubsystem) countRunningByAgent(agent string) int {
 			continue
 		}
 		if st.PID > 0 {
-			proc, err := os.FindProcess(st.PID)
-			if err == nil && proc.Signal(syscall.Signal(0)) == nil {
+			if syscall.Kill(st.PID, 0) == nil {
 				count++
 			}
 		}
@@ -238,23 +233,24 @@ func (s *PrepSubsystem) drainQueue() {
 		}
 
 		outputFile := core.Path(wsDir, core.Sprintf("agent-%s.log", st.Agent))
-		outFile, err := os.Create(outputFile)
-		if err != nil {
+		outResult := core.Create(outputFile)
+		if !outResult.OK {
 			continue
 		}
+		outFile := outResult.Value.(*core.OSFile)
 
-		devNull, err := os.Open(os.DevNull)
-		if err != nil {
+		devNullResult := core.Open("/dev/null")
+		if !devNullResult.OK {
 			outFile.Close()
 			continue
 		}
+		devNull := devNullResult.Value.(*core.OSFile)
 
-		cmd := exec.Command(command, args...)
-		cmd.Dir = srcDir
+		cmd := shellCommand(context.Background(), srcDir, command, args...)
 		cmd.Stdin = devNull
 		cmd.Stdout = outFile
 		cmd.Stderr = outFile
-		cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
+		cmd.Env = append(core.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 		if err := cmd.Start(); err != nil {

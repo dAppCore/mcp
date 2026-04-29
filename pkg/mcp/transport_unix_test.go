@@ -5,6 +5,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	core "dappco.re/go"
 )
 
 func TestRun_Good_UnixTrigger(t *testing.T) {
@@ -44,4 +46,29 @@ func TestRun_Good_UnixTrigger(t *testing.T) {
 	if err := <-errCh; err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
+}
+
+// moved AX-7 triplet TestTransportUnix_Service_ServeUnix_Good
+func TestTransportUnix_Service_ServeUnix_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.ServeUnix(ctx, shortSocketPath(t, "serve"))
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestTransportUnix_Service_ServeUnix_Bad
+func TestTransportUnix_Service_ServeUnix_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	err := svc.ServeUnix(context.Background(), core.PathJoin(t.TempDir(), "missing", "sock"))
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestTransportUnix_Service_ServeUnix_Ugly
+func TestTransportUnix_Service_ServeUnix_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.ServeUnix(ctx, "")
+	AssertError(t, err)
 }

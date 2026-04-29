@@ -14,7 +14,11 @@ var coreio = struct {
 	Local: &localCoreFS{fs: (&core.Fs{}).New("/")},
 }
 
-func localCoreFSErr(r core.Result) error {
+func localCoreFSErr(
+	r core.Result,
+) (
+	_ error, // result
+) {
 	if r.OK {
 		return nil
 	}
@@ -27,7 +31,10 @@ func localCoreFSErr(r core.Result) error {
 	return core.E("localCoreFS", "operation failed", nil)
 }
 
-func (l *localCoreFS) Stat(path string) (core.FsFileInfo, error) {
+func (l *localCoreFS) Stat(path string) (
+	core.FsFileInfo,
+	error,
+) {
 	r := l.fs.Stat(path)
 	if !r.OK {
 		return nil, localCoreFSErr(r)
@@ -39,7 +46,10 @@ func (l *localCoreFS) Stat(path string) (core.FsFileInfo, error) {
 	return info, nil
 }
 
-func (l *localCoreFS) Read(path string) (string, error) {
+func (l *localCoreFS) Read(path string) (
+	string,
+	error,
+) {
 	r := l.fs.Read(path)
 	if !r.OK {
 		return "", localCoreFSErr(r)
@@ -51,6 +61,12 @@ func (l *localCoreFS) Read(path string) (string, error) {
 	return content, nil
 }
 
-func (l *localCoreFS) WriteMode(path, content string, mode core.FileMode) error {
+func (l *localCoreFS) WriteMode(
+	path,
+	content string,
+	mode core.FileMode,
+) (
+	_ error, // result
+) {
 	return localCoreFSErr(l.fs.WriteMode(path, content, mode))
 }

@@ -4,12 +4,13 @@ package ide
 
 import (
 	"context"
-	core "dappco.re/go"
-	"dappco.re/go/ws"
-	"github.com/gorilla/websocket"
 	"net/http"
 	"sync"
 	"time"
+
+	core "dappco.re/go"
+	"dappco.re/go/ws"
+	"github.com/gorilla/websocket"
 )
 
 // BridgeMessage is the wire format between the IDE bridge and Laravel.
@@ -117,7 +118,11 @@ func (b *Bridge) Connected() bool {
 // Send sends a message to the Laravel backend.
 //
 //	err := bridge.Send(BridgeMessage{Type: "dashboard_overview"})
-func (b *Bridge) Send(msg BridgeMessage) error {
+func (b *Bridge) Send(
+	msg BridgeMessage,
+) (
+	_ error, // result
+) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.conn == nil {
@@ -155,7 +160,11 @@ func (b *Bridge) connectLoop(ctx context.Context) {
 	}
 }
 
-func (b *Bridge) dial(ctx context.Context) error {
+func (b *Bridge) dial(
+	ctx context.Context,
+) (
+	_ error, // result
+) {
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 	}

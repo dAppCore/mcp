@@ -4,11 +4,10 @@ package mcp
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
-	"dappco.re/go"
+	core "dappco.re/go"
 	"dappco.re/go/process"
 )
 
@@ -89,7 +88,7 @@ func TestProcessStart_Bad_EmptyCommand(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for empty command")
 	}
-	if !strings.Contains(err.Error(), "command cannot be empty") {
+	if !core.Contains(err.Error(), "command cannot be empty") {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
@@ -208,7 +207,7 @@ func TestProcessOutput_Good_Echo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("processOutput failed: %v", err)
 	}
-	if !strings.Contains(outputOut.Output, "output_test") {
+	if !core.Contains(outputOut.Output, "output_test") {
 		t.Errorf("Expected output to contain 'output_test', got %q", outputOut.Output)
 	}
 }
@@ -222,7 +221,7 @@ func TestProcessOutput_Bad_EmptyID(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for empty ID")
 	}
-	if !strings.Contains(err.Error(), "id cannot be empty") {
+	if !core.Contains(err.Error(), "id cannot be empty") {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
@@ -414,7 +413,7 @@ func TestProcessInput_Good_Cat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("processOutput failed: %v", err)
 	}
-	if !strings.Contains(outputOut.Output, "stdin_test") {
+	if !core.Contains(outputOut.Output, "stdin_test") {
 		t.Errorf("Expected output to contain 'stdin_test', got %q", outputOut.Output)
 	}
 
@@ -442,7 +441,7 @@ func TestProcessStart_Good_WithDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("processOutput failed: %v", err)
 	}
-	if !strings.Contains(outputOut.Output, dir) {
+	if !core.Contains(outputOut.Output, dir) {
 		t.Errorf("Expected output to contain dir %q, got %q", dir, outputOut.Output)
 	}
 }
@@ -466,7 +465,7 @@ func TestProcessStart_Good_WithEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("processOutput failed: %v", err)
 	}
-	if !strings.Contains(outputOut.Output, "TEST_MCP_VAR=hello_from_test") {
+	if !core.Contains(outputOut.Output, "TEST_MCP_VAR=hello_from_test") {
 		t.Errorf("Expected output to contain env var, got %q", outputOut.Output)
 	}
 }

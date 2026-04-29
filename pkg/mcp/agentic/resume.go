@@ -4,8 +4,6 @@ package agentic
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"syscall"
 
 	core "dappco.re/go"
@@ -43,7 +41,11 @@ func (s *PrepSubsystem) registerResumeTool(svc *coremcp.Service) {
 	}, s.resume)
 }
 
-func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, input ResumeInput) (*mcp.CallToolResult, ResumeOutput, error) {
+func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, input ResumeInput) (
+	*mcp.CallToolResult,
+	ResumeOutput,
+	error,
+) {
 	if input.Workspace == "" {
 		return nil, ResumeOutput{}, core.E("resume", "workspace is required", nil)
 	}
@@ -105,23 +107,24 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, err
 	}
 
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
-		return nil, ResumeOutput{}, core.E("resume", "failed to open /dev/null", err)
+	devNullResult := core.Open("/dev/null")
+	if !devNullResult.OK {
+		return nil, ResumeOutput{}, core.E("resume", "failed to open /dev/null", resultError(devNullResult))
 	}
+	devNull := devNullResult.Value.(*core.OSFile)
 	defer devNull.Close()
 
-	outFile, err := os.Create(outputFile)
-	if err != nil {
-		return nil, ResumeOutput{}, core.E("resume", "failed to create log file", err)
+	outResult := core.Create(outputFile)
+	if !outResult.OK {
+		return nil, ResumeOutput{}, core.E("resume", "failed to create log file", resultError(outResult))
 	}
+	outFile := outResult.Value.(*core.OSFile)
 
-	cmd := exec.Command(command, args...)
-	cmd.Dir = srcDir
+	cmd := shellCommand(context.Background(), srcDir, command, args...)
 	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
-	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
+	cmd.Env = append(core.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {

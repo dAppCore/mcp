@@ -4,9 +4,10 @@ package agentic
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
+
+	core "dappco.re/go"
 )
 
 func TestStatus_Good_EmptyWorkspaceSet(t *testing.T) {
@@ -58,7 +59,7 @@ func TestStatus_Good_ExposesWorkspaceMetadata(t *testing.T) {
 	root := t.TempDir()
 	sub := &PrepSubsystem{codePath: root}
 
-	wsDir := filepath.Join(root, ".core", "workspace", "repo-123")
+	wsDir := core.PathJoin(root, ".core", "workspace", "repo-123")
 	plan := &WorkspaceStatus{
 		Status: "completed",
 		Agent:  "claude",

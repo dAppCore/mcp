@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	. "dappco.re/go"
 	core "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp"
 )
@@ -224,4 +225,30 @@ func stubMCPService(t *testing.T) func() {
 		workspaceFlag = oldWorkspace
 		unrestrictedFlag = oldUnrestricted
 	}
+}
+
+// moved AX-7 triplet TestCmdMcp_AddMCPCommands_Good
+func TestCmdMcp_AddMCPCommands_Good(t *T) {
+	c := New()
+	AddMCPCommands(c)
+	commands := c.Commands()
+	AssertContains(t, commands, "mcp")
+	AssertContains(t, commands, "mcp/serve")
+}
+
+// moved AX-7 triplet TestCmdMcp_AddMCPCommands_Bad
+func TestCmdMcp_AddMCPCommands_Bad(t *T) {
+	var c *Core
+	AssertPanics(t, func() { AddMCPCommands(c) })
+	AssertNil(t, c)
+}
+
+// moved AX-7 triplet TestCmdMcp_AddMCPCommands_Ugly
+func TestCmdMcp_AddMCPCommands_Ugly(t *T) {
+	c := New()
+	AddMCPCommands(c)
+	AddMCPCommands(c)
+	commands := c.Commands()
+	AssertContains(t, commands, "mcp")
+	AssertContains(t, commands, "mcp/serve")
 }

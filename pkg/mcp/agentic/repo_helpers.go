@@ -4,8 +4,7 @@ package agentic
 
 import (
 	"context"
-	"encoding/json"
-	"os/exec"
+	"github.com/goccy/go-json"
 	"regexp"
 	"strconv"
 	"time"
@@ -29,8 +28,7 @@ func listLocalRepos(basePath string) []string {
 }
 
 func hasRemote(repoDir, remote string) bool {
-	cmd := exec.Command("git", "remote", "get-url", remote)
-	cmd.Dir = repoDir
+	cmd := shellCommand(context.Background(), repoDir, "git", "remote", "get-url", remote)
 	if out, err := cmd.Output(); err == nil {
 		return core.Trim(string(out)) != ""
 	}
@@ -38,8 +36,7 @@ func hasRemote(repoDir, remote string) bool {
 }
 
 func commitsAhead(repoDir, baseRef, headRef string) int {
-	cmd := exec.Command("git", "rev-list", "--count", baseRef+".."+headRef)
-	cmd.Dir = repoDir
+	cmd := shellCommand(context.Background(), repoDir, "git", "rev-list", "--count", baseRef+".."+headRef)
 	out, err := cmd.Output()
 	if err != nil {
 		return 0
@@ -53,8 +50,7 @@ func commitsAhead(repoDir, baseRef, headRef string) int {
 }
 
 func filesChanged(repoDir, baseRef, headRef string) int {
-	cmd := exec.Command("git", "diff", "--name-only", baseRef+".."+headRef)
-	cmd.Dir = repoDir
+	cmd := shellCommand(context.Background(), repoDir, "git", "diff", "--name-only", baseRef+".."+headRef)
 	out, err := cmd.Output()
 	if err != nil {
 		return 0
@@ -69,9 +65,11 @@ func filesChanged(repoDir, baseRef, headRef string) int {
 	return count
 }
 
-func gitOutput(repoDir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = repoDir
+func gitOutput(repoDir string, args ...string) (
+	string,
+	error,
+) {
+	cmd := shellCommand(context.Background(), repoDir, "git", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", core.E("gitOutput", string(out), err)
@@ -79,7 +77,10 @@ func gitOutput(repoDir string, args ...string) (string, error) {
 	return core.Trim(string(out)), nil
 }
 
-func parsePositiveInt(value string) (int, error) {
+func parsePositiveInt(value string) (
+	int,
+	error,
+) {
 	value = core.Trim(value)
 	if value == "" {
 		return 0, core.E("parsePositiveInt", "empty value", nil)
@@ -94,9 +95,11 @@ func parsePositiveInt(value string) (int, error) {
 	return n, nil
 }
 
-func readGitHubPRURL(repoDir string) (string, error) {
-	cmd := exec.Command("gh", "pr", "list", "--head", "dev", "--state", "open", "--json", "url", "--limit", "1")
-	cmd.Dir = repoDir
+func readGitHubPRURL(repoDir string) (
+	string,
+	error,
+) {
+	cmd := shellCommand(context.Background(), repoDir, "gh", "pr", "list", "--head", "dev", "--state", "open", "--json", "url", "--limit", "1")
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -114,8 +117,11 @@ func readGitHubPRURL(repoDir string) (string, error) {
 	return rows[0].URL, nil
 }
 
-func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files int) (string, error) {
-	if _, err := exec.LookPath("gh"); err != nil {
+func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files int) (
+	string,
+	error,
+) {
+	if err := commandAvailable("gh"); err != nil {
 		return "", core.E("createGitHubPR", "gh CLI is not available", err)
 	}
 
@@ -133,13 +139,12 @@ func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files in
 
 	title := "[sync] " + repo + ": " + itoa(commits) + " commits, " + itoa(files) + " files"
 
-	cmd := exec.CommandContext(ctx, "gh", "pr", "create",
+	cmd := shellCommand(ctx, repoDir, "gh", "pr", "create",
 		"--head", "dev",
 		"--base", "main",
 		"--title", title,
 		"--body", body,
 	)
-	cmd.Dir = repoDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", core.E("createGitHubPR", string(out), err)
@@ -152,9 +157,12 @@ func createGitHubPR(ctx context.Context, repoDir, repo string, commits, files in
 	return core.Trim(lines[len(lines)-1]), nil
 }
 
-func ensureDevBranch(repoDir string) error {
-	cmd := exec.Command("git", "push", "github", "HEAD:refs/heads/dev", "--force")
-	cmd.Dir = repoDir
+func ensureDevBranch(
+	repoDir string,
+) (
+	_ error, // result
+) {
+	cmd := shellCommand(context.Background(), repoDir, "git", "push", "github", "HEAD:refs/heads/dev", "--force")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return core.E("ensureDevBranch", string(out), err)
@@ -162,16 +170,16 @@ func ensureDevBranch(repoDir string) error {
 	return nil
 }
 
-func reviewerCommand(ctx context.Context, repoDir, reviewer string) *exec.Cmd {
+func reviewerCommand(ctx context.Context, repoDir, reviewer string) *core.Cmd {
 	switch reviewer {
 	case "coderabbit":
-		return exec.CommandContext(ctx, "coderabbit", "review")
+		return shellCommand(ctx, repoDir, "coderabbit", "review")
 	case "codex":
-		return exec.CommandContext(ctx, "codex", "review")
+		return shellCommand(ctx, repoDir, "codex", "review")
 	case "both":
-		return exec.CommandContext(ctx, "coderabbit", "review")
+		return shellCommand(ctx, repoDir, "coderabbit", "review")
 	default:
-		return exec.CommandContext(ctx, reviewer)
+		return shellCommand(ctx, repoDir, reviewer)
 	}
 }
 
@@ -203,4 +211,65 @@ func parseRetryAfter(detail string) time.Duration {
 
 func repoRootFromCodePath(codePath string) string {
 	return core.Path(codePath, "core")
+}
+
+func shellCommand(ctx context.Context, dir, command string, args ...string) *core.Cmd {
+	script := "exec " + shellJoin(command, args...)
+	cmd := &core.Cmd{
+		Path: "/bin/sh",
+		Args: []string{"sh", "-c", script},
+		Dir:  dir,
+	}
+	if ctx != nil && ctx.Done() != nil {
+		go func() {
+			<-ctx.Done()
+			if cmd.Process != nil {
+				if err := cmd.Process.Kill(); err != nil {
+					core.Error("agentic command kill failed", "err", err)
+				}
+			}
+		}()
+	}
+	return cmd
+}
+
+func shellJoin(command string, args ...string) string {
+	parts := []string{shellQuote(command)}
+	for _, arg := range args {
+		parts = append(parts, shellQuote(arg))
+	}
+	return core.Join(" ", parts...)
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + core.Replace(value, "'", "'\"'\"'") + "'"
+}
+
+func commandAvailable(command string) (
+	_ error, // result
+) {
+	cmd := &core.Cmd{
+		Path: "/bin/sh",
+		Args: []string{"sh", "-c", "command -v " + shellQuote(command)},
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+	if core.Trim(string(out)) == "" {
+		return core.E("commandAvailable", "command not found: "+command, nil)
+	}
+	return nil
+}
+
+func resultError(result core.Result) (
+	_ error, // result
+) {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.E("core result failed", "no error value", nil)
 }

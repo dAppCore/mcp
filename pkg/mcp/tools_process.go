@@ -206,7 +206,11 @@ func (s *Service) registerProcessTools(server *mcp.Server) bool {
 }
 
 // processStart handles the process_start tool call.
-func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, input ProcessStartInput) (*mcp.CallToolResult, ProcessStartOutput, error) {
+func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, input ProcessStartInput) (
+	*mcp.CallToolResult,
+	ProcessStartOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessStartOutput{}, core.E("processStart", "process service unavailable", nil)
 	}
@@ -257,7 +261,11 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 
 // processRun handles the process_run tool call.
 // Executes the command to completion and returns the captured output.
-func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, input ProcessRunInput) (*mcp.CallToolResult, ProcessRunOutput, error) {
+func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, input ProcessRunInput) (
+	*mcp.CallToolResult,
+	ProcessRunOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessRunOutput{}, core.E("processRun", "process service unavailable", nil)
 	}
@@ -324,7 +332,11 @@ func sendToolProgress(progress ProgressNotifier, current float64, total float64,
 }
 
 // processStop handles the process_stop tool call.
-func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, input ProcessStopInput) (*mcp.CallToolResult, ProcessStopOutput, error) {
+func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, input ProcessStopInput) (
+	*mcp.CallToolResult,
+	ProcessStopOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessStopOutput{}, core.E("processStop", "process service unavailable", nil)
 	}
@@ -366,7 +378,11 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 }
 
 // processKill handles the process_kill tool call.
-func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, input ProcessKillInput) (*mcp.CallToolResult, ProcessKillOutput, error) {
+func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, input ProcessKillInput) (
+	*mcp.CallToolResult,
+	ProcessKillOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessKillOutput{}, core.E("processKill", "process service unavailable", nil)
 	}
@@ -406,7 +422,11 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 }
 
 // processList handles the process_list tool call.
-func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, input ProcessListInput) (*mcp.CallToolResult, ProcessListOutput, error) {
+func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, input ProcessListInput) (
+	*mcp.CallToolResult,
+	ProcessListOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessListOutput{}, core.E("processList", "process service unavailable", nil)
 	}
@@ -443,7 +463,11 @@ func (s *Service) processList(ctx context.Context, req *mcp.CallToolRequest, inp
 }
 
 // processOutput handles the process_output tool call.
-func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, input ProcessOutputInput) (*mcp.CallToolResult, ProcessOutputOutput, error) {
+func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, input ProcessOutputInput) (
+	*mcp.CallToolResult,
+	ProcessOutputOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessOutputOutput{}, core.E("processOutput", "process service unavailable", nil)
 	}
@@ -467,7 +491,11 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 }
 
 // processInput handles the process_input tool call.
-func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, input ProcessInputInput) (*mcp.CallToolResult, ProcessInputOutput, error) {
+func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, input ProcessInputInput) (
+	*mcp.CallToolResult,
+	ProcessInputOutput,
+	error,
+) {
 	if s.processService == nil {
 		return nil, ProcessInputOutput{}, core.E("processInput", "process service unavailable", nil)
 	}

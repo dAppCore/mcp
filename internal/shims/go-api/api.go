@@ -2,10 +2,9 @@ package api
 
 import (
 	"net/http"
-	"path"
-	"strings"
 	"sync"
 
+	core "dappco.re/go"
 	"github.com/gin-gonic/gin"
 )
 
@@ -68,14 +67,14 @@ type ToolBridge struct {
 
 func NewToolBridge(basePath ...string) *ToolBridge {
 	base := "/tools"
-	if len(basePath) > 0 && strings.TrimSpace(basePath[0]) != "" {
+	if len(basePath) > 0 && core.Trim(basePath[0]) != "" {
 		base = basePath[0]
 	}
-	if !strings.HasPrefix(base, "/") {
+	if !core.HasPrefix(base, "/") {
 		base = "/" + base
 	}
 	return &ToolBridge{
-		basePath: path.Clean(base),
+		basePath: cleanRoute(base),
 		handlers: make(map[string]func(*gin.Context)),
 	}
 }
@@ -172,7 +171,10 @@ func WithSwagger(title, description, version string) Option {
 	}
 }
 
-func New(opts ...Option) (*Engine, error) {
+func New(opts ...Option) (
+	*Engine,
+	error,
+) {
 	e := &Engine{router: gin.New()}
 	for _, opt := range opts {
 		if opt != nil {
@@ -216,7 +218,7 @@ func (e *Engine) swaggerDocument() map[string]any {
 		base := group.BasePath()
 		for _, desc := range describable.Describe() {
 			fullPath := joinRoute(base, desc.Path)
-			method := strings.ToLower(desc.Method)
+			method := core.Lower(desc.Method)
 			if method == "" {
 				method = "get"
 			}
@@ -244,7 +246,25 @@ func (e *Engine) swaggerDocument() map[string]any {
 
 func joinRoute(base, rel string) string {
 	if rel == "" || rel == "/" {
-		return path.Clean(base)
+		return cleanRoute(base)
 	}
-	return path.Clean(strings.TrimRight(base, "/") + "/" + strings.TrimLeft(rel, "/"))
+	return cleanRoute(trimRightSlash(base) + "/" + trimLeftSlash(rel))
+}
+
+func cleanRoute(route string) string {
+	return core.CleanPath(route, "/")
+}
+
+func trimRightSlash(value string) string {
+	for core.HasSuffix(value, "/") && value != "/" {
+		value = core.TrimSuffix(value, "/")
+	}
+	return value
+}
+
+func trimLeftSlash(value string) string {
+	for core.HasPrefix(value, "/") {
+		value = core.TrimPrefix(value, "/")
+	}
+	return value
 }

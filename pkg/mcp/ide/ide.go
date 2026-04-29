@@ -77,7 +77,11 @@ func (s *Subsystem) RegisterTools(svc *coremcp.Service) {
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
-func (s *Subsystem) Shutdown(_ context.Context) error {
+func (s *Subsystem) Shutdown(
+	_ context.Context,
+) (
+	_ error, // result
+) {
 	if s.bridge != nil {
 		s.bridge.Shutdown()
 	}

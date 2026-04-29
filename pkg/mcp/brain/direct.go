@@ -91,11 +91,18 @@ func (s *DirectSubsystem) RegisterTools(svc *coremcp.Service) {
 // Shutdown implements mcp.SubsystemWithShutdown.
 func (s *DirectSubsystem) Shutdown(_ context.Context) error { return nil }
 
-func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body any) (map[string]any, error) {
+func (s *DirectSubsystem) apiCall(ctx context.Context, method, path string, body any) (
+	map[string]any,
+	error,
+) {
 	return s.client().Call(ctx, method, path, body)
 }
 
-func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
+func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (
+	*mcp.CallToolResult,
+	RememberOutput,
+	error,
+) {
 	result, err := s.client().Remember(ctx, brainclient.RememberInput{
 		Content:    input.Content,
 		Type:       input.Type,
@@ -126,7 +133,11 @@ func (s *DirectSubsystem) remember(ctx context.Context, _ *mcp.CallToolRequest, 
 	}, nil
 }
 
-func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
+func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (
+	*mcp.CallToolResult,
+	RecallOutput,
+	error,
+) {
 	result, err := s.client().Recall(ctx, brainclient.RecallInput{
 		Query:         input.Query,
 		TopK:          input.TopK,
@@ -157,7 +168,11 @@ func (s *DirectSubsystem) recall(ctx context.Context, _ *mcp.CallToolRequest, in
 	}, nil
 }
 
-func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (*mcp.CallToolResult, ForgetOutput, error) {
+func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (
+	*mcp.CallToolResult,
+	ForgetOutput,
+	error,
+) {
 	_, err := s.client().Forget(ctx, brainclient.ForgetInput{ID: input.ID, Reason: input.Reason})
 	if err != nil {
 		return nil, ForgetOutput{}, err
@@ -177,7 +192,11 @@ func (s *DirectSubsystem) forget(ctx context.Context, _ *mcp.CallToolRequest, in
 	}, nil
 }
 
-func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+func (s *DirectSubsystem) list(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (
+	*mcp.CallToolResult,
+	ListOutput,
+	error,
+) {
 	limit := input.Limit
 	if limit == 0 {
 		limit = 50

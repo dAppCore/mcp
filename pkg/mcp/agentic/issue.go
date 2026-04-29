@@ -3,9 +3,8 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 
 	core "dappco.re/go"
@@ -60,7 +59,11 @@ func (s *PrepSubsystem) registerIssueTools(svc *coremcp.Service) {
 	}, s.createPR)
 }
 
-func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequest, input IssueDispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
+func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequest, input IssueDispatchInput) (
+	*mcp.CallToolResult,
+	DispatchOutput,
+	error,
+) {
 	if input.Repo == "" {
 		return nil, DispatchOutput{}, core.E("dispatchIssue", "repo is required", nil)
 	}
@@ -151,7 +154,7 @@ func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue
 	}
 	payload := r.Value.([]byte)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, core.NewBuffer(payload))
 	if err != nil {
 		return core.E("unlockIssue", "failed to build unlock request", err)
 	}
@@ -170,7 +173,10 @@ func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue
 	return nil
 }
 
-func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue int) (*forgeIssue, error) {
+func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue int) (
+	*forgeIssue,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -194,7 +200,15 @@ func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue 
 	return &out, nil
 }
 
-func (s *PrepSubsystem) lockIssue(ctx context.Context, org, repo string, issue int, assignee string) error {
+func (s *PrepSubsystem) lockIssue(
+	ctx context.Context,
+	org,
+	repo string,
+	issue int,
+	assignee string,
+) (
+	_ error, // result
+) {
 	updateURL := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	r := core.JSONMarshal(map[string]any{
 		"assignees": []string{assignee},
@@ -205,7 +219,7 @@ func (s *PrepSubsystem) lockIssue(ctx context.Context, org, repo string, issue i
 	}
 	payload := r.Value.([]byte)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, core.NewBuffer(payload))
 	if err != nil {
 		return core.E("lockIssue", "failed to build update request", err)
 	}

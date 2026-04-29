@@ -2,8 +2,9 @@ package mcp
 
 import (
 	"context"
-	"strings"
 	"testing"
+
+	core "dappco.re/go"
 )
 
 // RAG tools use package-level functions (rag.QueryDocs, rag.IngestDirectory, etc.)
@@ -25,7 +26,7 @@ func TestRagQuery_Bad_EmptyQuestion(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for empty question")
 	}
-	if !strings.Contains(err.Error(), "question cannot be empty") {
+	if !core.Contains(err.Error(), "question cannot be empty") {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
@@ -48,7 +49,7 @@ func TestRagQuery_Good_DefaultsApplied(t *testing.T) {
 		t.Skip("RAG query succeeded — live Qdrant available, skip default test")
 	}
 	// The error should be about connection failure, not validation
-	if strings.Contains(err.Error(), "question cannot be empty") {
+	if core.Contains(err.Error(), "question cannot be empty") {
 		t.Error("Defaults should have been applied before validation check")
 	}
 }
@@ -67,7 +68,7 @@ func TestRagIngest_Bad_EmptyPath(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for empty path")
 	}
-	if !strings.Contains(err.Error(), "path cannot be empty") {
+	if !core.Contains(err.Error(), "path cannot be empty") {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
@@ -105,7 +106,7 @@ func TestRagIngest_Good_DefaultCollection(t *testing.T) {
 		t.Skip("Ingest succeeded unexpectedly")
 	}
 	// The error should NOT be about empty path
-	if strings.Contains(err.Error(), "path cannot be empty") {
+	if core.Contains(err.Error(), "path cannot be empty") {
 		t.Error("Default collection should have been applied")
 	}
 }
@@ -125,7 +126,7 @@ func TestRagCollections_Bad_NoQdrant(t *testing.T) {
 		t.Skip("Qdrant is available — skip connection error test")
 	}
 	// Should get a connection error, not a panic
-	if !strings.Contains(err.Error(), "failed to connect") && !strings.Contains(err.Error(), "failed to list") {
+	if !core.Contains(err.Error(), "failed to connect") && !core.Contains(err.Error(), "failed to list") {
 		t.Logf("Got error (expected connection failure): %v", err)
 	}
 }

@@ -2,15 +2,15 @@ package ide
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	core "dappco.re/go"
 	"dappco.re/go/ws"
 	"github.com/gorilla/websocket"
 )
@@ -42,7 +42,7 @@ func echoServer(t *testing.T) *httptest.Server {
 }
 
 func wsURL(ts *httptest.Server) string {
-	return "ws" + strings.TrimPrefix(ts.URL, "http")
+	return "ws" + core.TrimPrefix(ts.URL, "http")
 }
 
 // waitConnected polls bridge.Connected() until true or timeout.
@@ -503,4 +503,180 @@ func TestSubsystem_Good_NilHub(t *testing.T) {
 	if err := sub.Shutdown(context.Background()); err != nil {
 		t.Errorf("Shutdown with nil bridge failed: %v", err)
 	}
+}
+
+// moved AX-7 triplet TestBridge_NewBridge_Good
+func TestBridge_NewBridge_Good(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	AssertNotNil(t, bridge)
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_NewBridge_Bad
+func TestBridge_NewBridge_Bad(t *T) {
+	bridge := NewBridge(nil, Config{})
+	AssertNil(t, bridge.hub)
+	AssertEqual(t, "", bridge.cfg.LaravelWSURL)
+}
+
+// moved AX-7 triplet TestBridge_NewBridge_Ugly
+func TestBridge_NewBridge_Ugly(t *T) {
+	cfg := Config{LaravelWSURL: "ws://custom"}
+	bridge := NewBridge(ws.NewHub(), cfg)
+	AssertEqual(t, "ws://custom", bridge.cfg.LaravelWSURL)
+	AssertNil(t, bridge.conn)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_SetObserver_Good
+func TestBridge_Bridge_SetObserver_Good(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	called := false
+	bridge.SetObserver(func(BridgeMessage) { called = true })
+	for _, observer := range bridge.snapshotObservers() {
+		observer(BridgeMessage{Type: "x"})
+	}
+	AssertTrue(t, called)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_SetObserver_Bad
+func TestBridge_Bridge_SetObserver_Bad(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	bridge.SetObserver(nil)
+	AssertLen(t, bridge.snapshotObservers(), 0)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_SetObserver_Ugly
+func TestBridge_Bridge_SetObserver_Ugly(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	bridge.SetObserver(func(BridgeMessage) {})
+	bridge.SetObserver(func(BridgeMessage) {})
+	AssertLen(t, bridge.snapshotObservers(), 1)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_AddObserver_Good
+func TestBridge_Bridge_AddObserver_Good(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	count := 0
+	bridge.AddObserver(func(BridgeMessage) { count++ })
+	bridge.AddObserver(func(BridgeMessage) { count++ })
+	for _, observer := range bridge.snapshotObservers() {
+		observer(BridgeMessage{Type: "x"})
+	}
+	AssertEqual(t, 2, count)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_AddObserver_Bad
+func TestBridge_Bridge_AddObserver_Bad(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	bridge.AddObserver(nil)
+	AssertLen(t, bridge.snapshotObservers(), 0)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_AddObserver_Ugly
+func TestBridge_Bridge_AddObserver_Ugly(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	bridge.AddObserver(func(BridgeMessage) {})
+	AssertLen(t, bridge.snapshotObservers(), 1)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Start_Good
+func TestBridge_Bridge_Start_Good(t *T) {
+	bridge := NewBridge(nil, Config{LaravelWSURL: "ws://127.0.0.1:1", ReconnectInterval: time.Millisecond, MaxReconnectInterval: time.Millisecond})
+	ctx, cancel := context.WithCancel(context.Background())
+	bridge.Start(ctx)
+	cancel()
+	bridge.Shutdown()
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Start_Bad
+func TestBridge_Bridge_Start_Bad(t *T) {
+	bridge := NewBridge(nil, DefaultConfig())
+	AssertPanics(t, func() { bridge.Start(nil) })
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Start_Ugly
+func TestBridge_Bridge_Start_Ugly(t *T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	bridge := NewBridge(nil, DefaultConfig())
+	bridge.Start(ctx)
+	bridge.Shutdown()
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Shutdown_Good
+func TestBridge_Bridge_Shutdown_Good(t *T) {
+	bridge := NewBridge(nil, DefaultConfig())
+	bridge.connected = true
+	bridge.Shutdown()
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Shutdown_Bad
+func TestBridge_Bridge_Shutdown_Bad(t *T) {
+	var bridge *Bridge
+	AssertPanics(t, func() { bridge.Shutdown() })
+	AssertNil(t, bridge)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Shutdown_Ugly
+func TestBridge_Bridge_Shutdown_Ugly(t *T) {
+	bridge := NewBridge(nil, DefaultConfig())
+	bridge.Shutdown()
+	bridge.Shutdown()
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Connected_Good
+func TestBridge_Bridge_Connected_Good(t *T) {
+	bridge := NewBridge(nil, DefaultConfig())
+	bridge.connected = true
+	AssertTrue(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Connected_Bad
+func TestBridge_Bridge_Connected_Bad(t *T) {
+	bridge := NewBridge(nil, DefaultConfig())
+	AssertFalse(t, bridge.Connected())
+	AssertNil(t, bridge.conn)
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Connected_Ugly
+func TestBridge_Bridge_Connected_Ugly(t *T) {
+	bridge := NewBridge(nil, DefaultConfig())
+	bridge.connected = false
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Send_Good
+func TestBridge_Bridge_Send_Good(t *T) {
+	ts := echoServer(t)
+	defer ts.Close()
+	bridge := NewBridge(ws.NewHub(), Config{LaravelWSURL: wsURL(ts), ReconnectInterval: time.Millisecond, MaxReconnectInterval: time.Millisecond})
+	bridge.Start(context.Background())
+	waitConnected(t, bridge, 2*time.Second)
+	err := bridge.Send(BridgeMessage{Type: "test", Data: "hello"})
+	AssertNoError(t, err)
+	bridge.Shutdown()
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Send_Bad
+func TestBridge_Bridge_Send_Bad(t *T) {
+	bridge := NewBridge(ws.NewHub(), DefaultConfig())
+	err := bridge.Send(BridgeMessage{Type: "test"})
+	AssertError(t, err)
+	AssertFalse(t, bridge.Connected())
+}
+
+// moved AX-7 triplet TestBridge_Bridge_Send_Ugly
+func TestBridge_Bridge_Send_Ugly(t *T) {
+	ts := echoServer(t)
+	defer ts.Close()
+	bridge := NewBridge(ws.NewHub(), Config{LaravelWSURL: wsURL(ts), ReconnectInterval: time.Millisecond, MaxReconnectInterval: time.Millisecond})
+	bridge.Start(context.Background())
+	waitConnected(t, bridge, 2*time.Second)
+	AssertNoError(t, bridge.Send(BridgeMessage{}))
+	bridge.Shutdown()
 }

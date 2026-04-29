@@ -51,7 +51,11 @@ func (s *PrepSubsystem) registerWatchTool(svc *coremcp.Service) {
 	}, s.watch)
 }
 
-func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, input WatchInput) (*mcp.CallToolResult, WatchOutput, error) {
+func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, input WatchInput) (
+	*mcp.CallToolResult,
+	WatchOutput,
+	error,
+) {
 	pollInterval := time.Duration(input.PollInterval) * time.Second
 	if pollInterval <= 0 {
 		pollInterval = defaultWatchPollInterval
