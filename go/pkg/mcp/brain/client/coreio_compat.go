@@ -14,30 +14,19 @@ var coreio = struct {
 	Local: &localCoreFS{fs: (&core.Fs{}).New("/")},
 }
 
-func localCoreFSErr(
-	r core.Result,
-) (
-	_ error, // result
-) {
-	if r.OK {
-		return nil
-	}
-	if err, ok := r.Value.(error); ok && err != nil {
-		return err
-	}
-	if r.Value != nil {
-		return core.E("localCoreFS", core.Sprint(r.Value), nil)
-	}
-	return core.E("localCoreFS", "operation failed", nil)
-}
-
 func (l *localCoreFS) Stat(path string) (
 	core.FsFileInfo,
 	error,
 ) {
 	r := l.fs.Stat(path)
 	if !r.OK {
-		return nil, localCoreFSErr(r)
+		if err, ok := r.Value.(error); ok && err != nil {
+			return nil, err
+		}
+		if r.Value != nil {
+			return nil, core.E("localCoreFS", core.Sprint(r.Value), nil)
+		}
+		return nil, core.E("localCoreFS", "operation failed", nil)
 	}
 	info, ok := r.Value.(core.FsFileInfo)
 	if !ok {
@@ -52,7 +41,13 @@ func (l *localCoreFS) Read(path string) (
 ) {
 	r := l.fs.Read(path)
 	if !r.OK {
-		return "", localCoreFSErr(r)
+		if err, ok := r.Value.(error); ok && err != nil {
+			return "", err
+		}
+		if r.Value != nil {
+			return "", core.E("localCoreFS", core.Sprint(r.Value), nil)
+		}
+		return "", core.E("localCoreFS", "operation failed", nil)
 	}
 	content, ok := r.Value.(string)
 	if !ok {
@@ -68,5 +63,15 @@ func (l *localCoreFS) WriteMode(
 ) (
 	_ error, // result
 ) {
-	return localCoreFSErr(l.fs.WriteMode(path, content, mode))
+	r := l.fs.WriteMode(path, content, mode)
+	if r.OK {
+		return nil
+	}
+	if err, ok := r.Value.(error); ok && err != nil {
+		return err
+	}
+	if r.Value != nil {
+		return core.E("localCoreFS", core.Sprint(r.Value), nil)
+	}
+	return core.E("localCoreFS", "operation failed", nil)
 }

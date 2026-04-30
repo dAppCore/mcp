@@ -4,7 +4,6 @@ go 1.26.2
 
 require (
 	dappco.re/go/io v0.9.0
-	dappco.re/go/log v0.9.0
 	dappco.re/go/process v0.10.0
 	dappco.re/go/rag v0.10.0
 	dappco.re/go/ws v0.5.0
@@ -15,6 +14,7 @@ require (
 )
 
 require (
+	dappco.re/go/log v0.9.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

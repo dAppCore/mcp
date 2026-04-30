@@ -14,30 +14,19 @@ var coreio = struct {
 	Local: &localCoreFS{fs: (&core.Fs{}).New("/")},
 }
 
-func localCoreFSErr(
-	r core.Result,
-) (
-	_ error, // result
-) {
-	if r.OK {
-		return nil
-	}
-	if err, ok := r.Value.(error); ok && err != nil {
-		return err
-	}
-	if r.Value != nil {
-		return core.E("localCoreFS", core.Sprint(r.Value), nil)
-	}
-	return core.E("localCoreFS", "operation failed", nil)
-}
-
 func (l *localCoreFS) Read(path string) (
 	string,
 	error,
 ) {
 	r := l.fs.Read(path)
 	if !r.OK {
-		return "", localCoreFSErr(r)
+		if err, ok := r.Value.(error); ok && err != nil {
+			return "", err
+		}
+		if r.Value != nil {
+			return "", core.E("localCoreFS", core.Sprint(r.Value), nil)
+		}
+		return "", core.E("localCoreFS", "operation failed", nil)
 	}
 	content, ok := r.Value.(string)
 	if !ok {
@@ -51,7 +40,17 @@ func (l *localCoreFS) EnsureDir(
 ) (
 	_ error, // result
 ) {
-	return localCoreFSErr(l.fs.EnsureDir(path))
+	r := l.fs.EnsureDir(path)
+	if r.OK {
+		return nil
+	}
+	if err, ok := r.Value.(error); ok && err != nil {
+		return err
+	}
+	if r.Value != nil {
+		return core.E("localCoreFS", core.Sprint(r.Value), nil)
+	}
+	return core.E("localCoreFS", "operation failed", nil)
 }
 
 func (l *localCoreFS) List(path string) (
@@ -60,7 +59,13 @@ func (l *localCoreFS) List(path string) (
 ) {
 	r := l.fs.List(path)
 	if !r.OK {
-		return nil, localCoreFSErr(r)
+		if err, ok := r.Value.(error); ok && err != nil {
+			return nil, err
+		}
+		if r.Value != nil {
+			return nil, core.E("localCoreFS", core.Sprint(r.Value), nil)
+		}
+		return nil, core.E("localCoreFS", "operation failed", nil)
 	}
 	entries, ok := r.Value.([]core.FsDirEntry)
 	if !ok {
@@ -78,5 +83,15 @@ func (l *localCoreFS) Delete(
 ) (
 	_ error, // result
 ) {
-	return localCoreFSErr(l.fs.Delete(path))
+	r := l.fs.Delete(path)
+	if r.OK {
+		return nil
+	}
+	if err, ok := r.Value.(error); ok && err != nil {
+		return err
+	}
+	if r.Value != nil {
+		return core.E("localCoreFS", core.Sprint(r.Value), nil)
+	}
+	return core.E("localCoreFS", "operation failed", nil)
 }
