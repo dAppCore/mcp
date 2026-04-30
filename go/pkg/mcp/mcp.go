@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	core "dappco.re/go"
-	corelog "dappco.re/go/log"
 	"dappco.re/go/process"
 	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,7 +31,7 @@ type Service struct {
 	workspaceRoot  string           // Root directory for file operations (empty = cwd unless Unrestricted)
 	medium         *coreMedium      // Filesystem medium for sandboxed operations
 	subsystems     []Subsystem      // Additional subsystems registered via Options.Subsystems
-	logger         *corelog.Logger  // Logger for tool execution auditing
+	logger         *core.Log        // Logger for tool execution auditing
 	processService *process.Service // Process management service (optional)
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
@@ -83,7 +82,7 @@ func New(opts Options) (
 		server:         server,
 		processService: opts.ProcessService,
 		wsHub:          opts.WSHub,
-		logger:         corelog.Default(),
+		logger:         core.Default(),
 		processMeta:    make(map[string]processRuntime),
 	}
 

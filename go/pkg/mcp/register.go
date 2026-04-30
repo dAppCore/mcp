@@ -30,7 +30,7 @@ func Register(c *core.Core) core.Result {
 	for _, name := range c.Services() {
 		r := c.Service(name)
 		if !r.OK {
-			continue
+			return r
 		}
 		if sub, ok := r.Value.(Subsystem); ok {
 			subsystems = append(subsystems, sub)
@@ -73,7 +73,7 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 		return core.Ok(nil)
 	}
 
-	c.Command("mcp", core.Command{
+	if r := c.Command("mcp", core.Command{
 		Description: "Start the MCP server on stdio",
 		Action: func(opts core.Options) core.Result {
 			s.logger.Info("MCP stdio server starting")
@@ -82,9 +82,11 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 			}
 			return core.Ok(nil)
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
-	c.Command("serve", core.Command{
+	if r := c.Command("serve", core.Command{
 		Description: "Start the MCP server with auto-selected transport",
 		Action: func(opts core.Options) core.Result {
 			s.logger.Info("MCP server starting")
@@ -93,7 +95,9 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 			}
 			return core.Ok(nil)
 		},
-	})
+	}); !r.OK {
+		return r
+	}
 
 	return core.Ok(nil)
 }
