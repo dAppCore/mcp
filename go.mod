@@ -3,29 +3,40 @@ module dappco.re/go/mcp
 go 1.26.2
 
 require (
-	dappco.re/go/ai v0.8.0-alpha.1.0.20260425225549-d43f4dbd25b8
-	dappco.re/go/api v0.8.0-alpha.1.0.20260427143506-f95002059d53
-	dappco.re/go/cli v0.9.0
-	dappco.re/go/process v0.8.0-alpha.1.0.20260427150750-5bd42af95f46
-	dappco.re/go/rag v0.8.0-alpha.1.0.20260427161922-2a59096f2aca
-	dappco.re/go/webview v0.8.0-alpha.1.0.20260425135446-1c47ae2c183c
-	dappco.re/go/ws v0.8.0-alpha.1.0.20260427142937-36f01754d2e9
+	dappco.re/go/io v0.9.0
+	dappco.re/go/log v0.9.0
+	dappco.re/go/process v0.10.0
+	dappco.re/go/rag v0.10.0
+	dappco.re/go/ws v0.5.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/rogpeppe/go-internal v1.14.1 // indirect
+require (
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // indirect
+	github.com/mailru/easyjson v0.9.2 // indirect
+	github.com/ollama/ollama v0.18.1 // indirect
+	github.com/qdrant/go-client v1.17.1 // indirect
+	github.com/redis/go-redis/v9 v9.18.0 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
+	google.golang.org/grpc v1.79.2 // indirect
+)
 
 require (
 	dappco.re/go v0.9.0
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
-	github.com/charmbracelet/x/ansi v0.11.6 // indirect
-	github.com/clipperhouse/displaywidth v0.11.0 // indirect
-	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -38,9 +49,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.21 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
@@ -57,23 +66,6 @@ require (
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace dappco.re/go/ai => ./internal/shims/go-ai
-
-replace dappco.re/go/api => ./internal/shims/go-api
-
-replace dappco.re/go/cli => ../cli
-
-replace dappco.re/go/i18n => github.com/dappcore/go-i18n v0.8.0-alpha.1
-
-replace dappco.re/go/process => ./internal/shims/go-process
-
-replace dappco.re/go/rag => ./internal/shims/go-rag
-
-replace dappco.re/go/webview => ./internal/shims/go-webview
-
-replace dappco.re/go/ws => ./internal/shims/go-ws

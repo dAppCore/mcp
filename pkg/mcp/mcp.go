@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	core "dappco.re/go"
+	corelog "dappco.re/go/log"
 	"dappco.re/go/process"
 	"dappco.re/go/ws"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -31,7 +32,7 @@ type Service struct {
 	workspaceRoot  string           // Root directory for file operations (empty = cwd unless Unrestricted)
 	medium         *coreMedium      // Filesystem medium for sandboxed operations
 	subsystems     []Subsystem      // Additional subsystems registered via Options.Subsystems
-	logger         *core.Log        // Logger for tool execution auditing
+	logger         *corelog.Logger  // Logger for tool execution auditing
 	processService *process.Service // Process management service (optional)
 	wsHub          *ws.Hub          // WebSocket hub for real-time streaming (optional)
 	wsServer       *http.Server     // WebSocket HTTP server (optional)
@@ -82,7 +83,7 @@ func New(opts Options) (
 		server:         server,
 		processService: opts.ProcessService,
 		wsHub:          opts.WSHub,
-		logger:         core.Default(),
+		logger:         corelog.Default(),
 		processMeta:    make(map[string]processRuntime),
 	}
 
@@ -206,10 +207,6 @@ func (s *Service) Shutdown(
 			s.wsAddr = ""
 		}
 		s.wsMu.Unlock()
-	}
-
-	if err := closeWebviewConnection(); err != nil && shutdownErr == nil {
-		shutdownErr = core.E("mcp.Shutdown", "close webview connection", err)
 	}
 
 	return shutdownErr
@@ -644,7 +641,7 @@ func (s *Service) fileExists(ctx context.Context, req *mcp.CallToolRequest, inpu
 
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		if core.IsNotExist(err) {
+		if core.IsNotExist(err) || !s.medium.Exists(input.Path) {
 			return nil, FileExistsOutput{Exists: false, IsDir: false, Path: input.Path}, nil
 		}
 		return nil, FileExistsOutput{}, core.E("mcp.fileExists", "failed to stat path", err)

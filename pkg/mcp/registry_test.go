@@ -79,12 +79,9 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 	//   metrics (2):  metrics_record, metrics_query
 	//   rag (6):      rag_query, rag_search, rag_ingest, rag_index,
 	//                 rag_retrieve, rag_collections
-	//   webview (12): webview_connect, webview_disconnect, webview_navigate,
-	//                 webview_click, webview_type, webview_query,
-	//                 webview_console, webview_eval, webview_screenshot,
-	//                 webview_wait, webview_render, webview_update
+	//   webview (2):  webview_render, webview_update
 	//   ws (3):       ws_connect, ws_send, ws_close
-	const expectedCount = 33
+	const expectedCount = 23
 	if len(tools) != expectedCount {
 		t.Errorf("expected %d tools, got %d", expectedCount, len(tools))
 		for _, tr := range tools {
@@ -103,7 +100,7 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 	langTools := []string{"lang_detect", "lang_list"}
 	metricsTools := []string{"metrics_record", "metrics_query"}
 	ragTools := []string{"rag_query", "rag_search", "rag_ingest", "rag_index", "rag_retrieve", "rag_collections"}
-	webviewTools := []string{"webview_connect", "webview_disconnect", "webview_navigate", "webview_click", "webview_type", "webview_query", "webview_console", "webview_eval", "webview_screenshot", "webview_wait", "webview_render", "webview_update"}
+	webviewTools := []string{"webview_render", "webview_update"}
 
 	byName := make(map[string]ToolRecord)
 	for _, tr := range svc.Tools() {

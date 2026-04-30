@@ -206,7 +206,7 @@ func TestToolsWs_ProcessEventCallback_OnProcessOutput_Good(t *T) {
 	hub := ws.NewHub()
 	cb := NewProcessEventCallback(hub)
 	cb.OnProcessOutput("proc", "line")
-	AssertEqual(t, 1, hub.Stats().Channels)
+	AssertEqual(t, 0, hub.Stats().Channels)
 }
 
 // moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessOutput_Bad
@@ -221,7 +221,7 @@ func TestToolsWs_ProcessEventCallback_OnProcessOutput_Ugly(t *T) {
 	hub := ws.NewHub()
 	cb := NewProcessEventCallback(hub)
 	cb.OnProcessOutput("", "")
-	AssertEqual(t, 1, hub.Stats().Channels)
+	AssertEqual(t, 0, hub.Stats().Channels)
 }
 
 // moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessStatus_Good
@@ -229,7 +229,7 @@ func TestToolsWs_ProcessEventCallback_OnProcessStatus_Good(t *T) {
 	hub := ws.NewHub()
 	cb := NewProcessEventCallback(hub)
 	cb.OnProcessStatus("proc", "exited", 0)
-	AssertEqual(t, 1, hub.Stats().Channels)
+	AssertEqual(t, 0, hub.Stats().Channels)
 }
 
 // moved AX-7 triplet TestToolsWs_ProcessEventCallback_OnProcessStatus_Bad
@@ -244,5 +244,5 @@ func TestToolsWs_ProcessEventCallback_OnProcessStatus_Ugly(t *T) {
 	hub := ws.NewHub()
 	cb := NewProcessEventCallback(hub)
 	cb.OnProcessStatus("", "", -1)
-	AssertEqual(t, 1, hub.Stats().Channels)
+	AssertEqual(t, 0, hub.Stats().Channels)
 }

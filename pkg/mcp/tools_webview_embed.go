@@ -95,6 +95,19 @@ const ChannelWebviewRender = "webview.render"
 // ChannelWebviewUpdate is the channel used to broadcast webview_update events.
 const ChannelWebviewUpdate = "webview.update"
 
+// registerWebviewTools adds channel-based embedded view tools to the MCP server.
+func (s *Service) registerWebviewTools(server *mcp.Server) {
+	addToolRecorded(s, server, "webview", &mcp.Tool{
+		Name:        "webview_render",
+		Description: "Render HTML in an embedded view by ID and broadcast it on the webview.render channel.",
+	}, s.webviewRender)
+
+	addToolRecorded(s, server, "webview", &mcp.Tool{
+		Name:        "webview_update",
+		Description: "Update HTML, title, or state for an embedded view by ID and broadcast it on the webview.update channel.",
+	}, s.webviewUpdate)
+}
+
 // webviewRender handles the webview_render tool call.
 func (s *Service) webviewRender(ctx context.Context, req *mcp.CallToolRequest, input WebviewRenderInput) (
 	*mcp.CallToolResult,

@@ -228,11 +228,13 @@ func (s *Service) processStart(ctx context.Context, req *mcp.CallToolRequest, in
 		Env:     input.Env,
 	}
 
-	proc, err := s.processService.StartWithOptions(ctx, opts)
-	if err != nil {
+	startResult := s.processService.StartWithOptions(ctx, opts)
+	if !startResult.OK {
+		err := resultError(startResult)
 		core.Error("mcp: process start failed", "command", input.Command, "err", err)
 		return nil, ProcessStartOutput{}, core.E("processStart", "failed to start process", err)
 	}
+	proc := startResult.Value.(*process.Process)
 
 	info := proc.Info()
 	output := ProcessStartOutput{
@@ -285,11 +287,13 @@ func (s *Service) processRun(ctx context.Context, req *mcp.CallToolRequest, inpu
 	}
 
 	sendToolProgress(progress, 0, 2, "starting process")
-	proc, err := s.processService.StartWithOptions(ctx, opts)
-	if err != nil {
+	startResult := s.processService.StartWithOptions(ctx, opts)
+	if !startResult.OK {
+		err := resultError(startResult)
 		core.Error("mcp: process run start failed", "command", input.Command, "err", err)
 		return nil, ProcessRunOutput{}, core.E("processRun", "failed to start process", err)
 	}
+	proc := startResult.Value.(*process.Process)
 	sendToolProgress(progress, 1, 2, "process started")
 
 	info := proc.Info()
@@ -347,15 +351,18 @@ func (s *Service) processStop(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessStopOutput{}, errIDEmpty
 	}
 
-	proc, err := s.processService.Get(input.ID)
-	if err != nil {
+	getResult := s.processService.Get(input.ID)
+	if !getResult.OK {
+		err := resultError(getResult)
 		core.Error("mcp: process stop failed", "id", input.ID, "err", err)
 		return nil, ProcessStopOutput{}, core.E("processStop", "process not found", err)
 	}
+	proc := getResult.Value.(*process.Process)
 
 	// Use the process service's graceful shutdown path first so callers get
 	// a real stop signal before we fall back to a hard kill internally.
-	if err := proc.Shutdown(); err != nil {
+	if r := proc.Shutdown(); !r.OK {
+		err := resultError(r)
 		core.Error("mcp: process stop failed", "id", input.ID, "err", err)
 		return nil, ProcessStopOutput{}, core.E("processStop", "failed to stop process", err)
 	}
@@ -393,13 +400,16 @@ func (s *Service) processKill(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ProcessKillOutput{}, errIDEmpty
 	}
 
-	proc, err := s.processService.Get(input.ID)
-	if err != nil {
+	getResult := s.processService.Get(input.ID)
+	if !getResult.OK {
+		err := resultError(getResult)
 		core.Error("mcp: process kill failed", "id", input.ID, "err", err)
 		return nil, ProcessKillOutput{}, core.E("processKill", "process not found", err)
 	}
+	proc := getResult.Value.(*process.Process)
 
-	if err := s.processService.Kill(input.ID); err != nil {
+	if r := s.processService.Kill(input.ID); !r.OK {
+		err := resultError(r)
 		core.Error("mcp: process kill failed", "id", input.ID, "err", err)
 		return nil, ProcessKillOutput{}, core.E("processKill", "failed to kill process", err)
 	}
@@ -478,11 +488,13 @@ func (s *Service) processOutput(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, ProcessOutputOutput{}, errIDEmpty
 	}
 
-	output, err := s.processService.Output(input.ID)
-	if err != nil {
+	outputResult := s.processService.Output(input.ID)
+	if !outputResult.OK {
+		err := resultError(outputResult)
 		core.Error("mcp: process output failed", "id", input.ID, "err", err)
 		return nil, ProcessOutputOutput{}, core.E("processOutput", "failed to get process output", err)
 	}
+	output := outputResult.Value.(string)
 
 	return nil, ProcessOutputOutput{
 		ID:     input.ID,
@@ -509,13 +521,16 @@ func (s *Service) processInput(ctx context.Context, req *mcp.CallToolRequest, in
 		return nil, ProcessInputOutput{}, core.E("processInput", "input cannot be empty", nil)
 	}
 
-	proc, err := s.processService.Get(input.ID)
-	if err != nil {
+	getResult := s.processService.Get(input.ID)
+	if !getResult.OK {
+		err := resultError(getResult)
 		core.Error("mcp: process input get failed", "id", input.ID, "err", err)
 		return nil, ProcessInputOutput{}, core.E("processInput", "process not found", err)
 	}
+	proc := getResult.Value.(*process.Process)
 
-	if err := proc.SendInput(input.Input); err != nil {
+	if r := proc.SendInput(input.Input); !r.OK {
+		err := resultError(r)
 		core.Error("mcp: process input send failed", "id", input.ID, "err", err)
 		return nil, ProcessInputOutput{}, core.E("processInput", "failed to send input", err)
 	}

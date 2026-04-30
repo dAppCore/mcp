@@ -8,7 +8,6 @@ import (
 	"time"
 
 	core "dappco.re/go"
-	"dappco.re/go/ai/ai"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -77,6 +76,19 @@ type MetricEventBrief struct {
 	Repo      string    `json:"repo,omitempty"`     // e.g. "core-php"
 }
 
+type metricEvent struct {
+	Type      string         `json:"type"`
+	Timestamp time.Time      `json:"timestamp"`
+	AgentID   string         `json:"agent_id,omitempty"`
+	Repo      string         `json:"repo,omitempty"`
+	Data      map[string]any `json:"data,omitempty"`
+}
+
+var metricEvents struct {
+	core.Mutex
+	items []metricEvent
+}
+
 // registerMetricsTools adds metrics tools to the MCP server.
 func (s *Service) registerMetricsTools(server *mcp.Server) {
 	addToolRecorded(s, server, "metrics", &mcp.Tool{
@@ -104,7 +116,7 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 
 	// Create the event
-	event := ai.Event{
+	event := metricEvent{
 		Type:      input.Type,
 		Timestamp: time.Now(),
 		AgentID:   input.AgentID,
@@ -113,7 +125,7 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 
 	// Record the event
-	if err := ai.Record(event); err != nil {
+	if err := recordMetricEvent(event); err != nil {
 		core.Error("mcp: metrics record failed", "type", input.Type, "err", err)
 		return nil, MetricsRecordOutput{}, core.E("metricsRecord", "failed to record metrics", err)
 	}
@@ -147,14 +159,14 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	sinceTime := time.Now().Add(-duration)
 
 	// Read events
-	events, err := ai.ReadEvents(sinceTime)
+	events, err := readMetricEvents(sinceTime)
 	if err != nil {
 		core.Error("mcp: metrics query failed", "since", since, "err", err)
 		return nil, MetricsQueryOutput{}, core.E("metricsQuery", "failed to read metrics", err)
 	}
 
 	// Get summary
-	summary := ai.Summary(events)
+	summary := summarizeMetricEvents(events)
 
 	// Build output
 	total, _ := summary["total"].(int)
@@ -179,6 +191,67 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	}
 
 	return nil, output, nil
+}
+
+func recordMetricEvent(
+	event metricEvent,
+) (
+	_ error, // result
+) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
+	metricEvents.Lock()
+	defer metricEvents.Unlock()
+	metricEvents.items = append(metricEvents.items, event)
+	return nil
+}
+
+func readMetricEvents(since time.Time) (
+	[]metricEvent,
+	error,
+) {
+	metricEvents.Lock()
+	defer metricEvents.Unlock()
+	out := make([]metricEvent, 0, len(metricEvents.items))
+	for _, event := range metricEvents.items {
+		if event.Timestamp.IsZero() || event.Timestamp.Before(since) {
+			continue
+		}
+		out = append(out, event)
+	}
+	return out, nil
+}
+
+func summarizeMetricEvents(input []metricEvent) map[string]any {
+	byType := map[string]int{}
+	byRepo := map[string]int{}
+	byAgent := map[string]int{}
+	for _, event := range input {
+		if event.Type != "" {
+			byType[event.Type]++
+		}
+		if event.Repo != "" {
+			byRepo[event.Repo]++
+		}
+		if event.AgentID != "" {
+			byAgent[event.AgentID]++
+		}
+	}
+	return map[string]any{
+		"total":    len(input),
+		"by_type":  metricCountMaps(byType),
+		"by_repo":  metricCountMaps(byRepo),
+		"by_agent": metricCountMaps(byAgent),
+	}
+}
+
+func metricCountMaps(counts map[string]int) []map[string]any {
+	out := make([]map[string]any, 0, len(counts))
+	for key, count := range counts {
+		out = append(out, map[string]any{"key": key, "count": count})
+	}
+	return out
 }
 
 // convertMetricCounts converts the summary map format to MetricCount slice.

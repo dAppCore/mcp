@@ -2,10 +2,13 @@
 
 package mcp
 
-import core "dappco.re/go"
+import (
+	core "dappco.re/go"
+	coreio "dappco.re/go/io"
+)
 
 type coreMedium struct {
-	fs *core.Fs
+	medium coreio.Medium
 }
 
 var localMedium = newCoreMedium("/")
@@ -16,39 +19,22 @@ func newCoreMedium(root string) *coreMedium {
 			root = r.Value.(string)
 		}
 	}
-	return &coreMedium{fs: (&core.Fs{}).New(root)}
-}
-
-func coreMediumErr(
-	r core.Result,
-) (
-	_ error, // result
-) {
-	if r.OK {
-		return nil
+	medium, err := coreio.NewSandboxed(root)
+	if err != nil {
+		core.Warn("mcp: filesystem medium unavailable", "root", root, "err", err)
+		medium = coreio.NewMemoryMedium()
 	}
-	if err, ok := r.Value.(error); ok && err != nil {
-		return err
-	}
-	if r.Value != nil {
-		return core.E("coreMedium", core.Sprint(r.Value), nil)
-	}
-	return core.E("coreMedium", "operation failed", nil)
+	return &coreMedium{medium: medium}
 }
 
 func (m *coreMedium) Read(path string) (
 	string,
 	error,
 ) {
-	r := m.fs.Read(path)
-	if !r.OK {
-		return "", coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return "", core.E("coreMedium.Read", "medium unavailable", nil)
 	}
-	content, ok := r.Value.(string)
-	if !ok {
-		return "", core.E("coreMedium.Read", "unexpected read result", nil)
-	}
-	return content, nil
+	return m.medium.Read(path)
 }
 
 func (m *coreMedium) Write(
@@ -57,7 +43,10 @@ func (m *coreMedium) Write(
 ) (
 	_ error, // result
 ) {
-	return coreMediumErr(m.fs.Write(path, content))
+	if m == nil || m.medium == nil {
+		return core.E("coreMedium.Write", "medium unavailable", nil)
+	}
+	return m.medium.Write(path, content)
 }
 
 func (m *coreMedium) WriteMode(
@@ -67,7 +56,10 @@ func (m *coreMedium) WriteMode(
 ) (
 	_ error, // result
 ) {
-	return coreMediumErr(m.fs.WriteMode(path, content, mode))
+	if m == nil || m.medium == nil {
+		return core.E("coreMedium.WriteMode", "medium unavailable", nil)
+	}
+	return m.medium.WriteMode(path, content, mode)
 }
 
 func (m *coreMedium) EnsureDir(
@@ -75,11 +67,17 @@ func (m *coreMedium) EnsureDir(
 ) (
 	_ error, // result
 ) {
-	return coreMediumErr(m.fs.EnsureDir(path))
+	if m == nil || m.medium == nil {
+		return core.E("coreMedium.EnsureDir", "medium unavailable", nil)
+	}
+	return m.medium.EnsureDir(path)
 }
 
 func (m *coreMedium) IsFile(path string) bool {
-	return m.fs.IsFile(path)
+	if m == nil || m.medium == nil {
+		return false
+	}
+	return m.medium.IsFile(path)
 }
 
 func (m *coreMedium) Delete(
@@ -87,7 +85,13 @@ func (m *coreMedium) Delete(
 ) (
 	_ error, // result
 ) {
-	return coreMediumErr(m.fs.Delete(path))
+	if m == nil || m.medium == nil {
+		return core.E("coreMedium.Delete", "medium unavailable", nil)
+	}
+	if core.Trim(path) == "" {
+		return nil
+	}
+	return m.medium.Delete(path)
 }
 
 func (m *coreMedium) DeleteAll(
@@ -95,7 +99,10 @@ func (m *coreMedium) DeleteAll(
 ) (
 	_ error, // result
 ) {
-	return coreMediumErr(m.fs.DeleteAll(path))
+	if m == nil || m.medium == nil {
+		return core.E("coreMedium.DeleteAll", "medium unavailable", nil)
+	}
+	return m.medium.DeleteAll(path)
 }
 
 func (m *coreMedium) Rename(
@@ -104,118 +111,92 @@ func (m *coreMedium) Rename(
 ) (
 	_ error, // result
 ) {
-	return coreMediumErr(m.fs.Rename(oldPath, newPath))
+	if m == nil || m.medium == nil {
+		return core.E("coreMedium.Rename", "medium unavailable", nil)
+	}
+	return m.medium.Rename(oldPath, newPath)
 }
 
 func (m *coreMedium) List(path string) (
 	[]core.FsDirEntry,
 	error,
 ) {
-	r := m.fs.List(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.List", "medium unavailable", nil)
 	}
-	entries, ok := r.Value.([]core.FsDirEntry)
-	if !ok {
-		return nil, core.E("coreMedium.List", "unexpected list result", nil)
-	}
-	return entries, nil
+	return m.medium.List(path)
 }
 
 func (m *coreMedium) Stat(path string) (
 	core.FsFileInfo,
 	error,
 ) {
-	r := m.fs.Stat(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.Stat", "medium unavailable", nil)
 	}
-	info, ok := r.Value.(core.FsFileInfo)
-	if !ok {
-		return nil, core.E("coreMedium.Stat", "unexpected stat result", nil)
-	}
-	return info, nil
+	return m.medium.Stat(path)
 }
 
 func (m *coreMedium) Open(path string) (
 	core.FsFile,
 	error,
 ) {
-	r := m.fs.Open(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.Open", "medium unavailable", nil)
 	}
-	file, ok := r.Value.(core.FsFile)
-	if !ok {
-		return nil, core.E("coreMedium.Open", "unexpected open result", nil)
-	}
-	return file, nil
+	return m.medium.Open(path)
 }
 
 func (m *coreMedium) Create(path string) (
 	core.WriteCloser,
 	error,
 ) {
-	r := m.fs.Create(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.Create", "medium unavailable", nil)
 	}
-	writer, ok := r.Value.(core.WriteCloser)
-	if !ok {
-		return nil, core.E("coreMedium.Create", "unexpected create result", nil)
-	}
-	return writer, nil
+	return m.medium.Create(path)
 }
 
 func (m *coreMedium) Append(path string) (
 	core.WriteCloser,
 	error,
 ) {
-	r := m.fs.Append(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.Append", "medium unavailable", nil)
 	}
-	writer, ok := r.Value.(core.WriteCloser)
-	if !ok {
-		return nil, core.E("coreMedium.Append", "unexpected append result", nil)
-	}
-	return writer, nil
+	return m.medium.Append(path)
 }
 
 func (m *coreMedium) ReadStream(path string) (
 	core.ReadCloser,
 	error,
 ) {
-	r := m.fs.ReadStream(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.ReadStream", "medium unavailable", nil)
 	}
-	reader, ok := r.Value.(core.ReadCloser)
-	if !ok {
-		return nil, core.E("coreMedium.ReadStream", "unexpected read stream result", nil)
-	}
-	return reader, nil
+	return m.medium.ReadStream(path)
 }
 
 func (m *coreMedium) WriteStream(path string) (
 	core.WriteCloser,
 	error,
 ) {
-	r := m.fs.WriteStream(path)
-	if !r.OK {
-		return nil, coreMediumErr(r)
+	if m == nil || m.medium == nil {
+		return nil, core.E("coreMedium.WriteStream", "medium unavailable", nil)
 	}
-	writer, ok := r.Value.(core.WriteCloser)
-	if !ok {
-		return nil, core.E("coreMedium.WriteStream", "unexpected write stream result", nil)
-	}
-	return writer, nil
+	return m.medium.WriteStream(path)
 }
 
 func (m *coreMedium) Exists(path string) bool {
-	return m.fs.Exists(path)
+	if m == nil || m.medium == nil {
+		return false
+	}
+	return m.medium.Exists(path)
 }
 
 func (m *coreMedium) IsDir(path string) bool {
-	return m.fs.IsDir(path)
+	if m == nil || m.medium == nil {
+		return false
+	}
+	return m.medium.IsDir(path)
 }

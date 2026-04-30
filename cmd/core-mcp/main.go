@@ -1,12 +1,12 @@
 package main
 
 import (
-	"dappco.re/go/cli/pkg/cli"
+	core "dappco.re/go"
 	mcpcmd "dappco.re/go/mcp/cmd/mcpcmd"
 )
 
 func main() {
-	cli.Main(
-		cli.WithCommands("mcp", mcpcmd.AddMCPCommands),
-	)
+	c := core.New(core.WithService(core.CliRegister))
+	mcpcmd.AddMCPCommands(c)
+	c.Run()
 }

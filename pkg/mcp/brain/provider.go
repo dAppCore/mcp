@@ -5,8 +5,6 @@ package brain
 import (
 	"net/http"
 
-	"dappco.re/go/api"
-	"dappco.re/go/api/pkg/provider"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	"dappco.re/go/ws"
@@ -20,13 +18,44 @@ type BrainProvider struct {
 	hub    *ws.Hub
 }
 
-// compile-time interface checks
-var (
-	_ provider.Provider    = (*BrainProvider)(nil)
-	_ provider.Streamable  = (*BrainProvider)(nil)
-	_ provider.Describable = (*BrainProvider)(nil)
-	_ provider.Renderable  = (*BrainProvider)(nil)
-)
+// elementSpec describes the browser element that can render this provider.
+type elementSpec struct {
+	Tag    string `json:"tag"`
+	Source string `json:"source"`
+}
+
+// routeDescription describes one direct Gin route.
+type routeDescription struct {
+	Method      string         `json:"method"`
+	Path        string         "json:\"path\""
+	Summary     string         `json:"summary"`
+	Description string         `json:"description"`
+	Tags        []string       `json:"tags"`
+	RequestBody map[string]any `json:"requestBody,omitempty"`
+	Response    map[string]any `json:"response,omitempty"`
+}
+
+type providerError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type providerResponse struct {
+	Success bool           `json:"success"`
+	Data    any            `json:"data,omitempty"`
+	Error   *providerError `json:"error,omitempty"`
+}
+
+func providerOK(data any) providerResponse {
+	return providerResponse{Success: true, Data: data}
+}
+
+func providerFail(code, message string) providerResponse {
+	return providerResponse{
+		Success: false,
+		Error:   &providerError{Code: code, Message: message},
+	}
+}
 
 // NewProvider creates a brain provider that proxies to Laravel via the IDE bridge.
 // The WS hub is used to emit brain events. Pass nil for hub if not needed.
@@ -43,13 +72,13 @@ func NewProvider(bridge *ide.Bridge, hub *ws.Hub) *BrainProvider {
 	return p
 }
 
-// Name implements api.RouteGroup.
+// Name returns the provider name.
 func (p *BrainProvider) Name() string { return "brain" }
 
-// BasePath implements api.RouteGroup.
+// BasePath returns the direct Gin route base path.
 func (p *BrainProvider) BasePath() string { return "/api/brain" }
 
-// Channels implements provider.Streamable.
+// Channels returns the event channels emitted by this provider.
 func (p *BrainProvider) Channels() []string {
 	return []string{
 		coremcp.ChannelBrainRememberDone,
@@ -59,15 +88,15 @@ func (p *BrainProvider) Channels() []string {
 	}
 }
 
-// Element implements provider.Renderable.
-func (p *BrainProvider) Element() provider.ElementSpec {
-	return provider.ElementSpec{
+// Element returns the browser element that can render this provider.
+func (p *BrainProvider) Element() elementSpec {
+	return elementSpec{
 		Tag:    "core-brain-panel",
 		Source: "/assets/brain-panel.js",
 	}
 }
 
-// RegisterRoutes implements api.RouteGroup.
+// RegisterRoutes mounts direct Gin routes for the brain provider.
 func (p *BrainProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/remember", p.remember)
 	rg.POST("/recall", p.recall)
@@ -76,9 +105,9 @@ func (p *BrainProvider) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/status", p.status)
 }
 
-// Describe implements api.DescribableGroup.
-func (p *BrainProvider) Describe() []api.RouteDescription {
-	return []api.RouteDescription{
+// Describe returns route descriptions for direct Gin consumers.
+func (p *BrainProvider) Describe() []routeDescription {
+	return []routeDescription{
 		{
 			Method:      "POST",
 			Path:        "/remember",
@@ -194,13 +223,13 @@ func (p *BrainProvider) Describe() []api.RouteDescription {
 
 func (p *BrainProvider) remember(c *gin.Context) {
 	if p.bridge == nil {
-		c.JSON(http.StatusServiceUnavailable, api.Fail("bridge_unavailable", "brain bridge not available"))
+		c.JSON(http.StatusServiceUnavailable, providerFail("bridge_unavailable", "brain bridge not available"))
 		return
 	}
 
 	var input RememberInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_input", err.Error()))
+		c.JSON(http.StatusBadRequest, providerFail("invalid_input", err.Error()))
 		return
 	}
 
@@ -218,7 +247,7 @@ func (p *BrainProvider) remember(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("bridge_error", err.Error()))
+		c.JSON(http.StatusInternalServerError, providerFail("bridge_error", err.Error()))
 		return
 	}
 
@@ -228,18 +257,18 @@ func (p *BrainProvider) remember(c *gin.Context) {
 		"project": input.Project,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{"success": true}))
+	c.JSON(http.StatusOK, providerOK(map[string]any{"success": true}))
 }
 
 func (p *BrainProvider) recall(c *gin.Context) {
 	if p.bridge == nil {
-		c.JSON(http.StatusServiceUnavailable, api.Fail("bridge_unavailable", "brain bridge not available"))
+		c.JSON(http.StatusServiceUnavailable, providerFail("bridge_unavailable", "brain bridge not available"))
 		return
 	}
 
 	var input RecallInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_input", err.Error()))
+		c.JSON(http.StatusBadRequest, providerFail("invalid_input", err.Error()))
 		return
 	}
 
@@ -252,11 +281,11 @@ func (p *BrainProvider) recall(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("bridge_error", err.Error()))
+		c.JSON(http.StatusInternalServerError, providerFail("bridge_error", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, api.OK(RecallOutput{
+	c.JSON(http.StatusOK, providerOK(RecallOutput{
 		Success:  true,
 		Memories: []Memory{},
 	}))
@@ -264,13 +293,13 @@ func (p *BrainProvider) recall(c *gin.Context) {
 
 func (p *BrainProvider) forget(c *gin.Context) {
 	if p.bridge == nil {
-		c.JSON(http.StatusServiceUnavailable, api.Fail("bridge_unavailable", "brain bridge not available"))
+		c.JSON(http.StatusServiceUnavailable, providerFail("bridge_unavailable", "brain bridge not available"))
 		return
 	}
 
 	var input ForgetInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, api.Fail("invalid_input", err.Error()))
+		c.JSON(http.StatusBadRequest, providerFail("invalid_input", err.Error()))
 		return
 	}
 
@@ -282,7 +311,7 @@ func (p *BrainProvider) forget(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("bridge_error", err.Error()))
+		c.JSON(http.StatusInternalServerError, providerFail("bridge_error", err.Error()))
 		return
 	}
 
@@ -290,7 +319,7 @@ func (p *BrainProvider) forget(c *gin.Context) {
 		"id": input.ID,
 	})
 
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(http.StatusOK, providerOK(map[string]any{
 		"success":   true,
 		"forgotten": input.ID,
 	}))
@@ -298,7 +327,7 @@ func (p *BrainProvider) forget(c *gin.Context) {
 
 func (p *BrainProvider) list(c *gin.Context) {
 	if p.bridge == nil {
-		c.JSON(http.StatusServiceUnavailable, api.Fail("bridge_unavailable", "brain bridge not available"))
+		c.JSON(http.StatusServiceUnavailable, providerFail("bridge_unavailable", "brain bridge not available"))
 		return
 	}
 
@@ -319,7 +348,7 @@ func (p *BrainProvider) list(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.Fail("bridge_error", err.Error()))
+		c.JSON(http.StatusInternalServerError, providerFail("bridge_error", err.Error()))
 		return
 	}
 
@@ -331,7 +360,7 @@ func (p *BrainProvider) list(c *gin.Context) {
 		"limit":    limit,
 	})
 
-	c.JSON(http.StatusOK, api.OK(ListOutput{
+	c.JSON(http.StatusOK, providerOK(ListOutput{
 		Success:  true,
 		Memories: []Memory{},
 	}))
@@ -342,7 +371,7 @@ func (p *BrainProvider) status(c *gin.Context) {
 	if p.bridge != nil {
 		connected = p.bridge.Connected()
 	}
-	c.JSON(http.StatusOK, api.OK(map[string]any{
+	c.JSON(http.StatusOK, providerOK(map[string]any{
 		"connected": connected,
 	}))
 }
@@ -352,10 +381,10 @@ func (p *BrainProvider) emitEvent(channel string, data any) {
 	if p.hub == nil {
 		return
 	}
-	if err := p.hub.SendToChannel(channel, ws.Message{
+	if r := p.hub.SendToChannel(channel, ws.Message{
 		Type: ws.TypeEvent,
 		Data: data,
-	}); err != nil {
+	}); !r.OK {
 		return
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	core "dappco.re/go"
-	api "dappco.re/go/api"
 	mcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
@@ -34,27 +33,25 @@ func TestBridgeToAPI_Good_AllTools(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bridge := api.NewToolBridge("/tools")
-	mcp.BridgeToAPI(svc, bridge)
+	engine := gin.New()
+	mcp.BridgeToAPI(svc, engine.Group("/tools"))
 
-	svcCount := len(svc.Tools())
-	bridgeCount := len(bridge.Tools())
-
-	if svcCount == 0 {
-		t.Fatal("expected non-zero tool count from service")
-	}
-	if bridgeCount != svcCount {
-		t.Fatalf("bridge tool count %d != service tool count %d", bridgeCount, svcCount)
+	routes := engine.Routes()
+	if len(routes) != len(svc.Tools()) {
+		t.Fatalf("route count %d != service tool count %d", len(routes), len(svc.Tools()))
 	}
 
-	// Verify names match.
 	svcNames := make(map[string]bool)
 	for _, tr := range svc.Tools() {
 		svcNames[tr.Name] = true
 	}
-	for _, td := range bridge.Tools() {
-		if !svcNames[td.Name] {
-			t.Errorf("bridge has tool %q not found in service", td.Name)
+	for _, route := range routes {
+		name := core.TrimPrefix(route.Path, "/tools/")
+		if !svcNames[name] {
+			t.Errorf("route has tool %q not found in service", name)
+		}
+		if route.Method != http.MethodPost {
+			t.Errorf("expected POST route for %s, got %q", route.Path, route.Method)
 		}
 	}
 
@@ -65,43 +62,8 @@ func TestBridgeToAPI_Good_AllTools(t *testing.T) {
 	}
 }
 
-func TestBridgeToAPI_Good_DescribableGroup(t *testing.T) {
-	svc, err := mcp.New(mcp.Options{WorkspaceRoot: t.TempDir()})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	bridge := api.NewToolBridge("/tools")
-	mcp.BridgeToAPI(svc, bridge)
-
-	// ToolBridge implements DescribableGroup.
-	var dg api.DescribableGroup = bridge
-	descs := dg.Describe()
-
-	// ToolBridge.Describe prepends a GET entry describing the tool listing
-	// endpoint, so the expected count is svc.Tools() + 1.
-	wantDescs := len(svc.Tools()) + 1
-	if len(descs) != wantDescs {
-		t.Fatalf("expected %d descriptions, got %d", wantDescs, len(descs))
-	}
-
-	for _, d := range descs {
-		if d.Method != "POST" && d.Method != "GET" {
-			t.Errorf("expected Method=POST or GET for %s, got %q", d.Path, d.Method)
-		}
-		if d.Summary == "" {
-			t.Errorf("expected non-empty Summary for %s", d.Path)
-		}
-		if len(d.Tags) == 0 {
-			t.Errorf("expected non-empty Tags for %s", d.Path)
-		}
-	}
-}
-
 func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 	tmpDir := t.TempDir()
-
-	// Create a test file in the workspace.
 	testContent := "hello from bridge test"
 	if r := core.WriteFile(core.Path(tmpDir, "test.txt"), []byte(testContent), 0644); !r.OK {
 		t.Fatal(r.Value)
@@ -112,13 +74,8 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bridge := api.NewToolBridge("/tools")
-	mcp.BridgeToAPI(svc, bridge)
-
-	// Register with a Gin engine and make a request.
 	engine := gin.New()
-	rg := engine.Group(bridge.BasePath())
-	bridge.RegisterRoutes(rg)
+	mcp.BridgeToAPI(svc, engine.Group("/tools"))
 
 	body := core.Sprintf("{%q:%q}", "pa"+"th", "test.txt")
 	w := httptest.NewRecorder()
@@ -130,8 +87,11 @@ func TestBridgeToAPI_Good_FileRead(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Parse the response envelope.
-	var resp api.Response[mcp.ReadFileOutput]
+	var resp struct {
+		Success bool               `json:"success"`
+		Data    mcp.ReadFileOutput `json:"data"`
+		Error   any                `json:"error"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
@@ -152,14 +112,9 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bridge := api.NewToolBridge("/tools")
-	mcp.BridgeToAPI(svc, bridge)
-
 	engine := gin.New()
-	rg := engine.Group(bridge.BasePath())
-	bridge.RegisterRoutes(rg)
+	mcp.BridgeToAPI(svc, engine.Group("/tools"))
 
-	// Send malformed JSON.
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBufferString("{bad json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -169,7 +124,10 @@ func TestBridgeToAPI_Bad_InvalidJSON(t *testing.T) {
 		t.Fatalf("expected 400 for invalid JSON, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp api.Response[any]
+	var resp struct {
+		Success bool `json:"success"`
+		Error   any  `json:"error"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
@@ -187,12 +145,8 @@ func TestBridgeToAPI_Bad_OversizedBody(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bridge := api.NewToolBridge("/tools")
-	mcp.BridgeToAPI(svc, bridge)
-
 	engine := gin.New()
-	rg := engine.Group(bridge.BasePath())
-	bridge.RegisterRoutes(rg)
+	mcp.BridgeToAPI(svc, engine.Group("/tools"))
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/tools/file_read", core.NewBuffer(make([]byte, 10<<20+1)))
@@ -203,7 +157,10 @@ func TestBridgeToAPI_Bad_OversizedBody(t *testing.T) {
 		t.Fatalf("expected 413 for oversized body, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp api.Response[any]
+	var resp struct {
+		Success bool `json:"success"`
+		Error   any  `json:"error"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
@@ -221,45 +178,27 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bridge := api.NewToolBridge("/tools")
-	mcp.BridgeToAPI(svc, bridge)
+	engine := gin.New()
+	mcp.BridgeToAPI(svc, engine.Group("/tools"))
 
-	// Create an api.Engine with the bridge registered and Swagger enabled.
-	e, err := api.New(
-		api.WithSwagger("MCP Bridge Test", "Testing MCP-to-REST bridge", "0.1.0"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e.Register(bridge)
-
-	// Use a real test server because gin-swagger reads RequestURI
-	// which is not populated by httptest.NewRecorder.
-	srv := httptest.NewServer(e.Handler())
+	srv := httptest.NewServer(engine)
 	defer srv.Close()
 
-	// Verify the health endpoint still works.
-	resp, err := http.Get(srv.URL + "/health")
-	if err != nil {
-		t.Fatalf("health request failed: %v", err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 for /health, got %d", resp.StatusCode)
-	}
-
-	// Verify a tool endpoint is reachable through the engine.
-	resp2, err := http.Post(srv.URL+"/tools/lang_list", "application/json", core.NewBufferString("{}"))
+	resp, err := http.Post(srv.URL+"/tools/lang_list", "application/json", core.NewBufferString("{}"))
 	if err != nil {
 		t.Fatalf("lang_list request failed: %v", err)
 	}
-	defer resp2.Body.Close()
-	if resp2.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 for /tools/lang_list, got %d", resp2.StatusCode)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for /tools/lang_list, got %d", resp.StatusCode)
 	}
 
-	var langResp api.Response[mcp.GetSupportedLanguagesOutput]
-	if err := json.NewDecoder(resp2.Body).Decode(&langResp); err != nil {
+	var langResp struct {
+		Success bool                            `json:"success"`
+		Data    mcp.GetSupportedLanguagesOutput `json:"data"`
+		Error   any                             `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&langResp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	if !langResp.Success {
@@ -268,52 +207,27 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 	if len(langResp.Data.Languages) == 0 {
 		t.Fatal("expected non-empty languages list")
 	}
-
-	// Verify Swagger endpoint contains tool paths.
-	resp3, err := http.Get(srv.URL + "/swagger/doc.json")
-	if err != nil {
-		t.Fatalf("swagger request failed: %v", err)
-	}
-	defer resp3.Body.Close()
-	if resp3.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 for /swagger/doc.json, got %d", resp3.StatusCode)
-	}
-
-	var specDoc map[string]any
-	if err := json.NewDecoder(resp3.Body).Decode(&specDoc); err != nil {
-		t.Fatalf("swagger unmarshal error: %v", err)
-	}
-	paths, ok := specDoc["paths"].(map[string]any)
-	if !ok {
-		t.Fatal("expected 'paths' in swagger spec")
-	}
-	if _, ok := paths["/tools/file_read"]; !ok {
-		t.Error("expected /tools/file_read in swagger paths")
-	}
-	if _, ok := paths["/tools/lang_list"]; !ok {
-		t.Error("expected /tools/lang_list in swagger paths")
-	}
 }
 
 // moved AX-7 triplet TestBridge_BridgeToAPI_Good
 func TestBridge_BridgeToAPI_Good(t *testing.T) {
-	bridge := api.NewToolBridge()
+	engine := gin.New()
 	svc, err := mcp.New(mcp.Options{})
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
-	mcp.BridgeToAPI(svc, bridge)
-	if len(bridge.Tools()) == 0 {
-		t.Fatal("expected BridgeToAPI to register tools")
+	mcp.BridgeToAPI(svc, engine.Group("/tools"))
+	if len(engine.Routes()) == 0 {
+		t.Fatal("expected BridgeToAPI to register routes")
 	}
 }
 
 // moved AX-7 triplet TestBridge_BridgeToAPI_Bad
 func TestBridge_BridgeToAPI_Bad(t *testing.T) {
-	bridge := api.NewToolBridge()
-	mcp.BridgeToAPI(nil, bridge)
-	if len(bridge.Tools()) != 0 {
-		t.Fatalf("expected no tools, got %d", len(bridge.Tools()))
+	engine := gin.New()
+	mcp.BridgeToAPI(nil, engine.Group("/tools"))
+	if len(engine.Routes()) != 0 {
+		t.Fatalf("expected no routes, got %d", len(engine.Routes()))
 	}
 }
 

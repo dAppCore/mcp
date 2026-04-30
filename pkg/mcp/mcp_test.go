@@ -78,16 +78,8 @@ func TestMcp_New_Good_RegistersBuiltInTools(t *testing.T) {
 		"rag_query",
 		"rag_ingest",
 		"rag_collections",
-		"webview_connect",
-		"webview_disconnect",
-		"webview_navigate",
-		"webview_click",
-		"webview_type",
-		"webview_query",
-		"webview_console",
-		"webview_eval",
-		"webview_screenshot",
-		"webview_wait",
+		"webview_render",
+		"webview_update",
 	} {
 		if !tools[name] {
 			t.Fatalf("expected tool %q to be registered", name)

@@ -253,7 +253,7 @@ func (b *Bridge) dispatch(msg BridgeMessage) {
 		channel = "ide:" + msg.Type
 	}
 
-	if err := b.hub.SendToChannel(channel, wsMsg); err != nil {
-		core.Warn("ide bridge: dispatch failed", "channel", channel, "err", err)
+	if r := b.hub.SendToChannel(channel, wsMsg); !r.OK {
+		core.Warn("ide bridge: dispatch failed", "channel", channel, "err", r.Error())
 	}
 }
