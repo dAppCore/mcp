@@ -6,21 +6,33 @@ Guidance for Claude Code and Codex when working with this repository.
 
 `forge.lthn.ai/core/mcp` — Model Context Protocol server with file operations, tool registration, notification broadcasting, and channel events.
 
+Repo layout has become language-segmented:
+
+```text
+core/mcp/
+├── go/      — Go module `dappco.re/go/mcp`
+├── php/     — PHP Laravel package (formerly `src/`)
+├── docs/    — shared docs
+└── composer.json
+```
+
+The Go module is `core/mcp/go/`; the PHP package is `core/mcp/php/`.
+
 Licence: EUPL-1.2
 
 ## Build & Test
 
 ```bash
-go test ./pkg/mcp/...            # run all tests
-go build ./pkg/mcp/...           # verify compilation
-go build ./cmd/core-mcp/         # build binary
+(cd go && go test ./pkg/mcp/...)       # run all tests
+(cd go && go build ./pkg/mcp/...)      # verify compilation
+(cd go && go build ./cmd/core-mcp/)    # build binary
 ```
 
 Or via the Core CLI:
 
 ```bash
-core go test
-core go qa                       # fmt + vet + lint + test
+(cd go && core go test)
+(cd go && core go qa)                  # fmt + vet + lint + test
 ```
 
 ## API Shape
@@ -126,4 +138,6 @@ Selected by `Run()` in priority order:
 
 ## Go Workspace
 
-Part of `~/Code/go.work`. Use `GOWORK=off` to test in isolation.
+The Go stack in this repo is nested as `go/`:
+
+`cd go && GOWORK=off go test ./...` for isolated module verification.

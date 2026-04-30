@@ -9,14 +9,14 @@
     },
     "autoload": {
         "psr-4": {
-            "Core\\Mcp\\": "src/php/src/Mcp/",
-            "Core\\Website\\Mcp\\": "src/php/src/Website/Mcp/",
-            "Core\\Front\\Mcp\\": "src/php/src/Front/Mcp/"
+            "Core\\Mcp\\": "php/src/Mcp/",
+            "Core\\Website\\Mcp\\": "php/src/Website/Mcp/",
+            "Core\\Front\\Mcp\\": "php/src/Front/Mcp/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Core\\Mcp\\Tests\\": "src/php/tests/"
+            "Core\\Mcp\\Tests\\": "php/tests/"
         }
     },
     "extra": {
