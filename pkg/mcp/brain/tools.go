@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -131,22 +131,38 @@ type ListOutput struct {
 	Memories []Memory `json:"memories"`
 }
 
-func validateBrainOrg(org string) error {
+func validateBrainOrg(
+	org string,
+) (
+	_ error, // result
+) {
 	if utf8.RuneCountInString(org) > brainOrgMaxLength {
-		return coreerr.E("brain.validate", "org exceeds maximum length of 128 characters", nil)
+		return core.E("brain.validate", "org exceeds maximum length of 128 characters", nil)
 	}
 	return nil
 }
 
-func validateRememberInput(input RememberInput) error {
+func validateRememberInput(
+	input RememberInput,
+) (
+	_ error, // result
+) {
 	return validateBrainOrg(input.Org)
 }
 
-func validateRecallInput(input RecallInput) error {
+func validateRecallInput(
+	input RecallInput,
+) (
+	_ error, // result
+) {
 	return validateBrainOrg(input.Filter.Org)
 }
 
-func validateListInput(input ListInput) error {
+func validateListInput(
+	input ListInput,
+) (
+	_ error, // result
+) {
 	return validateBrainOrg(input.Org)
 }
 
@@ -177,7 +193,11 @@ func (s *Subsystem) registerBrainTools(svc *coremcp.Service) {
 
 // -- Tool handlers ------------------------------------------------------------
 
-func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (*mcp.CallToolResult, RememberOutput, error) {
+func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, input RememberInput) (
+	*mcp.CallToolResult,
+	RememberOutput,
+	error,
+) {
 	if err := validateRememberInput(input); err != nil {
 		return nil, RememberOutput{}, err
 	}
@@ -199,7 +219,7 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 		},
 	})
 	if err != nil {
-		return nil, RememberOutput{}, coreerr.E("brain.remember", "failed to send brain_remember", err)
+		return nil, RememberOutput{}, core.E("brain.remember", "failed to send brain_remember", err)
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainRememberDone, map[string]any{
@@ -214,7 +234,11 @@ func (s *Subsystem) brainRemember(ctx context.Context, _ *mcp.CallToolRequest, i
 	}, nil
 }
 
-func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (*mcp.CallToolResult, RecallOutput, error) {
+func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, input RecallInput) (
+	*mcp.CallToolResult,
+	RecallOutput,
+	error,
+) {
 	if err := validateRecallInput(input); err != nil {
 		return nil, RecallOutput{}, err
 	}
@@ -231,7 +255,7 @@ func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, inp
 		},
 	})
 	if err != nil {
-		return nil, RecallOutput{}, coreerr.E("brain.recall", "failed to send brain_recall", err)
+		return nil, RecallOutput{}, core.E("brain.recall", "failed to send brain_recall", err)
 	}
 
 	return nil, RecallOutput{
@@ -240,7 +264,11 @@ func (s *Subsystem) brainRecall(ctx context.Context, _ *mcp.CallToolRequest, inp
 	}, nil
 }
 
-func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (*mcp.CallToolResult, ForgetOutput, error) {
+func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, input ForgetInput) (
+	*mcp.CallToolResult,
+	ForgetOutput,
+	error,
+) {
 	if s.bridge == nil {
 		return nil, ForgetOutput{}, errBridgeNotAvailable
 	}
@@ -253,7 +281,7 @@ func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, inp
 		},
 	})
 	if err != nil {
-		return nil, ForgetOutput{}, coreerr.E("brain.forget", "failed to send brain_forget", err)
+		return nil, ForgetOutput{}, core.E("brain.forget", "failed to send brain_forget", err)
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainForgetDone, map[string]any{
@@ -267,7 +295,11 @@ func (s *Subsystem) brainForget(ctx context.Context, _ *mcp.CallToolRequest, inp
 	}, nil
 }
 
-func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (*mcp.CallToolResult, ListOutput, error) {
+func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input ListInput) (
+	*mcp.CallToolResult,
+	ListOutput,
+	error,
+) {
 	if err := validateListInput(input); err != nil {
 		return nil, ListOutput{}, err
 	}
@@ -290,7 +322,7 @@ func (s *Subsystem) brainList(ctx context.Context, _ *mcp.CallToolRequest, input
 		},
 	})
 	if err != nil {
-		return nil, ListOutput{}, coreerr.E("brain.list", "failed to send brain_list", err)
+		return nil, ListOutput{}, core.E("brain.list", "failed to send brain_list", err)
 	}
 
 	s.emitChannel(ctx, coremcp.ChannelBrainListDone, map[string]any{

@@ -7,9 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	core "dappco.re/go/core"
-	"dappco.re/go/ai/ai"
-	"dappco.re/go/log"
+	core "dappco.re/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -78,6 +76,19 @@ type MetricEventBrief struct {
 	Repo      string    `json:"repo,omitempty"`     // e.g. "core-php"
 }
 
+type metricEvent struct {
+	Type      string         `json:"type"`
+	Timestamp time.Time      `json:"timestamp"`
+	AgentID   string         `json:"agent_id,omitempty"`
+	Repo      string         `json:"repo,omitempty"`
+	Data      map[string]any `json:"data,omitempty"`
+}
+
+var metricEvents struct {
+	core.Mutex
+	items []metricEvent
+}
+
 // registerMetricsTools adds metrics tools to the MCP server.
 func (s *Service) registerMetricsTools(server *mcp.Server) {
 	addToolRecorded(s, server, "metrics", &mcp.Tool{
@@ -92,16 +103,20 @@ func (s *Service) registerMetricsTools(server *mcp.Server) {
 }
 
 // metricsRecord handles the metrics_record tool call.
-func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, input MetricsRecordInput) (*mcp.CallToolResult, MetricsRecordOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "metrics_record", "type", input.Type, "agent_id", input.AgentID, "repo", input.Repo, "user", log.Username())
+func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, input MetricsRecordInput) (
+	*mcp.CallToolResult,
+	MetricsRecordOutput,
+	error,
+) {
+	s.logger.Info("MCP tool execution", "tool", "metrics_record", "type", input.Type, "agent_id", input.AgentID, "repo", input.Repo, "user", core.Username())
 
 	// Validate input
 	if input.Type == "" {
-		return nil, MetricsRecordOutput{}, log.E("metricsRecord", "type cannot be empty", nil)
+		return nil, MetricsRecordOutput{}, core.E("metricsRecord", "type cannot be empty", nil)
 	}
 
 	// Create the event
-	event := ai.Event{
+	event := metricEvent{
 		Type:      input.Type,
 		Timestamp: time.Now(),
 		AgentID:   input.AgentID,
@@ -110,9 +125,9 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 
 	// Record the event
-	if err := ai.Record(event); err != nil {
-		log.Error("mcp: metrics record failed", "type", input.Type, "err", err)
-		return nil, MetricsRecordOutput{}, log.E("metricsRecord", "failed to record metrics", err)
+	if err := recordMetricEvent(event); err != nil {
+		core.Error("mcp: metrics record failed", "type", input.Type, "err", err)
+		return nil, MetricsRecordOutput{}, core.E("metricsRecord", "failed to record metrics", err)
 	}
 
 	return nil, MetricsRecordOutput{
@@ -122,32 +137,36 @@ func (s *Service) metricsRecord(ctx context.Context, req *mcp.CallToolRequest, i
 }
 
 // metricsQuery handles the metrics_query tool call.
-func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, input MetricsQueryInput) (*mcp.CallToolResult, MetricsQueryOutput, error) {
+func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, input MetricsQueryInput) (
+	*mcp.CallToolResult,
+	MetricsQueryOutput,
+	error,
+) {
 	// Apply defaults
 	since := input.Since
 	if since == "" {
 		since = DefaultMetricsSince
 	}
 
-	s.logger.Info("MCP tool execution", "tool", "metrics_query", "since", since, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "metrics_query", "since", since, "user", core.Username())
 
 	// Parse the duration
 	duration, err := parseDuration(since)
 	if err != nil {
-		return nil, MetricsQueryOutput{}, log.E("metricsQuery", "invalid since value", err)
+		return nil, MetricsQueryOutput{}, core.E("metricsQuery", "invalid since value", err)
 	}
 
 	sinceTime := time.Now().Add(-duration)
 
 	// Read events
-	events, err := ai.ReadEvents(sinceTime)
+	events, err := readMetricEvents(sinceTime)
 	if err != nil {
-		log.Error("mcp: metrics query failed", "since", since, "err", err)
-		return nil, MetricsQueryOutput{}, log.E("metricsQuery", "failed to read metrics", err)
+		core.Error("mcp: metrics query failed", "since", since, "err", err)
+		return nil, MetricsQueryOutput{}, core.E("metricsQuery", "failed to read metrics", err)
 	}
 
 	// Get summary
-	summary := ai.Summary(events)
+	summary := summarizeMetricEvents(events)
 
 	// Build output
 	total, _ := summary["total"].(int)
@@ -174,6 +193,67 @@ func (s *Service) metricsQuery(ctx context.Context, req *mcp.CallToolRequest, in
 	return nil, output, nil
 }
 
+func recordMetricEvent(
+	event metricEvent,
+) (
+	_ error, // result
+) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
+	metricEvents.Lock()
+	defer metricEvents.Unlock()
+	metricEvents.items = append(metricEvents.items, event)
+	return nil
+}
+
+func readMetricEvents(since time.Time) (
+	[]metricEvent,
+	error,
+) {
+	metricEvents.Lock()
+	defer metricEvents.Unlock()
+	out := make([]metricEvent, 0, len(metricEvents.items))
+	for _, event := range metricEvents.items {
+		if event.Timestamp.IsZero() || event.Timestamp.Before(since) {
+			continue
+		}
+		out = append(out, event)
+	}
+	return out, nil
+}
+
+func summarizeMetricEvents(input []metricEvent) map[string]any {
+	byType := map[string]int{}
+	byRepo := map[string]int{}
+	byAgent := map[string]int{}
+	for _, event := range input {
+		if event.Type != "" {
+			byType[event.Type]++
+		}
+		if event.Repo != "" {
+			byRepo[event.Repo]++
+		}
+		if event.AgentID != "" {
+			byAgent[event.AgentID]++
+		}
+	}
+	return map[string]any{
+		"total":    len(input),
+		"by_type":  metricCountMaps(byType),
+		"by_repo":  metricCountMaps(byRepo),
+		"by_agent": metricCountMaps(byAgent),
+	}
+}
+
+func metricCountMaps(counts map[string]int) []map[string]any {
+	out := make([]map[string]any, 0, len(counts))
+	for key, count := range counts {
+		out = append(out, map[string]any{"key": key, "count": count})
+	}
+	return out
+}
+
 // convertMetricCounts converts the summary map format to MetricCount slice.
 func convertMetricCounts(data any) []MetricCount {
 	if data == nil {
@@ -195,14 +275,17 @@ func convertMetricCounts(data any) []MetricCount {
 }
 
 // parseDuration parses a duration string like "7d", "24h", "30m".
-func parseDuration(s string) (time.Duration, error) {
+func parseDuration(s string) (
+	time.Duration,
+	error,
+) {
 	if s == "" {
-		return 0, log.E("parseDuration", "duration cannot be empty", nil)
+		return 0, core.E("parseDuration", "duration cannot be empty", nil)
 	}
 
 	s = core.Trim(s)
 	if len(s) < 2 {
-		return 0, log.E("parseDuration", "invalid duration format: "+s, nil)
+		return 0, core.E("parseDuration", "invalid duration format: "+s, nil)
 	}
 
 	// Get the numeric part and unit
@@ -211,11 +294,11 @@ func parseDuration(s string) (time.Duration, error) {
 
 	num, err := strconv.Atoi(numStr)
 	if err != nil {
-		return 0, log.E("parseDuration", "invalid duration number: "+numStr, err)
+		return 0, core.E("parseDuration", "invalid duration number: "+numStr, err)
 	}
 
 	if num <= 0 {
-		return 0, log.E("parseDuration", core.Sprintf("duration must be positive: %d", num), nil)
+		return 0, core.E("parseDuration", core.Sprintf("duration must be positive: %d", num), nil)
 	}
 
 	switch unit {
@@ -226,6 +309,6 @@ func parseDuration(s string) (time.Duration, error) {
 	case 'm':
 		return time.Duration(num) * time.Minute, nil
 	default:
-		return 0, log.E("parseDuration", "invalid duration unit: "+string(unit)+" (expected d, h, or m)", nil)
+		return 0, core.E("parseDuration", "invalid duration unit: "+string(unit)+" (expected d, h, or m)", nil)
 	}
 }

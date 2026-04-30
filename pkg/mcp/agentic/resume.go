@@ -4,13 +4,9 @@ package agentic
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"syscall"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -45,9 +41,13 @@ func (s *PrepSubsystem) registerResumeTool(svc *coremcp.Service) {
 	}, s.resume)
 }
 
-func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, input ResumeInput) (*mcp.CallToolResult, ResumeOutput, error) {
+func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, input ResumeInput) (
+	*mcp.CallToolResult,
+	ResumeOutput,
+	error,
+) {
 	if input.Workspace == "" {
-		return nil, ResumeOutput{}, coreerr.E("resume", "workspace is required", nil)
+		return nil, ResumeOutput{}, core.E("resume", "workspace is required", nil)
 	}
 
 	wsDir := core.Path(s.workspaceRoot(), input.Workspace)
@@ -55,17 +55,17 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 	// Verify workspace exists
 	if _, err := coreio.Local.List(srcDir); err != nil {
-		return nil, ResumeOutput{}, coreerr.E("resume", "workspace not found: "+input.Workspace, nil)
+		return nil, ResumeOutput{}, core.E("resume", "workspace not found: "+input.Workspace, nil)
 	}
 
 	// Read current status
 	st, err := readStatus(wsDir)
 	if err != nil {
-		return nil, ResumeOutput{}, coreerr.E("resume", "no status.json in workspace", err)
+		return nil, ResumeOutput{}, core.E("resume", "no status.json in workspace", err)
 	}
 
 	if st.Status != "blocked" && st.Status != "failed" && st.Status != "completed" {
-		return nil, ResumeOutput{}, coreerr.E("resume", "workspace is "+st.Status+", not resumable (must be blocked, failed, or completed)", nil)
+		return nil, ResumeOutput{}, core.E("resume", "workspace is "+st.Status+", not resumable (must be blocked, failed, or completed)", nil)
 	}
 
 	// Determine agent
@@ -79,7 +79,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		answerPath := core.Path(srcDir, "ANSWER.md")
 		content := core.Sprintf("# Answer\n\n%s\n", input.Answer)
 		if err := writeAtomic(answerPath, content); err != nil {
-			return nil, ResumeOutput{}, coreerr.E("resume", "failed to write ANSWER.md", err)
+			return nil, ResumeOutput{}, core.E("resume", "failed to write ANSWER.md", err)
 		}
 	}
 
@@ -107,28 +107,29 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, err
 	}
 
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
-		return nil, ResumeOutput{}, coreerr.E("resume", "failed to open /dev/null", err)
+	devNullResult := core.Open("/dev/null")
+	if !devNullResult.OK {
+		return nil, ResumeOutput{}, core.E("resume", "failed to open /dev/null", resultError(devNullResult))
 	}
+	devNull := devNullResult.Value.(*core.OSFile)
 	defer devNull.Close()
 
-	outFile, err := os.Create(outputFile)
-	if err != nil {
-		return nil, ResumeOutput{}, coreerr.E("resume", "failed to create log file", err)
+	outResult := core.Create(outputFile)
+	if !outResult.OK {
+		return nil, ResumeOutput{}, core.E("resume", "failed to create log file", resultError(outResult))
 	}
+	outFile := outResult.Value.(*core.OSFile)
 
-	cmd := exec.Command(command, args...)
-	cmd.Dir = srcDir
+	cmd := shellCommand(context.Background(), srcDir, command, args...)
 	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
-	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
+	cmd.Env = append(core.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
 		outFile.Close()
-		return nil, ResumeOutput{}, coreerr.E("resume", "failed to spawn "+agent, err)
+		return nil, ResumeOutput{}, core.E("resume", "failed to spawn "+agent, err)
 	}
 
 	// Update status

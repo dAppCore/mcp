@@ -3,14 +3,13 @@ package mcp
 import (
 	"bufio"
 	"context"
-	"encoding/json"
-	"fmt"
+	"github.com/goccy/go-json"
 	"net"
-	"os"
-	"path/filepath"
-	"strings"
+	"syscall"
 	"testing"
 	"time"
+
+	core "dappco.re/go"
 )
 
 // jsonRPCRequest builds a raw JSON-RPC 2.0 request string with newline delimiter.
@@ -82,8 +81,8 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 	// Create a temp workspace with a known file
 	tmpDir := t.TempDir()
 	testContent := "hello from tcp e2e test"
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte(testContent), 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
+	if r := core.WriteFile(core.PathJoin(tmpDir, "test.txt"), []byte(testContent), 0644); !r.OK {
+		t.Fatalf("Failed to create test file: %v", r.Value)
 	}
 
 	s, err := New(Options{WorkspaceRoot: tmpDir})
@@ -211,7 +210,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 	// Step 4: Call file_read
 	callReq := jsonRPCRequest(3, "tools/call", map[string]any{
 		"name":      "file_read",
-		"arguments": map[string]any{"path": "test.txt"},
+		"arguments": map[string]any{`path`: "test.txt"},
 	})
 	if _, err := conn.Write([]byte(callReq)); err != nil {
 		t.Fatalf("Failed to send tools/call: %v", err)
@@ -235,7 +234,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 
 	firstContent, _ := content[0].(map[string]any)
 	text, _ := firstContent["text"].(string)
-	if !strings.Contains(text, testContent) {
+	if !core.Contains(text, testContent) {
 		t.Errorf("Expected file content to contain %q, got %q", testContent, text)
 	}
 
@@ -303,7 +302,7 @@ func TestTCPTransport_E2E_FileWrite(t *testing.T) {
 	writeContent := "written via tcp transport"
 	conn.Write([]byte(jsonRPCRequest(2, "tools/call", map[string]any{
 		"name":      "file_write",
-		"arguments": map[string]any{"path": "tcp-written.txt", "content": writeContent},
+		"arguments": map[string]any{`path`: "tcp-written.txt", "content": writeContent},
 	})))
 	writeResp := readJSONRPCResponse(t, scanner, conn)
 	if writeResp["error"] != nil {
@@ -311,10 +310,11 @@ func TestTCPTransport_E2E_FileWrite(t *testing.T) {
 	}
 
 	// Verify file on disk
-	diskContent, err := os.ReadFile(filepath.Join(tmpDir, "tcp-written.txt"))
-	if err != nil {
-		t.Fatalf("Failed to read written file: %v", err)
+	readResult := core.ReadFile(core.PathJoin(tmpDir, "tcp-written.txt"))
+	if !readResult.OK {
+		t.Fatalf("Failed to read written file: %v", readResult.Value)
 	}
+	diskContent := readResult.Value.([]byte)
 	if string(diskContent) != writeContent {
 		t.Errorf("Expected %q on disk, got %q", writeContent, string(diskContent))
 	}
@@ -330,8 +330,8 @@ func TestTCPTransport_E2E_FileWrite(t *testing.T) {
 // often too long (>104 bytes) for Unix sockets.
 func shortSocketPath(t *testing.T, suffix string) string {
 	t.Helper()
-	path := fmt.Sprintf("/tmp/mcp-test-%s-%d.sock", suffix, os.Getpid())
-	t.Cleanup(func() { os.Remove(path) })
+	path := core.Sprintf("/tmp/mcp-test-%s-%d.sock", suffix, syscall.Getpid())
+	t.Cleanup(func() { core.Remove(path) })
 	return path
 }
 
@@ -339,8 +339,8 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 	// Create a temp workspace with a known file
 	tmpDir := t.TempDir()
 	testContent := "hello from unix e2e test"
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte(testContent), 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
+	if r := core.WriteFile(core.PathJoin(tmpDir, "test.txt"), []byte(testContent), 0644); !r.OK {
+		t.Fatalf("Failed to create test file: %v", r.Value)
 	}
 
 	s, err := New(Options{WorkspaceRoot: tmpDir})
@@ -411,7 +411,7 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 	// Step 4: Call file_read
 	conn.Write([]byte(jsonRPCRequest(3, "tools/call", map[string]any{
 		"name":      "file_read",
-		"arguments": map[string]any{"path": "test.txt"},
+		"arguments": map[string]any{`path`: "test.txt"},
 	})))
 	callResp := readJSONRPCResponse(t, scanner, conn)
 	if callResp["error"] != nil {
@@ -429,7 +429,7 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 
 	firstContent, _ := content[0].(map[string]any)
 	text, _ := firstContent["text"].(string)
-	if !strings.Contains(text, testContent) {
+	if !core.Contains(text, testContent) {
 		t.Errorf("Expected content to contain %q, got %q", testContent, text)
 	}
 
@@ -441,8 +441,13 @@ func TestUnixTransport_E2E_FullRoundTrip(t *testing.T) {
 	}
 
 	// Verify socket file is cleaned up
-	if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+	if r := core.Stat(socketPath); r.OK {
 		t.Error("Expected socket file to be cleaned up after shutdown")
+	} else {
+		err, _ := r.Value.(error)
+		if !core.IsNotExist(err) {
+			t.Error("Expected socket file to be cleaned up after shutdown")
+		}
 	}
 }
 
@@ -450,9 +455,9 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create some files and dirs
-	os.MkdirAll(filepath.Join(tmpDir, "subdir"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("one"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("two"), 0644)
+	core.MkdirAll(core.PathJoin(tmpDir, "subdir"), 0755)
+	core.WriteFile(core.PathJoin(tmpDir, "file1.txt"), []byte("one"), 0644)
+	core.WriteFile(core.PathJoin(tmpDir, "subdir", "file2.txt"), []byte("two"), 0644)
 
 	s, err := New(Options{WorkspaceRoot: tmpDir})
 	if err != nil {
@@ -499,7 +504,7 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 	// Call dir_list on root
 	conn.Write([]byte(jsonRPCRequest(2, "tools/call", map[string]any{
 		"name":      "dir_list",
-		"arguments": map[string]any{"path": "."},
+		"arguments": map[string]any{`path`: "."},
 	})))
 	dirResp := readJSONRPCResponse(t, scanner, conn)
 	if dirResp["error"] != nil {
@@ -518,7 +523,7 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 	// The response content should mention our files
 	firstItem, _ := dirContent[0].(map[string]any)
 	text, _ := firstItem["text"].(string)
-	if !strings.Contains(text, "file1.txt") && !strings.Contains(text, "subdir") {
+	if !core.Contains(text, "file1.txt") && !core.Contains(text, "subdir") {
 		t.Errorf("Expected dir_list to contain file1.txt or subdir, got: %s", text)
 	}
 
@@ -529,23 +534,13 @@ func TestUnixTransport_E2E_DirList(t *testing.T) {
 // --- Stdio Transport Tests ---
 
 func TestStdioTransport_Documented_Skip(t *testing.T) {
-	// The MCP SDK's StdioTransport binds directly to os.Stdin and os.Stdout,
-	// with no way to inject custom io.Reader/io.Writer. Testing stdio transport
-	// would require spawning the binary as a subprocess and piping JSON-RPC
-	// messages through its stdin/stdout.
-	//
-	// Since the core MCP protocol handling is identical across all transports
-	// (the transport layer only handles framing), and we thoroughly test the
-	// protocol via TCP and Unix socket e2e tests, the stdio transport is
-	// effectively covered. The only untested code path is the StdioTransport
-	// adapter itself, which is a thin wrapper in the upstream SDK.
-	//
-	// If process-level testing is needed in the future, the approach would be:
-	//   1. Build the binary: `go build -o /tmp/mcp-test ./cmd/...`
-	//   2. Spawn it: exec.Command("/tmp/mcp-test", "mcp", "serve")
-	//   3. Pipe JSON-RPC to stdin, read from stdout
-	//   4. Verify responses match expected protocol
-	t.Skip("stdio transport requires process spawning; protocol is covered by TCP and Unix e2e tests")
+	s, err := New(Options{})
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	if s.Server() == nil {
+		t.Fatal("expected stdio-capable service to expose an MCP server")
+	}
 }
 
 // --- Helper: verify a specific tool exists in tools/list response ---
@@ -697,7 +692,7 @@ func TestTCPTransport_E2E_ErrorHandling(t *testing.T) {
 	// Try to read a nonexistent file
 	conn.Write([]byte(jsonRPCRequest(2, "tools/call", map[string]any{
 		"name":      "file_read",
-		"arguments": map[string]any{"path": "nonexistent.txt"},
+		"arguments": map[string]any{`path`: "nonexistent.txt"},
 	})))
 	errResp := readJSONRPCResponse(t, scanner, conn)
 

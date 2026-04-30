@@ -18,7 +18,15 @@ func ProgressTokenFromRequest(req *sdkmcp.CallToolRequest) any {
 
 // SendProgressNotification emits notifications/progress when the caller supplied
 // _meta.progressToken. Calls without a token or MCP session are no-ops.
-func SendProgressNotification(ctx context.Context, req *sdkmcp.CallToolRequest, progress float64, total float64, message string) error {
+func SendProgressNotification(
+	ctx context.Context,
+	req *sdkmcp.CallToolRequest,
+	progress float64,
+	total float64,
+	message string,
+) (
+	_ error, // result
+) {
 	token := ProgressTokenFromRequest(req)
 	if req == nil || req.Session == nil || token == nil {
 		return nil
@@ -48,7 +56,13 @@ func NewProgressNotifier(ctx context.Context, req *sdkmcp.CallToolRequest) Progr
 }
 
 // Send emits a progress notification when the tool call includes a token.
-func (n ProgressNotifier) Send(progress float64, total float64, message string) error {
+func (n ProgressNotifier) Send(
+	progress float64,
+	total float64,
+	message string,
+) (
+	_ error, // result
+) {
 	if n.req == nil || n.req.Session == nil || n.token == nil {
 		return nil
 	}

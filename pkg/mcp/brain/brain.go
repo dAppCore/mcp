@@ -7,14 +7,14 @@ package brain
 import (
 	"context"
 
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/ide"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
 // but it has not been initialised (headless mode).
-var errBridgeNotAvailable = coreerr.E("brain", "bridge not available", nil)
+var errBridgeNotAvailable = core.E("brain", "bridge not available", nil)
 
 // Subsystem implements mcp.Subsystem for OpenBrain knowledge store operations.
 // It proxies brain_* tool calls to the Laravel backend via the shared IDE bridge.
@@ -73,6 +73,10 @@ func (s *Subsystem) handleBridgeMessage(msg ide.BridgeMessage) {
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
-func (s *Subsystem) Shutdown(_ context.Context) error {
+func (s *Subsystem) Shutdown(
+	_ context.Context,
+) (
+	_ error, // result
+) {
 	return nil
 }

@@ -7,14 +7,11 @@ package agentic
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
-	"os/exec"
 	"time"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
@@ -86,25 +83,28 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, error) {
+func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (
+	string,
+	error,
+) {
 	if core.Trim(value) != value {
-		return "", coreerr.E("prepWorkspace", field+" contains whitespace", nil)
+		return "", core.E("prepWorkspace", field+" contains whitespace", nil)
 	}
 	if value == "" {
 		return "", nil
 	}
 	if core.Contains(value, "\\") {
-		return "", coreerr.E("prepWorkspace", field+" contains invalid path separator", nil)
+		return "", core.E("prepWorkspace", field+" contains invalid path separator", nil)
 	}
 
 	parts := core.Split(value, "/")
 	if !allowSubdirs && len(parts) != 1 {
-		return "", coreerr.E("prepWorkspace", field+" may not contain subdirectories", nil)
+		return "", core.E("prepWorkspace", field+" may not contain subdirectories", nil)
 	}
 
 	for _, part := range parts {
 		if part == "" || part == "." || part == ".." {
-			return "", coreerr.E("prepWorkspace", field+" contains invalid path segment", nil)
+			return "", core.E("prepWorkspace", field+" contains invalid path segment", nil)
 		}
 		for _, r := range part {
 			switch {
@@ -114,7 +114,7 @@ func sanitizeRepoPathSegment(value, field string, allowSubdirs bool) (string, er
 				r == '-' || r == '_' || r == '.':
 				continue
 			default:
-				return "", coreerr.E("prepWorkspace", field+" contains invalid characters", nil)
+				return "", core.E("prepWorkspace", field+" contains invalid characters", nil)
 			}
 		}
 	}
@@ -188,9 +188,13 @@ type PrepOutput struct {
 	GitLog       int    `json:"git_log_entries"`
 }
 
-func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (*mcp.CallToolResult, PrepOutput, error) {
+func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolRequest, input PrepInput) (
+	*mcp.CallToolResult,
+	PrepOutput,
+	error,
+) {
 	if input.Repo == "" {
-		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "repo is required", nil)
+		return nil, PrepOutput{}, core.E("prepWorkspace", "repo is required", nil)
 	}
 
 	repo, err := sanitizeRepoPathSegment(input.Repo, "repo", false)
@@ -236,9 +240,9 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	// 1. Clone repo into src/ and create feature branch
 	srcDir := core.Path(wsDir, "src")
-	cloneCmd := exec.CommandContext(ctx, "git", "clone", repoPath, srcDir)
+	cloneCmd := shellCommand(ctx, "", "git", "clone", repoPath, srcDir)
 	if err := cloneCmd.Run(); err != nil {
-		return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to clone repository", err)
+		return nil, PrepOutput{}, core.E("prepWorkspace", "failed to clone repository", err)
 	}
 
 	// Create feature branch.
@@ -256,10 +260,9 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 		}
 	}
 	if branchName != "" {
-		branchCmd := exec.CommandContext(ctx, "git", "checkout", "-b", branchName)
-		branchCmd.Dir = srcDir
+		branchCmd := shellCommand(ctx, srcDir, "git", "checkout", "-b", branchName)
 		if err := branchCmd.Run(); err != nil {
-			return nil, PrepOutput{}, coreerr.E("prepWorkspace", "failed to create branch", err)
+			return nil, PrepOutput{}, core.E("prepWorkspace", "failed to create branch", err)
 		}
 		out.Branch = branchName
 	}
@@ -274,20 +277,20 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	// 2. Copy CLAUDE.md and GEMINI.md to workspace
 	claudeMdPath := core.Path(repoPath, "CLAUDE.md")
 	if data, err := coreio.Local.Read(claudeMdPath); err == nil {
-		_ = writeAtomic(core.Path(wsDir, "src", "CLAUDE.md"), data)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "CLAUDE.md"), data)
 		out.ClaudeMd = true
 	}
 	// Copy GEMINI.md from core/agent (ethics framework for all agents)
 	agentGeminiMd := core.Path(s.codePath, "core", "agent", "GEMINI.md")
 	if data, err := coreio.Local.Read(agentGeminiMd); err == nil {
-		_ = writeAtomic(core.Path(wsDir, "src", "GEMINI.md"), data)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "GEMINI.md"), data)
 	}
 
 	// Copy persona if specified
 	if persona != "" {
 		personaPath := core.Path(s.codePath, "core", "agent", "prompts", "personas", persona+".md")
 		if data, err := coreio.Local.Read(personaPath); err == nil {
-			_ = writeAtomic(core.Path(wsDir, "src", "PERSONA.md"), data)
+			writeAtomicBestEffort(core.Path(wsDir, "src", "PERSONA.md"), data)
 		}
 	}
 
@@ -297,7 +300,7 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	} else if input.Task != "" {
 		todo := core.Sprintf("# TASK: %s\n\n**Repo:** %s/%s\n**Status:** ready\n\n## Objective\n\n%s\n",
 			input.Task, input.Org, input.Repo, input.Task)
-		_ = writeAtomic(core.Path(wsDir, "src", "TODO.md"), todo)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "TODO.md"), todo)
 	}
 
 	// 4. Generate CONTEXT.md from OpenBrain
@@ -400,7 +403,7 @@ func (s *PrepSubsystem) writePromptTemplate(template, wsDir string) {
 	case "conventions":
 		prompt = `Read CLAUDE.md for project conventions.
 Review all Go files in src/ for:
-- Error handling: should use coreerr.E() from go-log, not fmt.Errorf or errors.New
+- Error handling: should use core.E() from go-log, not fmt.Errorf or errors.New
 - Compile-time interface checks: var _ Interface = (*Impl)(nil)
 - Import aliasing: stdlib io aliased as goio
 - UK English in comments (colour not color, initialise not initialize)
@@ -458,7 +461,7 @@ Do NOT push. Commit only — a reviewer will verify and push.
 		prompt = "Read TODO.md and complete the task. Work in src/.\n"
 	}
 
-	_ = writeAtomic(core.Path(wsDir, "src", "PROMPT.md"), prompt)
+	writeAtomicBestEffort(core.Path(wsDir, "src", "PROMPT.md"), prompt)
 }
 
 // --- Plan template rendering ---
@@ -536,7 +539,7 @@ func (s *PrepSubsystem) writePlanFromTemplate(templateSlug string, variables map
 		plan.WriteString("\n**Commit after completing this phase.**\n\n---\n\n")
 	}
 
-	_ = writeAtomic(core.Path(wsDir, "src", "PLAN.md"), plan.String())
+	writeAtomicBestEffort(core.Path(wsDir, "src", "PLAN.md"), plan.String())
 }
 
 // --- Helpers (unchanged) ---
@@ -611,7 +614,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		}
 		filename := sanitizeFilename(page.Title) + ".md"
 
-		_ = writeAtomic(core.Path(wsDir, "src", "kb", filename), string(content))
+		writeAtomicBestEffort(core.Path(wsDir, "src", "kb", filename), string(content))
 		count++
 	}
 
@@ -625,7 +628,7 @@ func (s *PrepSubsystem) copySpecs(wsDir string) int {
 	for _, file := range specFiles {
 		src := core.Path(s.specsPath, file)
 		if data, err := coreio.Local.Read(src); err == nil {
-			_ = writeAtomic(core.Path(wsDir, "src", "specs", file), data)
+			writeAtomicBestEffort(core.Path(wsDir, "src", "specs", file), data)
 			count++
 		}
 	}
@@ -688,7 +691,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 		content.WriteString(core.Sprintf("### %d. %s [%s] (score: %.3f)\n\n%s\n\n", i+1, memProject, memType, score, memContent))
 	}
 
-	_ = writeAtomic(core.Path(wsDir, "src", "CONTEXT.md"), content.String())
+	writeAtomicBestEffort(core.Path(wsDir, "src", "CONTEXT.md"), content.String())
 	return len(result.Memories)
 }
 
@@ -725,15 +728,14 @@ func (s *PrepSubsystem) findConsumers(repo, wsDir string) int {
 			content += "- " + c + "\n"
 		}
 		content += core.Sprintf("\n**Breaking change risk: %d consumers.**\n", len(consumers))
-		_ = writeAtomic(core.Path(wsDir, "src", "CONSUMERS.md"), content)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "CONSUMERS.md"), content)
 	}
 
 	return len(consumers)
 }
 
 func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
-	cmd := exec.Command("git", "log", "--oneline", "-20")
-	cmd.Dir = repoPath
+	cmd := shellCommand(context.Background(), repoPath, "git", `log`, "--oneline", "-20")
 	output, err := cmd.Output()
 	if err != nil {
 		return 0
@@ -742,7 +744,7 @@ func (s *PrepSubsystem) gitLog(repoPath, wsDir string) int {
 	lines := core.Split(core.Trim(string(output)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		content := "# Recent Changes\n\n```\n" + string(output) + "```\n"
-		_ = writeAtomic(core.Path(wsDir, "src", "RECENT.md"), content)
+		writeAtomicBestEffort(core.Path(wsDir, "src", "RECENT.md"), content)
 	}
 
 	return len(lines)
@@ -778,5 +780,5 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	content += core.Sprintf("**Repo:** %s/%s\n\n---\n\n", org, repo)
 	content += "## Objective\n\n" + issueData.Body + "\n"
 
-	_ = writeAtomic(core.Path(wsDir, "src", "TODO.md"), content)
+	writeAtomicBestEffort(core.Path(wsDir, "src", "TODO.md"), content)
 }

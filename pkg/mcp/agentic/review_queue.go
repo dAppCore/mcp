@@ -4,14 +4,11 @@ package agentic
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"os/exec"
+	"github.com/goccy/go-json"
 	"regexp"
 	"time"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -49,11 +46,14 @@ type RateLimitInfo struct {
 }
 
 func reviewQueueHomeDir() string {
-	if home := os.Getenv("DIR_HOME"); home != "" {
+	if home := core.Env("DIR_HOME"); home != "" {
 		return home
 	}
-	home, _ := os.UserHomeDir()
-	return home
+	if r := core.UserHomeDir(); r.OK {
+		home, _ := r.Value.(string)
+		return home
+	}
+	return ""
 }
 
 func (s *PrepSubsystem) registerReviewQueueTool(svc *coremcp.Service) {
@@ -64,7 +64,11 @@ func (s *PrepSubsystem) registerReviewQueueTool(svc *coremcp.Service) {
 	}, s.reviewQueue)
 }
 
-func (s *PrepSubsystem) reviewQueue(ctx context.Context, _ *mcp.CallToolRequest, input ReviewQueueInput) (*mcp.CallToolResult, ReviewQueueOutput, error) {
+func (s *PrepSubsystem) reviewQueue(ctx context.Context, _ *mcp.CallToolRequest, input ReviewQueueInput) (
+	*mcp.CallToolResult,
+	ReviewQueueOutput,
+	error,
+) {
 	limit := input.Limit
 	if limit <= 0 {
 		limit = 4
@@ -125,7 +129,7 @@ func (s *PrepSubsystem) reviewQueue(ctx context.Context, _ *mcp.CallToolRequest,
 }
 
 func (s *PrepSubsystem) findReviewCandidates(basePath string) []string {
-	entries, err := os.ReadDir(basePath)
+	entries, err := coreio.Local.List(basePath)
 	if err != nil {
 		return nil
 	}
@@ -192,8 +196,7 @@ func (s *PrepSubsystem) reviewRepo(ctx context.Context, repoDir, repo, reviewer 
 		}
 
 		if url, err := readGitHubPRURL(repoDir); err == nil && url != "" {
-			mergeCmd := exec.CommandContext(ctx, "gh", "pr", "merge", "--auto", "--squash", "--delete-branch")
-			mergeCmd.Dir = repoDir
+			mergeCmd := shellCommand(ctx, repoDir, "gh", "pr", "merge", "--auto", "--squash", "--delete-branch")
 			if mergeOut, err := mergeCmd.CombinedOutput(); err == nil {
 				result.Action = "merged"
 				result.Detail = core.Trim(string(mergeOut))
@@ -234,7 +237,7 @@ func (s *PrepSubsystem) storeReviewOutput(repoDir, repo, reviewer, output string
 	}
 
 	name := core.Sprintf("%s-%s-%d.json", repo, reviewer, time.Now().Unix())
-	_ = writeAtomic(core.Path(dataDir, name), string(data))
+	writeAtomicBestEffort(core.Path(dataDir, name), string(data))
 }
 
 func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
@@ -244,7 +247,7 @@ func (s *PrepSubsystem) saveRateLimitState(info *RateLimitInfo) {
 	if err != nil {
 		return
 	}
-	_ = writeAtomic(path, string(data))
+	writeAtomicBestEffort(path, string(data))
 }
 
 func (s *PrepSubsystem) loadRateLimitState() *RateLimitInfo {

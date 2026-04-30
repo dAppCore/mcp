@@ -1,0 +1,6 @@
+projectKey=core-mcp
+serverUrl=https://sonar.lthn.sh
+serverVersion=26.4.0.121862
+dashboardUrl=https://sonar.lthn.sh/dashboard?id=core-mcp
+ceTaskId=ddc1ef62-cfd8-4a66-a719-29cad1fea133
+ceTaskUrl=https://sonar.lthn.sh/api/ce/task?id=ddc1ef62-cfd8-4a66-a719-29cad1fea133

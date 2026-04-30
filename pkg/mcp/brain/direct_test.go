@@ -4,17 +4,23 @@ package brain
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	coremcp "dappco.re/go/mcp/pkg/mcp"
 	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
 )
 
+const testInsecureBrainEnv = "CORE_BRAIN_INSECURE"
+
 // newTestDirect creates a DirectSubsystem pointing at a test server.
-func newTestDirect(url string) *DirectSubsystem {
+func newTestDirect(t *testing.T, url string) *DirectSubsystem {
+	t.Helper()
+	t.Setenv(testInsecureBrainEnv, "true")
+
 	return &DirectSubsystem{
 		apiClient: brainclient.New(brainclient.Options{
 			URL:         url,
@@ -60,7 +66,7 @@ func TestApiCall_Good_PostWithBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	result, err := s.apiCall(context.Background(), "POST", "/v1/brain/remember", map[string]string{"content": "test"})
 	if err != nil {
 		t.Fatalf("apiCall failed: %v", err)
@@ -80,7 +86,7 @@ func TestApiCall_Good_GetNilBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	result, err := s.apiCall(context.Background(), "GET", "/status", nil)
 	if err != nil {
 		t.Fatalf("apiCall failed: %v", err)
@@ -110,7 +116,7 @@ func TestApiCall_Bad_HttpError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, err := s.apiCall(context.Background(), "POST", "/fail", map[string]string{})
 	if err == nil {
 		t.Error("expected error on HTTP 500")
@@ -124,7 +130,7 @@ func TestApiCall_Bad_InvalidJson(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, err := s.apiCall(context.Background(), "GET", "/bad-json", nil)
 	if err == nil {
 		t.Error("expected error on invalid JSON response")
@@ -166,7 +172,7 @@ func TestDirectRemember_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.remember(context.Background(), nil, RememberInput{
 		Content: "test memory",
 		Type:    "observation",
@@ -191,7 +197,7 @@ func TestDirectRemember_Bad_ApiError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, _, err := s.remember(context.Background(), nil, RememberInput{Content: "x", Type: "bug"})
 	if err == nil {
 		t.Error("expected error on API failure")
@@ -228,7 +234,7 @@ func TestDirectRecall_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.recall(context.Background(), nil, RecallInput{
 		Query:  "scoring algorithm",
 		TopK:   5,
@@ -264,7 +270,7 @@ func TestDirectRecall_Good_DefaultTopK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.recall(context.Background(), nil, RecallInput{Query: "test"})
 	if err != nil {
 		t.Fatalf("recall failed: %v", err)
@@ -281,7 +287,7 @@ func TestDirectRecall_Bad_ApiError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, _, err := s.recall(context.Background(), nil, RecallInput{Query: "test"})
 	if err == nil {
 		t.Error("expected error on API failure")
@@ -303,7 +309,7 @@ func TestDirectForget_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.forget(context.Background(), nil, ForgetInput{
 		ID:     "mem-789",
 		Reason: "outdated",
@@ -326,7 +332,7 @@ func TestDirectForget_Good_EmitsChannel(t *testing.T) {
 	var gotChannel string
 	var gotPayload map[string]any
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	s.onChannel = func(_ context.Context, channel string, data any) {
 		gotChannel = channel
 		if payload, ok := data.(map[string]any); ok {
@@ -365,7 +371,7 @@ func TestDirectForget_Bad_ApiError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, _, err := s.forget(context.Background(), nil, ForgetInput{ID: "nonexistent"})
 	if err == nil {
 		t.Error("expected error on 404")
@@ -412,7 +418,7 @@ func TestDirectList_Good(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.list(context.Background(), nil, ListInput{
 		Org:     "core",
 		Project: "eaas",
@@ -447,7 +453,7 @@ func TestDirectList_Good_EmitsAgentIDChannelPayload(t *testing.T) {
 	var gotChannel string
 	var gotPayload map[string]any
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	s.onChannel = func(_ context.Context, channel string, data any) {
 		gotChannel = channel
 		if payload, ok := data.(map[string]any); ok {
@@ -495,7 +501,7 @@ func TestDirectList_Good_DefaultLimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := newTestDirect(srv.URL)
+	s := newTestDirect(t, srv.URL)
 	_, out, err := s.list(context.Background(), nil, ListInput{})
 	if err != nil {
 		t.Fatalf("list failed: %v", err)
@@ -503,4 +509,140 @@ func TestDirectList_Good_DefaultLimit(t *testing.T) {
 	if !out.Success || out.Count != 0 {
 		t.Fatalf("expected empty list, got %+v", out)
 	}
+}
+
+// moved AX-7 triplet TestDirect_NewDirect_Good
+func TestDirect_NewDirect_Good(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	sub := NewDirect()
+	AssertNotNil(t, sub)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirect_Bad
+func TestDirect_NewDirect_Bad(t *T) {
+	t.Setenv("CORE_BRAIN_URL", "://bad")
+	sub := NewDirect()
+	AssertNotNil(t, sub.apiClient)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirect_Ugly
+func TestDirect_NewDirect_Ugly(t *T) {
+	t.Setenv("HOME", "")
+	sub := NewDirect()
+	AssertNotNil(t, sub.client())
+	AssertNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_NewDirectWithClient_Good
+func TestDirect_NewDirectWithClient_Good(t *T) {
+	client := brainclient.New(brainclient.Options{URL: brainclient.DefaultURL, Key: "test"})
+	sub := NewDirectWithClient(client)
+	AssertEqual(t, client, sub.apiClient)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirectWithClient_Bad
+func TestDirect_NewDirectWithClient_Bad(t *T) {
+	sub := NewDirectWithClient(nil)
+	AssertNotNil(t, sub.apiClient)
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_NewDirectWithClient_Ugly
+func TestDirect_NewDirectWithClient_Ugly(t *T) {
+	client := brainclient.New(brainclient.Options{})
+	sub := NewDirectWithClient(client)
+	AssertEqual(t, client, sub.client())
+	AssertNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_OnChannel_Good
+func TestDirect_DirectSubsystem_OnChannel_Good(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	called := false
+	sub.OnChannel(func(_ context.Context, channel string, data any) {
+		called = channel == coremcp.ChannelBrainRememberDone && data != nil
+	})
+	sub.onChannel(context.Background(), coremcp.ChannelBrainRememberDone, map[string]any{"id": "m1"})
+	AssertTrue(t, called)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_OnChannel_Bad
+func TestDirect_DirectSubsystem_OnChannel_Bad(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	sub.OnChannel(nil)
+	AssertNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_OnChannel_Ugly
+func TestDirect_DirectSubsystem_OnChannel_Ugly(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	sub.OnChannel(func(context.Context, string, any) {})
+	sub.OnChannel(func(context.Context, string, any) {})
+	AssertNotNil(t, sub.onChannel)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Name_Good
+func TestDirect_DirectSubsystem_Name_Good(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	AssertEqual(t, "brain", sub.Name())
+	AssertNotNil(t, sub.apiClient)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Name_Bad
+func TestDirect_DirectSubsystem_Name_Bad(t *T) {
+	var sub *DirectSubsystem
+	AssertEqual(t, "brain", sub.Name())
+	AssertNil(t, sub)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Name_Ugly
+func TestDirect_DirectSubsystem_Name_Ugly(t *T) {
+	sub := &DirectSubsystem{}
+	AssertEqual(t, "brain", sub.Name())
+	AssertNotNil(t, sub.client())
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_RegisterTools_Good
+func TestDirect_DirectSubsystem_RegisterTools_Good(t *T) {
+	svc := brainMCPServiceForTest(t)
+	NewDirectWithClient(brainclient.New(brainclient.Options{})).RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_RegisterTools_Bad
+func TestDirect_DirectSubsystem_RegisterTools_Bad(t *T) {
+	sub := NewDirectWithClient(brainclient.New(brainclient.Options{}))
+	AssertPanics(t, func() { sub.RegisterTools(nil) })
+	AssertEqual(t, "brain", sub.Name())
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_RegisterTools_Ugly
+func TestDirect_DirectSubsystem_RegisterTools_Ugly(t *T) {
+	svc := brainMCPServiceForTest(t)
+	(&DirectSubsystem{}).RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Good
+func TestDirect_DirectSubsystem_Shutdown_Good(t *T) {
+	sub := NewDirect()
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Bad
+func TestDirect_DirectSubsystem_Shutdown_Bad(t *T) {
+	sub := NewDirect()
+	err := sub.Shutdown(nil)
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Ugly
+func TestDirect_DirectSubsystem_Shutdown_Ugly(t *T) {
+	var sub *DirectSubsystem
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
 }

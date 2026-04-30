@@ -4,12 +4,12 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"testing"
 	"time"
+
+	core "dappco.re/go"
 )
 
 func TestServeHTTP_Good_HealthEndpoint(t *testing.T) {
@@ -37,7 +37,7 @@ func TestServeHTTP_Good_HealthEndpoint(t *testing.T) {
 	// Wait for server to start
 	time.Sleep(100 * time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+	resp, err := http.Get(core.Sprintf("http://%s/health", addr))
 	if err != nil {
 		t.Fatalf("health check failed: %v", err)
 	}
@@ -58,8 +58,7 @@ func TestServeHTTP_Good_DefaultAddr(t *testing.T) {
 }
 
 func TestServeHTTP_Good_AuthRequired(t *testing.T) {
-	os.Setenv("MCP_AUTH_TOKEN", "test-secret-token")
-	defer os.Unsetenv("MCP_AUTH_TOKEN")
+	t.Setenv("MCP_AUTH_TOKEN", "test-secret-token")
 
 	s, err := New(Options{})
 	if err != nil {
@@ -84,7 +83,7 @@ func TestServeHTTP_Good_AuthRequired(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Request without token should be rejected
-	resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
+	resp, err := http.Get(core.Sprintf("http://%s/mcp", addr))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -94,7 +93,7 @@ func TestServeHTTP_Good_AuthRequired(t *testing.T) {
 	}
 
 	// Health endpoint should still work (no auth)
-	resp, err = http.Get(fmt.Sprintf("http://%s/health", addr))
+	resp, err = http.Get(core.Sprintf("http://%s/health", addr))
 	if err != nil {
 		t.Fatalf("health check failed: %v", err)
 	}
@@ -108,7 +107,7 @@ func TestServeHTTP_Good_AuthRequired(t *testing.T) {
 }
 
 func TestServeHTTP_Good_NoAuthConfigured(t *testing.T) {
-	os.Unsetenv("MCP_AUTH_TOKEN")
+	t.Setenv("MCP_AUTH_TOKEN", "")
 
 	s, err := New(Options{})
 	if err != nil {
@@ -132,7 +131,7 @@ func TestServeHTTP_Good_NoAuthConfigured(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
+	resp, err := http.Get(core.Sprintf("http://%s/mcp", addr))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -244,10 +243,8 @@ func TestRun_Good_HTTPTrigger(t *testing.T) {
 	listener.Close()
 
 	// MCP_HTTP_ADDR takes priority over MCP_ADDR
-	os.Setenv("MCP_HTTP_ADDR", addr)
-	os.Setenv("MCP_ADDR", "")
-	defer os.Unsetenv("MCP_HTTP_ADDR")
-	defer os.Unsetenv("MCP_ADDR")
+	t.Setenv("MCP_HTTP_ADDR", addr)
+	t.Setenv("MCP_ADDR", "")
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -257,7 +254,7 @@ func TestRun_Good_HTTPTrigger(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify server is running
-	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+	resp, err := http.Get(core.Sprintf("http://%s/health", addr))
 	if err != nil {
 		t.Fatalf("health check failed: %v", err)
 	}
@@ -285,3 +282,28 @@ func (f *fakeResponseWriter) Header() http.Header {
 
 func (f *fakeResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (f *fakeResponseWriter) WriteHeader(code int)        { f.code = code }
+
+// moved AX-7 triplet TestTransportHttp_Service_ServeHTTP_Good
+func TestTransportHttp_Service_ServeHTTP_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.ServeHTTP(ctx, "127.0.0.1:0")
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestTransportHttp_Service_ServeHTTP_Bad
+func TestTransportHttp_Service_ServeHTTP_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	err := svc.ServeHTTP(context.Background(), "127.0.0.1:bad")
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestTransportHttp_Service_ServeHTTP_Ugly
+func TestTransportHttp_Service_ServeHTTP_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.ServeHTTP(ctx, "")
+	AssertNoError(t, err)
+}

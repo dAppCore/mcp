@@ -13,11 +13,8 @@ package mcpcmd
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp"
 	"dappco.re/go/mcp/pkg/mcp/agentic"
 	"dappco.re/go/mcp/pkg/mcp/brain"
@@ -76,9 +73,9 @@ func runServeAction(opts core.Options) core.Result {
 	unrestrictedFlag = opts.Bool("unrestricted")
 
 	if err := runServe(); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // firstNonEmpty returns the first non-empty string argument.
@@ -100,7 +97,9 @@ func firstNonEmpty(values ...string) string {
 //	if err := runServe(); err != nil {
 //	    core.Error("mcp serve failed", "err", err)
 //	}
-func runServe() error {
+func runServe() (
+	_ error, // result
+) {
 	opts := mcp.Options{}
 
 	if unrestrictedFlag {
@@ -120,22 +119,13 @@ func runServe() error {
 		return core.E("mcpcmd.runServe", "create MCP service", err)
 	}
 	defer func() {
-		_ = shutdownMCPService(svc, context.Background())
+		if err := shutdownMCPService(svc, context.Background()); err != nil {
+			core.Error("mcp serve: shutdown failed", "err", err)
+		}
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		select {
-		case <-sigCh:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
 
 	return runMCPService(svc, ctx)
 }

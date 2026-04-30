@@ -89,9 +89,13 @@ func (s *Subsystem) registerBuildTools(svc *coremcp.Service) {
 
 // buildStatus returns a local best-effort build status and refreshes the
 // Laravel backend when the bridge is available.
-func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input BuildStatusInput) (*mcp.CallToolResult, BuildStatusOutput, error) {
+func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input BuildStatusInput) (
+	*mcp.CallToolResult,
+	BuildStatusOutput,
+	error,
+) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "build_status",
 			Data: map[string]any{"buildId": input.BuildID},
 		})
@@ -107,9 +111,13 @@ func (s *Subsystem) buildStatus(_ context.Context, _ *mcp.CallToolRequest, input
 
 // buildList returns the local build list snapshot and refreshes the Laravel
 // backend when the bridge is available.
-func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input BuildListInput) (*mcp.CallToolResult, BuildListOutput, error) {
+func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input BuildListInput) (
+	*mcp.CallToolResult,
+	BuildListOutput,
+	error,
+) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "build_list",
 			Data: map[string]any{"repo": input.Repo, "limit": input.Limit},
 		})
@@ -119,9 +127,13 @@ func (s *Subsystem) buildList(_ context.Context, _ *mcp.CallToolRequest, input B
 
 // buildLogs returns the local build log snapshot and refreshes the Laravel
 // backend when the bridge is available.
-func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input BuildLogsInput) (*mcp.CallToolResult, BuildLogsOutput, error) {
+func (s *Subsystem) buildLogs(_ context.Context, _ *mcp.CallToolRequest, input BuildLogsInput) (
+	*mcp.CallToolResult,
+	BuildLogsOutput,
+	error,
+) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "build_logs",
 			Data: map[string]any{"buildId": input.BuildID, "tail": input.Tail},
 		})

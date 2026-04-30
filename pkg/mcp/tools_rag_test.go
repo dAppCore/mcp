@@ -214,7 +214,8 @@ func TestToolsRag_SortChunksByIndex_Good(t *testing.T) {
 		{ChunkIndex: 1},
 		{ChunkIndex: 2},
 	}
-	sortChunksByIndex(chunks)
+	SortChunksByIndex := sortChunksByIndex
+	SortChunksByIndex(chunks)
 	for i, want := range []int{1, 2, 3} {
 		if chunks[i].ChunkIndex != want {
 			t.Fatalf("index %d: expected chunk %d, got %d", i, want, chunks[i].ChunkIndex)
@@ -229,7 +230,8 @@ func TestToolsRag_RagRetrieve_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = svc.ragRetrieve(t.Context(), nil, RAGRetrieveInput{})
+	RagRetrieve := svc.ragRetrieve
+	_, _, err = RagRetrieve(t.Context(), nil, RAGRetrieveInput{})
 	if err == nil {
 		t.Fatal("expected error for empty source")
 	}

@@ -6,13 +6,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
+	"syscall"
 	"testing"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 func TestClientRemember_Good_SendsOrgAndAuth(t *testing.T) {
@@ -118,8 +116,8 @@ func TestClientCall_Good_BuildsRequestAgainstAPIURL(t *testing.T) {
 	if result["id"] != "mem-1" {
 		t.Fatalf("expected id mem-1, got %v", result["id"])
 	}
-	if gotHost != strings.TrimPrefix(server.URL, "https://") {
-		t.Fatalf("expected host %s, got %s", strings.TrimPrefix(server.URL, "https://"), gotHost)
+	if gotHost != core.TrimPrefix(server.URL, "https://") {
+		t.Fatalf("expected host %s, got %s", core.TrimPrefix(server.URL, "https://"), gotHost)
 	}
 }
 
@@ -141,7 +139,7 @@ func TestClientCall_Bad_RejectsAbsoluteRequestURL(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected absolute URL error")
 			}
-			if !strings.Contains(err.Error(), "absolute request URL rejected") {
+			if !core.Contains(err.Error(), "absolute request URL rejected") {
 				t.Fatalf("expected absolute URL rejection, got %v", err)
 			}
 			if calls != 0 {
@@ -158,7 +156,7 @@ func TestClientNew_Bad_RejectsHTTPAPIURLWithoutInsecureEnv(t *testing.T) {
 	if c.configErr == nil {
 		t.Fatal("expected insecure HTTP API URL to be rejected")
 	}
-	if !strings.Contains(c.configErr.Error(), "API URL must use https unless CORE_BRAIN_INSECURE=true") {
+	if !core.Contains(c.configErr.Error(), "API URL must use https unless CORE_BRAIN_INSECURE=true") {
 		t.Fatalf("expected insecure API URL error, got %v", c.configErr)
 	}
 }
@@ -513,52 +511,55 @@ func TestClientCall_Bad_ContextCancellation(t *testing.T) {
 
 func TestWriteBrainKey_Good_Uses0600(t *testing.T) {
 	home := t.TempDir()
-	path := filepath.Join(home, ".claude", "brain.key")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("create fixture dir: %v", err)
+	path := core.PathJoin(home, ".claude", "brain.key")
+	if r := core.MkdirAll(core.PathDir(path), 0o755); !r.OK {
+		t.Fatalf("create fixture dir: %v", r.Value)
 	}
-	if err := os.WriteFile(path, []byte("old-key\n"), 0o644); err != nil {
-		t.Fatalf("write fixture: %v", err)
+	if r := core.WriteFile(path, []byte("old-key\n"), 0o644); !r.OK {
+		t.Fatalf("write fixture: %v", r.Value)
 	}
 	t.Setenv("HOME", home)
 
 	if err := WriteBrainKey("test-key"); err != nil {
 		t.Fatalf("WriteBrainKey failed: %v", err)
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat brain key: %v", err)
+	statResult := core.Stat(path)
+	if !statResult.OK {
+		t.Fatalf("stat brain key: %v", statResult.Value)
 	}
+	info := statResult.Value.(core.FsFileInfo)
 	if got := info.Mode().Perm(); got != brainKeyFileMode {
 		t.Fatalf("expected brain.key mode %v, got %v", brainKeyFileMode, got)
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read brain key: %v", err)
+	readResult := core.ReadFile(path)
+	if !readResult.OK {
+		t.Fatalf("read brain key: %v", readResult.Value)
 	}
+	data := readResult.Value.([]byte)
 	if got := string(data); got != "test-key\n" {
 		t.Fatalf("expected written key, got %q", got)
 	}
 }
 
 func TestBrainKeyFile_Bad_RejectsInsecurePermissions(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "brain.key")
-	if err := os.WriteFile(path, []byte("test-key\n"), brainKeyFileMode); err != nil {
-		t.Fatalf("write fixture: %v", err)
+	path := core.PathJoin(t.TempDir(), "brain.key")
+	if r := core.WriteFile(path, []byte("test-key\n"), brainKeyFileMode); !r.OK {
+		t.Fatalf("write fixture: %v", r.Value)
 	}
-	if err := os.Chmod(path, 0o644); err != nil {
+	if err := syscall.Chmod(path, 0o644); err != nil {
 		t.Fatalf("chmod fixture: %v", err)
 	}
 
 	if _, err := readBrainKeyFile(path); err == nil {
 		t.Fatal("expected insecure permissions error")
-	} else if !strings.Contains(err.Error(), "brain.key has insecure permissions, expected 0600") {
+	} else if !core.Contains(err.Error(), "brain.key has insecure permissions, expected 0600") {
 		t.Fatalf("expected insecure permissions error, got %v", err)
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat brain key: %v", err)
+	statResult := core.Stat(path)
+	if !statResult.OK {
+		t.Fatalf("stat brain key: %v", statResult.Value)
 	}
+	info := statResult.Value.(core.FsFileInfo)
 	if got := info.Mode().Perm(); got != 0o644 {
 		t.Fatalf("read should not chmod brain.key, got mode %v", got)
 	}
@@ -592,4 +593,283 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return fn(request)
+}
+
+// moved AX-7 triplet TestClient_New_Good
+func TestClient_New_Good(t *T) {
+	c := New(Options{URL: DefaultURL, Key: "test-key", Org: "core", AgentID: "codex"})
+	AssertEqual(t, DefaultURL, c.apiURL)
+	AssertEqual(t, "codex", c.agentID)
+}
+
+// moved AX-7 triplet TestClient_New_Bad
+func TestClient_New_Bad(t *T) {
+	c := New(Options{URL: "://bad", Key: "test-key"})
+	AssertNotNil(t, c.configErr)
+	AssertContains(t, c.configErr.Error(), "invalid API URL")
+}
+
+// moved AX-7 triplet TestClient_New_Ugly
+func TestClient_New_Ugly(t *T) {
+	c := New(Options{})
+	AssertEqual(t, DefaultURL, c.apiURL)
+	AssertEqual(t, defaultAgentID, c.agentID)
+}
+
+// moved AX-7 triplet TestClient_NewFromEnvironment_Good
+func TestClient_NewFromEnvironment_Good(t *T) {
+	t.Setenv("CORE_BRAIN_KEY", "env-key")
+	t.Setenv("CORE_BRAIN_URL", DefaultURL)
+	c := NewFromEnvironment()
+	AssertEqual(t, "env-key", c.apiKey)
+	AssertEqual(t, DefaultURL, c.apiURL)
+}
+
+// moved AX-7 triplet TestClient_NewFromEnvironment_Bad
+func TestClient_NewFromEnvironment_Bad(t *T) {
+	t.Setenv("CORE_BRAIN_KEY", "env-key")
+	t.Setenv("CORE_BRAIN_URL", "://bad")
+	c := NewFromEnvironment()
+	AssertNotNil(t, c.configErr)
+	AssertContains(t, c.configErr.Error(), "invalid API URL")
+}
+
+// moved AX-7 triplet TestClient_NewFromEnvironment_Ugly
+func TestClient_NewFromEnvironment_Ugly(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CORE_BRAIN_KEY", "")
+	AssertNoError(t, WriteBrainKey("file-key"))
+	c := NewFromEnvironment()
+	AssertEqual(t, "file-key", c.apiKey)
+}
+
+// moved AX-7 triplet TestClient_WriteBrainKey_Good
+func TestClient_WriteBrainKey_Good(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	AssertNoError(t, WriteBrainKey("test-key"))
+	got, err := readBrainKeyFile(brainKeyPath(core.Env("HOME")))
+	AssertNoError(t, err)
+	AssertEqual(t, "test-key", got)
+}
+
+// moved AX-7 triplet TestClient_WriteBrainKey_Bad
+func TestClient_WriteBrainKey_Bad(t *T) {
+	t.Setenv("HOME", "")
+	err := WriteBrainKey("test-key")
+	AssertError(t, err)
+	AssertContains(t, err.Error(), "HOME not set")
+}
+
+// moved AX-7 triplet TestClient_WriteBrainKey_Ugly
+func TestClient_WriteBrainKey_Ugly(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	AssertNoError(t, WriteBrainKey("  test-key  "))
+	got, err := readBrainKeyFile(brainKeyPath(core.Env("HOME")))
+	AssertNoError(t, err)
+	AssertEqual(t, "test-key", got)
+}
+
+// moved AX-7 triplet TestClient_NewCircuitBreaker_Good
+func TestClient_NewCircuitBreaker_Good(t *T) {
+	breaker := NewCircuitBreaker(CircuitBreakerOptions{FailureThreshold: 2, SuccessThreshold: 2, Cooldown: time.Second})
+	AssertEqual(t, CircuitClosed, breaker.State())
+	AssertEqual(t, 2, breaker.failureThreshold)
+}
+
+// moved AX-7 triplet TestClient_NewCircuitBreaker_Bad
+func TestClient_NewCircuitBreaker_Bad(t *T) {
+	breaker := NewCircuitBreaker(CircuitBreakerOptions{})
+	AssertEqual(t, defaultFailureThreshold, breaker.failureThreshold)
+	AssertEqual(t, CircuitClosed, breaker.State())
+}
+
+// moved AX-7 triplet TestClient_NewCircuitBreaker_Ugly
+func TestClient_NewCircuitBreaker_Ugly(t *T) {
+	breaker := NewCircuitBreaker(CircuitBreakerOptions{FailureThreshold: -1, SuccessThreshold: -1, Cooldown: -1})
+	AssertEqual(t, defaultSuccessThreshold, breaker.successThreshold)
+	AssertEqual(t, defaultCircuitCooldown, breaker.cooldown)
+}
+
+// moved AX-7 triplet TestClient_CircuitBreaker_State_Good
+func TestClient_CircuitBreaker_State_Good(t *T) {
+	breaker := NewCircuitBreaker(CircuitBreakerOptions{})
+	state := breaker.State()
+	AssertEqual(t, CircuitClosed, state)
+}
+
+// moved AX-7 triplet TestClient_CircuitBreaker_State_Bad
+func TestClient_CircuitBreaker_State_Bad(t *T) {
+	var breaker *CircuitBreaker
+	state := breaker.State()
+	AssertEqual(t, CircuitClosed, state)
+}
+
+// moved AX-7 triplet TestClient_CircuitBreaker_State_Ugly
+func TestClient_CircuitBreaker_State_Ugly(t *T) {
+	breaker := NewCircuitBreaker(CircuitBreakerOptions{Cooldown: time.Nanosecond})
+	breaker.state = CircuitOpen
+	breaker.openedAt = time.Now().Add(-time.Second)
+	AssertEqual(t, CircuitHalfOpen, breaker.State())
+}
+
+// moved AX-7 triplet TestClient_Client_Remember_Good
+func TestClient_Client_Remember_Good(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, http.MethodPost, r.Method)
+		AssertEqual(t, "/v1/brain/remember", r.URL.Path)
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"id": "mem-1"})
+	})
+	defer server.Close()
+	result, err := c.Remember(context.Background(), RememberInput{Content: "remember", Type: "decision"})
+	AssertNoError(t, err)
+	AssertEqual(t, "mem-1", result["id"])
+}
+
+// moved AX-7 triplet TestClient_Client_Remember_Bad
+func TestClient_Client_Remember_Bad(t *T) {
+	c := New(Options{URL: DefaultURL})
+	result, err := c.Remember(context.Background(), RememberInput{Content: "remember"})
+	AssertError(t, err)
+	AssertNil(t, result)
+}
+
+// moved AX-7 triplet TestClient_Client_Remember_Ugly
+func TestClient_Client_Remember_Ugly(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertContains(t, r.Header.Get("Authorization"), "Bearer")
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"id": "mem-empty"})
+	})
+	defer server.Close()
+	result, err := c.Remember(context.Background(), RememberInput{})
+	AssertNoError(t, err)
+	AssertEqual(t, "mem-empty", result["id"])
+}
+
+// moved AX-7 triplet TestClient_Client_Recall_Good
+func TestClient_Client_Recall_Good(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, "/v1/brain/recall", r.URL.Path)
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	})
+	defer server.Close()
+	result, err := c.Recall(context.Background(), RecallInput{Query: "query"})
+	AssertNoError(t, err)
+	AssertNotNil(t, result["memories"])
+}
+
+// moved AX-7 triplet TestClient_Client_Recall_Bad
+func TestClient_Client_Recall_Bad(t *T) {
+	c := New(Options{URL: DefaultURL})
+	result, err := c.Recall(context.Background(), RecallInput{Query: "query"})
+	AssertError(t, err)
+	AssertNil(t, result)
+}
+
+// moved AX-7 triplet TestClient_Client_Recall_Ugly
+func TestClient_Client_Recall_Ugly(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"memories": []any{map[string]any{"id": "m1"}}})
+	})
+	defer server.Close()
+	result, err := c.Recall(context.Background(), RecallInput{})
+	AssertNoError(t, err)
+	AssertLen(t, result["memories"], 1)
+}
+
+// moved AX-7 triplet TestClient_Client_Forget_Good
+func TestClient_Client_Forget_Good(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, http.MethodDelete, r.Method)
+		AssertEqual(t, "/v1/brain/forget/mem-1", r.URL.Path)
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"forgotten": "mem-1"})
+	})
+	defer server.Close()
+	result, err := c.Forget(context.Background(), ForgetInput{ID: "mem-1"})
+	AssertNoError(t, err)
+	AssertEqual(t, "mem-1", result["forgotten"])
+}
+
+// moved AX-7 triplet TestClient_Client_Forget_Bad
+func TestClient_Client_Forget_Bad(t *T) {
+	c := New(Options{URL: DefaultURL})
+	result, err := c.Forget(context.Background(), ForgetInput{ID: "mem-1"})
+	AssertError(t, err)
+	AssertNil(t, result)
+}
+
+// moved AX-7 triplet TestClient_Client_Forget_Ugly
+func TestClient_Client_Forget_Ugly(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertTrue(t, core.HasPrefix(r.URL.Path, "/v1/brain/forget/"))
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"forgotten": ""})
+	})
+	defer server.Close()
+	result, err := c.Forget(context.Background(), ForgetInput{})
+	AssertNoError(t, err)
+	AssertEqual(t, "", result["forgotten"])
+}
+
+// moved AX-7 triplet TestClient_Client_List_Good
+func TestClient_Client_List_Good(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, "core", r.URL.Query().Get("org"))
+		AssertEqual(t, "50", r.URL.Query().Get("limit"))
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	})
+	defer server.Close()
+	result, err := c.List(context.Background(), ListInput{})
+	AssertNoError(t, err)
+	AssertNotNil(t, result["memories"])
+}
+
+// moved AX-7 triplet TestClient_Client_List_Bad
+func TestClient_Client_List_Bad(t *T) {
+	c := New(Options{URL: DefaultURL})
+	result, err := c.List(context.Background(), ListInput{})
+	AssertError(t, err)
+	AssertNil(t, result)
+}
+
+// moved AX-7 triplet TestClient_Client_List_Ugly
+func TestClient_Client_List_Ugly(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, "-1", r.URL.Query().Get("limit"))
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"memories": []any{}})
+	})
+	defer server.Close()
+	result, err := c.List(context.Background(), ListInput{Limit: -1})
+	AssertNoError(t, err)
+	AssertNotNil(t, result["memories"])
+}
+
+// moved AX-7 triplet TestClient_Client_Call_Good
+func TestClient_Client_Call_Good(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, "/v1/brain/status", r.URL.Path)
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"ok": true})
+	})
+	defer server.Close()
+	result, err := c.Call(context.Background(), http.MethodGet, "/v1/brain/status", nil)
+	AssertNoError(t, err)
+	AssertEqual(t, true, result["ok"])
+}
+
+// moved AX-7 triplet TestClient_Client_Call_Bad
+func TestClient_Client_Call_Bad(t *T) {
+	c := New(Options{URL: DefaultURL, Key: "test-key"})
+	result, err := c.Call(context.Background(), http.MethodGet, "https://attacker.test/leak", nil)
+	AssertError(t, err)
+	AssertNil(t, result)
+}
+
+// moved AX-7 triplet TestClient_Client_Call_Ugly
+func TestClient_Client_Call_Ugly(t *T) {
+	c, server := brainClientForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		AssertEqual(t, "/relative", r.URL.Path)
+		writeJSONForTest(t, w, http.StatusOK, map[string]any{"relative": true})
+	})
+	defer server.Close()
+	result, err := c.Call(context.Background(), http.MethodGet, "relative", nil)
+	AssertNoError(t, err)
+	AssertEqual(t, true, result["relative"])
 }

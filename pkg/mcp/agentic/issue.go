@@ -3,13 +3,11 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 
-	core "dappco.re/go/core"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -61,12 +59,16 @@ func (s *PrepSubsystem) registerIssueTools(svc *coremcp.Service) {
 	}, s.createPR)
 }
 
-func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequest, input IssueDispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
+func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequest, input IssueDispatchInput) (
+	*mcp.CallToolResult,
+	DispatchOutput,
+	error,
+) {
 	if input.Repo == "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", "repo is required", nil)
+		return nil, DispatchOutput{}, core.E("dispatchIssue", "repo is required", nil)
 	}
 	if input.Issue == 0 {
-		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", "issue is required", nil)
+		return nil, DispatchOutput{}, core.E("dispatchIssue", "issue is required", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -83,10 +85,10 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		return nil, DispatchOutput{}, err
 	}
 	if issue.State != "open" {
-		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", core.Sprintf("issue %d is %s, not open", input.Issue, issue.State), nil)
+		return nil, DispatchOutput{}, core.E("dispatchIssue", core.Sprintf("issue %d is %s, not open", input.Issue, issue.State), nil)
 	}
 	if issue.Assignee != nil && issue.Assignee.Login != "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatchIssue", core.Sprintf("issue %d is already assigned to %s", input.Issue, issue.Assignee.Login), nil)
+		return nil, DispatchOutput{}, core.E("dispatchIssue", core.Sprintf("issue %d is already assigned to %s", input.Issue, issue.Assignee.Login), nil)
 	}
 
 	if !input.DryRun {
@@ -97,7 +99,9 @@ func (s *PrepSubsystem) dispatchIssue(ctx context.Context, req *mcp.CallToolRequ
 		var dispatchErr error
 		defer func() {
 			if dispatchErr != nil {
-				_ = s.unlockIssue(ctx, input.Org, input.Repo, input.Issue, issue.Labels)
+				if err := s.unlockIssue(ctx, input.Org, input.Repo, input.Issue, issue.Labels); err != nil {
+					core.Error("agentic: failed to unlock issue after dispatch error", "err", err)
+				}
 			}
 		}()
 
@@ -146,78 +150,89 @@ func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue
 		"labels":    issueLabels,
 	})
 	if !r.OK {
-		return coreerr.E("unlockIssue", "failed to encode issue unlock", nil)
+		return core.E("unlockIssue", "failed to encode issue unlock", nil)
 	}
 	payload := r.Value.([]byte)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, core.NewBuffer(payload))
 	if err != nil {
-		return coreerr.E("unlockIssue", "failed to build unlock request", err)
+		return core.E("unlockIssue", "failed to build unlock request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return coreerr.E("unlockIssue", "failed to update issue", err)
+		return core.E("unlockIssue", "failed to update issue", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= http.StatusBadRequest {
-		return coreerr.E("unlockIssue", core.Sprintf("issue unlock returned %d", resp.StatusCode), nil)
+		return core.E("unlockIssue", core.Sprintf("issue unlock returned %d", resp.StatusCode), nil)
 	}
 
 	return nil
 }
 
-func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue int) (*forgeIssue, error) {
+func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue int) (
+	*forgeIssue,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, coreerr.E("fetchIssue", "failed to build request", err)
+		return nil, core.E("fetchIssue", "failed to build request", err)
 	}
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, coreerr.E("fetchIssue", "failed to fetch issue", err)
+		return nil, core.E("fetchIssue", "failed to fetch issue", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, coreerr.E("fetchIssue", core.Sprintf("issue %d not found in %s/%s", issue, org, repo), nil)
+		return nil, core.E("fetchIssue", core.Sprintf("issue %d not found in %s/%s", issue, org, repo), nil)
 	}
 
 	var out forgeIssue
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, coreerr.E("fetchIssue", "failed to decode issue", err)
+		return nil, core.E("fetchIssue", "failed to decode issue", err)
 	}
 	return &out, nil
 }
 
-func (s *PrepSubsystem) lockIssue(ctx context.Context, org, repo string, issue int, assignee string) error {
+func (s *PrepSubsystem) lockIssue(
+	ctx context.Context,
+	org,
+	repo string,
+	issue int,
+	assignee string,
+) (
+	_ error, // result
+) {
 	updateURL := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d", s.forgeURL, org, repo, issue)
 	r := core.JSONMarshal(map[string]any{
 		"assignees": []string{assignee},
 		"labels":    []string{"in-progress"},
 	})
 	if !r.OK {
-		return coreerr.E("lockIssue", "failed to encode issue update", nil)
+		return core.E("lockIssue", "failed to encode issue update", nil)
 	}
 	payload := r.Value.([]byte)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, updateURL, core.NewBuffer(payload))
 	if err != nil {
-		return coreerr.E("lockIssue", "failed to build update request", err)
+		return core.E("lockIssue", "failed to build update request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return coreerr.E("lockIssue", "failed to update issue", err)
+		return core.E("lockIssue", "failed to update issue", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= http.StatusBadRequest {
-		return coreerr.E("lockIssue", core.Sprintf("issue update returned %d", resp.StatusCode), nil)
+		return core.E("lockIssue", core.Sprintf("issue update returned %d", resp.StatusCode), nil)
 	}
 
 	return nil

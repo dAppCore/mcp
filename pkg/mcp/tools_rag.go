@@ -5,8 +5,7 @@ package mcp
 import (
 	"context"
 
-	core "dappco.re/go/core"
-	"dappco.re/go/log"
+	core "dappco.re/go"
 	"dappco.re/go/rag"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -60,7 +59,7 @@ type RAGQueryOutput struct {
 //	    Recreate:   true,
 //	}
 type RAGIngestInput struct {
-	Path       string `json:"path"`                 // e.g. "docs/" or "docs/services.md"
+	Path       string "json:\"path\""               // e.g. "docs/" or "docs/services.md"
 	Collection string `json:"collection,omitempty"` // e.g. "core-docs" (default: "hostuk-docs")
 	Recreate   bool   `json:"recreate,omitempty"`   // true to drop and recreate the collection
 }
@@ -70,7 +69,7 @@ type RAGIngestInput struct {
 //	// out.Success == true, out.Chunks == 42, out.Collection == "core-docs"
 type RAGIngestOutput struct {
 	Success    bool   `json:"success"`           // true when ingest completed
-	Path       string `json:"path"`              // e.g. "docs/"
+	Path       string "json:\"path\""            // e.g. "docs/"
 	Collection string `json:"collection"`        // e.g. "core-docs"
 	Chunks     int    `json:"chunks"`            // number of chunks ingested
 	Message    string `json:"message,omitempty"` // human-readable summary
@@ -159,7 +158,11 @@ func (s *Service) registerRAGTools(server *mcp.Server) {
 }
 
 // ragQuery handles the rag_query tool call.
-func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input RAGQueryInput) (*mcp.CallToolResult, RAGQueryOutput, error) {
+func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input RAGQueryInput) (
+	*mcp.CallToolResult,
+	RAGQueryOutput,
+	error,
+) {
 	// Apply defaults
 	collection := input.Collection
 	if collection == "" {
@@ -170,19 +173,21 @@ func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input 
 		topK = DefaultRAGTopK
 	}
 
-	s.logger.Info("MCP tool execution", "tool", "rag_query", "question", input.Question, "collection", collection, "topK", topK, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "rag_query", "question", input.Question, "collection", collection, "topK", topK, "user", core.Username())
 
 	// Validate input
 	if input.Question == "" {
-		return nil, RAGQueryOutput{}, log.E("ragQuery", "question cannot be empty", nil)
+		return nil, RAGQueryOutput{}, core.E("ragQuery", "question cannot be empty", nil)
 	}
 
 	// Call the RAG query function
-	results, err := rag.QueryDocs(ctx, input.Question, collection, topK)
-	if err != nil {
-		log.Error("mcp: rag query failed", "question", input.Question, "collection", collection, "err", err)
-		return nil, RAGQueryOutput{}, log.E("ragQuery", "failed to query RAG", err)
+	queryResult := rag.QueryDocs(ctx, input.Question, collection, topK)
+	if !queryResult.OK {
+		err := resultError(queryResult)
+		core.Error("mcp: rag query failed", "question", input.Question, "collection", collection, "err", err)
+		return nil, RAGQueryOutput{}, core.E("ragQuery", "failed to query RAG", err)
 	}
+	results := queryResult.Value.([]rag.QueryResult)
 
 	// Convert results
 	output := RAGQueryOutput{
@@ -206,25 +211,29 @@ func (s *Service) ragQuery(ctx context.Context, req *mcp.CallToolRequest, input 
 }
 
 // ragIngest handles the rag_ingest tool call.
-func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input RAGIngestInput) (*mcp.CallToolResult, RAGIngestOutput, error) {
+func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input RAGIngestInput) (
+	*mcp.CallToolResult,
+	RAGIngestOutput,
+	error,
+) {
 	// Apply defaults
 	collection := input.Collection
 	if collection == "" {
 		collection = DefaultRAGCollection
 	}
 
-	s.logger.Security("MCP tool execution", "tool", "rag_ingest", "path", input.Path, "collection", collection, "recreate", input.Recreate, "user", log.Username())
+	s.logger.Security("MCP tool execution", "tool", "rag_ingest", `path`, input.Path, "collection", collection, "recreate", input.Recreate, "user", core.Username())
 
 	// Validate input
 	if input.Path == "" {
-		return nil, RAGIngestOutput{}, log.E("ragIngest", "path cannot be empty", nil)
+		return nil, RAGIngestOutput{}, core.E("ragIngest", "path cannot be empty", nil)
 	}
 
 	// Check if path is a file or directory using the medium
 	info, err := s.medium.Stat(input.Path)
 	if err != nil {
-		log.Error("mcp: rag ingest stat failed", "path", input.Path, "err", err)
-		return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to access path", err)
+		core.Error("mcp: rag ingest stat failed", `path`, input.Path, "err", err)
+		return nil, RAGIngestOutput{}, core.E("ragIngest", "failed to access path", err)
 	}
 	resolvedPath := s.resolveWorkspacePath(input.Path)
 
@@ -232,19 +241,25 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 	var chunks int
 	if info.IsDir() {
 		// Ingest directory
-		err = rag.IngestDirectory(ctx, resolvedPath, collection, input.Recreate)
-		if err != nil {
-			log.Error("mcp: rag ingest directory failed", "path", input.Path, "collection", collection, "err", err)
-			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest directory", err)
+		ingestResult := rag.IngestDirectory(ctx, resolvedPath, collection, input.Recreate)
+		if !ingestResult.OK {
+			err := resultError(ingestResult)
+			core.Error("mcp: rag ingest directory failed", `path`, input.Path, "collection", collection, "err", err)
+			return nil, RAGIngestOutput{}, core.E("ragIngest", "failed to ingest directory", err)
+		}
+		if stats, ok := ingestResult.Value.(*rag.IngestStats); ok {
+			chunks = stats.Chunks
 		}
 		message = core.Sprintf("Successfully ingested directory %s into collection %s", input.Path, collection)
 	} else {
 		// Ingest single file
-		chunks, err = rag.IngestSingleFile(ctx, resolvedPath, collection)
-		if err != nil {
-			log.Error("mcp: rag ingest file failed", "path", input.Path, "collection", collection, "err", err)
-			return nil, RAGIngestOutput{}, log.E("ragIngest", "failed to ingest file", err)
+		ingestResult := rag.IngestSingleFile(ctx, resolvedPath, collection)
+		if !ingestResult.OK {
+			err := resultError(ingestResult)
+			core.Error("mcp: rag ingest file failed", `path`, input.Path, "collection", collection, "err", err)
+			return nil, RAGIngestOutput{}, core.E("ragIngest", "failed to ingest file", err)
 		}
+		chunks = ingestResult.Value.(int)
 		message = core.Sprintf("Successfully ingested file %s (%d chunks) into collection %s", input.Path, chunks, collection)
 	}
 
@@ -262,7 +277,11 @@ func (s *Service) ragIngest(ctx context.Context, req *mcp.CallToolRequest, input
 // the source path as the query text and then filtering results down to the
 // matching source. This preserves the transport abstraction that the rest of
 // the RAG tools use while producing the document-scoped view callers expect.
-func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, input RAGRetrieveInput) (*mcp.CallToolResult, RAGRetrieveOutput, error) {
+func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, input RAGRetrieveInput) (
+	*mcp.CallToolResult,
+	RAGRetrieveOutput,
+	error,
+) {
 	collection := input.Collection
 	if collection == "" {
 		collection = DefaultRAGCollection
@@ -272,10 +291,10 @@ func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, inp
 		limit = 50
 	}
 
-	s.logger.Info("MCP tool execution", "tool", "rag_retrieve", "source", input.Source, "collection", collection, "limit", limit, "user", log.Username())
+	s.logger.Info("MCP tool execution", "tool", "rag_retrieve", "source", input.Source, "collection", collection, "limit", limit, "user", core.Username())
 
 	if input.Source == "" {
-		return nil, RAGRetrieveOutput{}, log.E("ragRetrieve", "source cannot be empty", nil)
+		return nil, RAGRetrieveOutput{}, core.E("ragRetrieve", "source cannot be empty", nil)
 	}
 
 	// Use the source path as the query text — semantically related chunks
@@ -287,11 +306,13 @@ func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, inp
 		overfetch = 100
 	}
 
-	results, err := rag.QueryDocs(ctx, input.Source, collection, overfetch)
-	if err != nil {
-		log.Error("mcp: rag retrieve query failed", "source", input.Source, "collection", collection, "err", err)
-		return nil, RAGRetrieveOutput{}, log.E("ragRetrieve", "failed to retrieve chunks", err)
+	queryResult := rag.QueryDocs(ctx, input.Source, collection, overfetch)
+	if !queryResult.OK {
+		err := resultError(queryResult)
+		core.Error("mcp: rag retrieve query failed", "source", input.Source, "collection", collection, "err", err)
+		return nil, RAGRetrieveOutput{}, core.E("ragRetrieve", "failed to retrieve chunks", err)
 	}
+	results := queryResult.Value.([]rag.QueryResult)
 
 	chunks := make([]RAGQueryResult, 0, limit)
 	for _, r := range results {
@@ -338,23 +359,35 @@ func sortChunksByIndex(chunks []RAGQueryResult) {
 }
 
 // ragCollections handles the rag_collections tool call.
-func (s *Service) ragCollections(ctx context.Context, req *mcp.CallToolRequest, input RAGCollectionsInput) (*mcp.CallToolResult, RAGCollectionsOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "rag_collections", "show_stats", input.ShowStats, "user", log.Username())
+func (s *Service) ragCollections(ctx context.Context, req *mcp.CallToolRequest, input RAGCollectionsInput) (
+	*mcp.CallToolResult,
+	RAGCollectionsOutput,
+	error,
+) {
+	s.logger.Info("MCP tool execution", "tool", "rag_collections", "show_stats", input.ShowStats, "user", core.Username())
 
 	// Create Qdrant client with default config
-	qdrantClient, err := rag.NewQdrantClient(rag.DefaultQdrantConfig())
-	if err != nil {
-		log.Error("mcp: rag collections connect failed", "err", err)
-		return nil, RAGCollectionsOutput{}, log.E("ragCollections", "failed to connect to Qdrant", err)
+	qdrantResult := rag.NewQdrantClient(rag.DefaultQdrantConfig())
+	if !qdrantResult.OK {
+		err := resultError(qdrantResult)
+		core.Error("mcp: rag collections connect failed", "err", err)
+		return nil, RAGCollectionsOutput{}, core.E("ragCollections", "failed to connect to Qdrant", err)
 	}
-	defer func() { _ = qdrantClient.Close() }()
+	qdrantClient := qdrantResult.Value.(*rag.QdrantClient)
+	defer func() {
+		if r := qdrantClient.Close(); !r.OK {
+			core.Error("mcp: rag collections close failed", "err", resultError(r))
+		}
+	}()
 
 	// List collections
-	collectionNames, err := qdrantClient.ListCollections(ctx)
-	if err != nil {
-		log.Error("mcp: rag collections list failed", "err", err)
-		return nil, RAGCollectionsOutput{}, log.E("ragCollections", "failed to list collections", err)
+	collectionsResult := qdrantClient.ListCollections(ctx)
+	if !collectionsResult.OK {
+		err := resultError(collectionsResult)
+		core.Error("mcp: rag collections list failed", "err", err)
+		return nil, RAGCollectionsOutput{}, core.E("ragCollections", "failed to list collections", err)
 	}
+	collectionNames := collectionsResult.Value.([]string)
 
 	// Build collection info list
 	collections := make([]CollectionInfo, len(collectionNames))
@@ -363,12 +396,14 @@ func (s *Service) ragCollections(ctx context.Context, req *mcp.CallToolRequest, 
 
 		// Fetch stats if requested
 		if input.ShowStats {
-			info, err := qdrantClient.CollectionInfo(ctx, name)
-			if err != nil {
-				log.Error("mcp: rag collection info failed", "collection", name, "err", err)
+			infoResult := qdrantClient.CollectionInfo(ctx, name)
+			if !infoResult.OK {
+				err := resultError(infoResult)
+				core.Error("mcp: rag collection info failed", "collection", name, "err", err)
 				// Continue with defaults on error
 				continue
 			}
+			info := infoResult.Value.(*rag.CollectionInfo)
 			collections[i].PointsCount = info.PointCount
 			collections[i].Status = info.Status
 		}

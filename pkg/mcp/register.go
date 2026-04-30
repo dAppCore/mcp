@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/process"
 	"dappco.re/go/ws"
 )
@@ -50,12 +50,12 @@ func Register(c *core.Core) core.Result {
 		Subsystems:     subsystems,
 	})
 	if err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 
 	svc.ServiceRuntime = core.NewServiceRuntime(c, struct{}{})
 
-	return core.Result{Value: svc, OK: true}
+	return core.Ok(svc)
 }
 
 // OnStartup implements core.Startable — registers MCP transport commands.
@@ -65,9 +65,12 @@ func Register(c *core.Core) core.Result {
 //	core-agent mcp    — start MCP server on stdio
 //	core-agent serve  — start MCP server on HTTP
 func (s *Service) OnStartup(ctx context.Context) core.Result {
+	if s == nil || s.ServiceRuntime == nil {
+		return core.Ok(nil)
+	}
 	c := s.Core()
 	if c == nil {
-		return core.Result{OK: true}
+		return core.Ok(nil)
 	}
 
 	c.Command("mcp", core.Command{
@@ -75,9 +78,9 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 		Action: func(opts core.Options) core.Result {
 			s.logger.Info("MCP stdio server starting")
 			if err := s.ServeStdio(ctx); err != nil {
-				return core.Result{Value: err, OK: false}
+				return core.Fail(err)
 			}
-			return core.Result{OK: true}
+			return core.Ok(nil)
 		},
 	})
 
@@ -86,13 +89,13 @@ func (s *Service) OnStartup(ctx context.Context) core.Result {
 		Action: func(opts core.Options) core.Result {
 			s.logger.Info("MCP server starting")
 			if err := s.Run(ctx); err != nil {
-				return core.Result{Value: err, OK: false}
+				return core.Fail(err)
 			}
-			return core.Result{OK: true}
+			return core.Ok(nil)
 		},
 	})
 
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // HandleIPCEvents implements Core's IPC handler interface.
@@ -174,7 +177,7 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 		s.ChannelSend(ctx, ChannelProcessExit, payload)
 		s.emitTestResult(ctx, ev.ID, 0, 0, ev.Signal, "")
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }
 
 // OnShutdown implements core.Stoppable — stops the MCP transport.
@@ -182,7 +185,7 @@ func (s *Service) HandleIPCEvents(c *core.Core, msg core.Message) core.Result {
 //	svc.OnShutdown(context.Background())
 func (s *Service) OnShutdown(ctx context.Context) core.Result {
 	if err := s.Shutdown(ctx); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
-	return core.Result{OK: true}
+	return core.Ok(nil)
 }

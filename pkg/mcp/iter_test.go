@@ -32,7 +32,7 @@ func TestService_Iterators(t *testing.T) {
 func TestRegistry_SplitTag(t *testing.T) {
 	tag := "name,omitempty,json"
 	parts := splitTag(tag)
-	expected := []string{"name", "omitempty", "json"}
+	expected := []string{"name", "omitempty", `json`}
 
 	if !slices.Equal(parts, expected) {
 		t.Errorf("expected %v, got %v", expected, parts)

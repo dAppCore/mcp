@@ -11,13 +11,12 @@ import (
 	"context"
 	"io"
 	"iter"
-	"os" // Note: required for process stdout; core Fs/Env do not expose a stdio writer.
 	"reflect"
 	"slices"
 	"sync"
 	"unsafe"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -36,7 +35,13 @@ type lockedWriter struct {
 	w  io.Writer
 }
 
-func (lw *lockedWriter) Write(p []byte) (int, error) {
+func (lw *lockedWriter) Write(p []byte) (
+	int,
+	error,
+) {
+	if lw == nil || lw.w == nil {
+		return 0, core.E("mcp.lockedWriter.Write", "writer is not available", nil)
+	}
 	lw.mu.Lock()
 	defer lw.mu.Unlock()
 	return lw.w.Write(p)
@@ -46,7 +51,7 @@ func (lw *lockedWriter) Close() error { return nil }
 
 // sharedStdout is the single writer for all stdio output.
 // Created once when the MCP service enters stdio mode.
-var sharedStdout = &lockedWriter{w: os.Stdout}
+var sharedStdout = &lockedWriter{w: core.Stdout()}
 
 // ChannelNotificationMethod is the JSON-RPC method used for named channel
 // events sent through claude/channel.
@@ -280,11 +285,25 @@ func (s *Service) debugNotify(msg string, args ...any) {
 //	coremcp.NotifySession(ctx, session, "notifications/claude/channel", map[string]any{
 //	    "content": "build failed", "meta": map[string]string{"severity": "high"},
 //	})
-func NotifySession(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
+func NotifySession(
+	ctx context.Context,
+	session *mcp.ServerSession,
+	method string,
+	payload any,
+) (
+	_ error, // result
+) {
 	return sendSessionNotification(ctx, session, method, payload)
 }
 
-func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, method string, payload any) error {
+func sendSessionNotification(
+	ctx context.Context,
+	session *mcp.ServerSession,
+	method string,
+	payload any,
+) (
+	_ error, // result
+) {
 	if session == nil {
 		return nil
 	}
@@ -318,7 +337,10 @@ func sendSessionNotification(ctx context.Context, session *mcp.ServerSession, me
 	return nil
 }
 
-func sessionMCPConnection(session *mcp.ServerSession) (any, error) {
+func sessionMCPConnection(session *mcp.ServerSession) (
+	any,
+	error,
+) {
 	value := reflect.ValueOf(session)
 	if value.Kind() != reflect.Ptr || value.IsNil() {
 		return nil, coreNotifyError("invalid session")
@@ -332,7 +354,10 @@ func sessionMCPConnection(session *mcp.ServerSession) (any, error) {
 	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface(), nil
 }
 
-func sessionJSONRPCConnection(session *mcp.ServerSession) (any, error) {
+func sessionJSONRPCConnection(session *mcp.ServerSession) (
+	any,
+	error,
+) {
 	value := reflect.ValueOf(session)
 	if value.Kind() != reflect.Ptr || value.IsNil() {
 		return nil, coreNotifyError("invalid session")
@@ -346,7 +371,11 @@ func sessionJSONRPCConnection(session *mcp.ServerSession) (any, error) {
 	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface(), nil
 }
 
-func coreNotifyError(message string) error {
+func coreNotifyError(
+	message string,
+) (
+	_ error, // result
+) {
 	return &notificationError{message: message}
 }
 

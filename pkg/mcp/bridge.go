@@ -5,41 +5,53 @@ package mcp
 import (
 	"net/http"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	"github.com/gin-gonic/gin"
-
-	api "dappco.re/go/api"
 )
 
 // maxBodySize is the maximum request body size accepted by bridged tool endpoints.
 const maxBodySize = 10 << 20 // 10 MB
 
-// BridgeToAPI populates a go-api ToolBridge from recorded MCP tools.
-// Each tool becomes a POST endpoint that reads a JSON body, dispatches
-// to the tool's RESTHandler (which knows the concrete input type), and
-// wraps the result in the standard api.Response envelope.
+type restError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type restResponse struct {
+	Success bool       `json:"success"`
+	Data    any        `json:"data,omitempty"`
+	Error   *restError `json:"error,omitempty"`
+}
+
+func restOK(data any) restResponse {
+	return restResponse{Success: true, Data: data}
+}
+
+func restFail(code, message string) restResponse {
+	return restResponse{
+		Success: false,
+		Error:   &restError{Code: code, Message: message},
+	}
+}
+
+// BridgeToAPI mounts recorded MCP tools as Gin POST endpoints.
+// The historical name is retained for callers, but this bridge is owned by
+// mcp and does not depend on the go-api gateway package. Each route reads a
+// JSON body, dispatches to the tool's RESTHandler, and wraps the result in a
+// small local response envelope.
 //
-//	bridge := api.NewToolBridge()
-//	mcp.BridgeToAPI(svc, bridge)
-//	bridge.Mount(router, "/v1/tools")
-func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
-	if svc == nil || bridge == nil {
+//	router := gin.New()
+//	mcp.BridgeToAPI(svc, router.Group("/v1/tools"))
+func BridgeToAPI(svc *Service, rg *gin.RouterGroup) {
+	if svc == nil || rg == nil {
 		return
 	}
 
 	for rec := range svc.ToolsSeq() {
-		desc := api.ToolDescriptor{
-			Name:         rec.Name,
-			Description:  rec.Description,
-			Group:        rec.Group,
-			InputSchema:  rec.InputSchema,
-			OutputSchema: rec.OutputSchema,
-		}
-
-		// Capture the handler for the closure.
+		name := rec.Name
 		handler := rec.RESTHandler
 
-		bridge.Add(desc, func(c *gin.Context) {
+		rg.POST("/"+name, func(c *gin.Context) {
 			var body []byte
 			if c.Request.Body != nil {
 				c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodySize)
@@ -48,11 +60,11 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 					if err, ok := r.Value.(error); ok {
 						var maxBytesErr *http.MaxBytesError
 						if core.As(err, &maxBytesErr) || core.Contains(err.Error(), "request body too large") {
-							c.JSON(http.StatusRequestEntityTooLarge, api.Fail("request_too_large", "Request body exceeds 10 MB limit"))
+							c.JSON(http.StatusRequestEntityTooLarge, restFail("request_too_large", "Request body exceeds 10 MB limit"))
 							return
 						}
 					}
-					c.JSON(http.StatusBadRequest, api.Fail("invalid_request", "Failed to read request body"))
+					c.JSON(http.StatusBadRequest, restFail("invalid_request", "Failed to read request body"))
 					return
 				}
 				body = []byte(r.Value.(string))
@@ -63,14 +75,14 @@ func BridgeToAPI(svc *Service, bridge *api.ToolBridge) {
 				// Body present + error = likely bad input (malformed JSON).
 				// No body + error = tool execution failure.
 				if core.Is(err, errInvalidRESTInput) {
-					c.JSON(http.StatusBadRequest, api.Fail("invalid_input", "Malformed JSON in request body"))
+					c.JSON(http.StatusBadRequest, restFail("invalid_input", "Malformed JSON in request body"))
 					return
 				}
-				c.JSON(http.StatusInternalServerError, api.Fail("tool_error", "Tool execution failed"))
+				c.JSON(http.StatusInternalServerError, restFail("tool_error", "Tool execution failed"))
 				return
 			}
 
-			c.JSON(http.StatusOK, api.OK(result))
+			c.JSON(http.StatusOK, restOK(result))
 		})
 	}
 }

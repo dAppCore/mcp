@@ -4,19 +4,14 @@ package agentic
 
 import (
 	"context"
-	"encoding/json"
-	"os"
+	"github.com/goccy/go-json"
+	"syscall"
 	"time"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
-
-// os.Stat and os.FindProcess are used for workspace age detection and PID
-// liveness checks — these are OS-level queries with no core equivalent.
 
 // Workspace status file convention:
 //
@@ -53,7 +48,12 @@ type WorkspaceStatus struct {
 	PRURL     string    `json:"pr_url,omitempty"`   // pull request URL (after PR created)
 }
 
-func writeStatus(wsDir string, status *WorkspaceStatus) error {
+func writeStatus(
+	wsDir string,
+	status *WorkspaceStatus,
+) (
+	_ error, // result
+) {
 	status.UpdatedAt = time.Now()
 	data, err := json.MarshalIndent(status, "", "  ")
 	if err != nil {
@@ -64,18 +64,21 @@ func writeStatus(wsDir string, status *WorkspaceStatus) error {
 
 func (s *PrepSubsystem) saveStatus(wsDir string, status *WorkspaceStatus) {
 	if err := writeStatus(wsDir, status); err != nil {
-		coreerr.Warn("failed to write workspace status", "workspace", core.PathBase(wsDir), "err", err)
+		core.Warn("failed to write workspace status", "workspace", core.PathBase(wsDir), "err", err)
 	}
 }
 
-func readStatus(wsDir string) (*WorkspaceStatus, error) {
+func readStatus(wsDir string) (
+	*WorkspaceStatus,
+	error,
+) {
 	data, err := coreio.Local.Read(core.JoinPath(wsDir, "status.json"))
 	if err != nil {
 		return nil, err
 	}
 	var s WorkspaceStatus
 	if r := core.JSONUnmarshal([]byte(data), &s); !r.OK {
-		return nil, coreerr.E("readStatus", "failed to parse status.json", nil)
+		return nil, core.E("readStatus", "failed to parse status.json", nil)
 	}
 	return &s, nil
 }
@@ -122,7 +125,11 @@ func (s *PrepSubsystem) registerStatusTool(svc *coremcp.Service) {
 	}, s.status)
 }
 
-func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, input StatusInput) (*mcp.CallToolResult, StatusOutput, error) {
+func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, input StatusInput) (
+	*mcp.CallToolResult,
+	StatusOutput,
+	error,
+) {
 	wsDirs := s.listWorkspaceDirs()
 
 	var workspaces []WorkspaceInfo
@@ -147,7 +154,8 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 			} else {
 				info.Status = "unknown"
 			}
-			if fi, err := os.Stat(wsDir); err == nil {
+			if r := core.Stat(wsDir); r.OK {
+				fi := r.Value.(core.FsFileInfo)
 				info.Age = time.Since(fi.ModTime()).Truncate(time.Minute).String()
 			}
 			workspaces = append(workspaces, info)
@@ -166,8 +174,7 @@ func (s *PrepSubsystem) status(ctx context.Context, _ *mcp.CallToolRequest, inpu
 
 		// If status is "running", check if PID is still alive
 		if st.Status == "running" && st.PID > 0 {
-			proc, err := os.FindProcess(st.PID)
-			if err != nil || proc.Signal(nil) != nil {
+			if syscall.Kill(st.PID, 0) != nil {
 				prevStatus := st.Status
 				status := "completed"
 				channel := coremcp.ChannelAgentComplete

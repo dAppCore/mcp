@@ -4,10 +4,11 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	core "dappco.re/go"
 	"dappco.re/go/process"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestToolRegistry_Good_RecordsTools(t *testing.T) {
@@ -59,7 +60,7 @@ func TestToolRegistry_Good_SchemaExtraction(t *testing.T) {
 		t.Fatal("expected properties map in InputSchema")
 	}
 
-	if _, ok := props["path"]; !ok {
+	if _, ok := props[`path`]; !ok {
 		t.Error("expected 'path' property in file_read InputSchema")
 	}
 }
@@ -78,12 +79,9 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 	//   metrics (2):  metrics_record, metrics_query
 	//   rag (6):      rag_query, rag_search, rag_ingest, rag_index,
 	//                 rag_retrieve, rag_collections
-	//   webview (12): webview_connect, webview_disconnect, webview_navigate,
-	//                 webview_click, webview_type, webview_query,
-	//                 webview_console, webview_eval, webview_screenshot,
-	//                 webview_wait, webview_render, webview_update
+	//   webview (2):  webview_render, webview_update
 	//   ws (3):       ws_connect, ws_send, ws_close
-	const expectedCount = 33
+	const expectedCount = 23
 	if len(tools) != expectedCount {
 		t.Errorf("expected %d tools, got %d", expectedCount, len(tools))
 		for _, tr := range tools {
@@ -102,7 +100,7 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 	langTools := []string{"lang_detect", "lang_list"}
 	metricsTools := []string{"metrics_record", "metrics_query"}
 	ragTools := []string{"rag_query", "rag_search", "rag_ingest", "rag_index", "rag_retrieve", "rag_collections"}
-	webviewTools := []string{"webview_connect", "webview_disconnect", "webview_navigate", "webview_click", "webview_type", "webview_query", "webview_console", "webview_eval", "webview_screenshot", "webview_wait", "webview_render", "webview_update"}
+	webviewTools := []string{"webview_render", "webview_update"}
 
 	byName := make(map[string]ToolRecord)
 	for _, tr := range svc.Tools() {
@@ -296,7 +294,99 @@ func TestToolRegistry_Bad_InvalidRESTInputIsClassified(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected REST handler error for malformed JSON")
 	}
-	if !errors.Is(err, errInvalidRESTInput) {
+	if !core.Is(err, errInvalidRESTInput) {
 		t.Fatalf("expected invalid REST input error, got %v", err)
 	}
+}
+
+// moved AX-7 triplet TestRegistry_AddToolRecorded_Good
+func TestRegistry_AddToolRecorded_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AddToolRecorded(svc, svc.Server(), "ax7", &sdkmcp.Tool{Name: "ax7_echo", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest, struct{}) (*sdkmcp.CallToolResult, map[string]string, error) {
+		return nil, map[string]string{"ok": "true"}, nil
+	})
+	AssertContains(t, toolNames(svc.Tools()), "ax7_echo")
+}
+
+// moved AX-7 triplet TestRegistry_AddToolRecorded_Bad
+func TestRegistry_AddToolRecorded_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertPanics(t, func() {
+		AddToolRecorded(svc, nil, "ax7", &sdkmcp.Tool{Name: "ax7_bad", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest, struct{}) (*sdkmcp.CallToolResult, map[string]string, error) {
+			return nil, map[string]string{}, nil
+		})
+	})
+	AssertFalse(t, Contains(Join(",", toolNames(svc.Tools())...), "ax7_bad"))
+}
+
+// moved AX-7 triplet TestRegistry_AddToolRecorded_Ugly
+func TestRegistry_AddToolRecorded_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AddToolRecorded(svc, svc.Server(), "", &sdkmcp.Tool{Name: "ax7_empty_group", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdkmcp.CallToolRequest, struct{}) (*sdkmcp.CallToolResult, map[string]string, error) {
+		return nil, map[string]string{"ok": ""}, nil
+	})
+	AssertContains(t, toolNames(svc.Tools()), "ax7_empty_group")
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Error_Good
+func TestRegistry_InputError_Error_Good(t *T) {
+	err := invalidRESTInputError(core.NewError("bad json"))
+	AssertContains(t, err.Error(), "bad json")
+	AssertTrue(t, core.Is(err, errInvalidRESTInput))
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Error_Bad
+func TestRegistry_InputError_Error_Bad(t *T) {
+	var err *restInputError
+	AssertEqual(t, "invalid REST input", err.Error())
+	AssertNil(t, err)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Error_Ugly
+func TestRegistry_InputError_Error_Ugly(t *T) {
+	err := invalidRESTInputError(nil)
+	AssertEqual(t, "invalid REST input", err.Error())
+	AssertNil(t, err.(*restInputError).Unwrap())
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Is_Good
+func TestRegistry_InputError_Is_Good(t *T) {
+	err := invalidRESTInputError(core.NewError("bad json"))
+	AssertTrue(t, core.Is(err, errInvalidRESTInput))
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Is_Bad
+func TestRegistry_InputError_Is_Bad(t *T) {
+	err := core.NewError("plain")
+	AssertFalse(t, core.Is(err, errInvalidRESTInput))
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Is_Ugly
+func TestRegistry_InputError_Is_Ugly(t *T) {
+	err := &restInputError{}
+	AssertTrue(t, core.Is(err, &restInputError{}))
+	AssertEqual(t, "invalid REST input", err.Error())
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Unwrap_Good
+func TestRegistry_InputError_Unwrap_Good(t *T) {
+	cause := core.NewError("bad json")
+	err := invalidRESTInputError(cause)
+	AssertErrorIs(t, err.(*restInputError).Unwrap(), cause)
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Unwrap_Bad
+func TestRegistry_InputError_Unwrap_Bad(t *T) {
+	var err *restInputError
+	AssertNil(t, err.Unwrap())
+	AssertEqual(t, "invalid REST input", err.Error())
+}
+
+// moved AX-7 triplet TestRegistry_InputError_Unwrap_Ugly
+func TestRegistry_InputError_Unwrap_Ugly(t *T) {
+	err := invalidRESTInputError(nil)
+	AssertNil(t, err.(*restInputError).Unwrap())
+	AssertTrue(t, core.Is(err, errInvalidRESTInput))
 }

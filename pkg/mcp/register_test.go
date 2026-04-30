@@ -3,12 +3,12 @@ package mcp
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net"
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	core "dappco.re/go"
 	"dappco.re/go/process"
 	"dappco.re/go/ws"
 )
@@ -331,4 +331,92 @@ func TestHandleIPCEvents_Good_ForwardsTestResult(t *testing.T) {
 			t.Fatal("timed out waiting for test result notification")
 		}
 	}
+}
+
+// moved AX-7 triplet TestRegister_Register_Good
+func TestRegister_Register_Good(t *T) {
+	c := core.New()
+	r := Register(c)
+	AssertTrue(t, r.OK)
+	AssertNotNil(t, r.Value)
+}
+
+// moved AX-7 triplet TestRegister_Register_Bad
+func TestRegister_Register_Bad(t *T) {
+	AssertPanics(t, func() { _ = Register(nil) })
+	c := core.New()
+	AssertNotNil(t, c)
+}
+
+// moved AX-7 triplet TestRegister_Register_Ugly
+func TestRegister_Register_Ugly(t *T) {
+	c := core.New()
+	r := Register(c)
+	AssertTrue(t, r.OK)
+	AssertNotNil(t, r.Value)
+	AssertNotNil(t, r.Value.(*Service).Server())
+}
+
+// moved AX-7 triplet TestRegister_Service_HandleIPCEvents_Good
+func TestRegister_Service_HandleIPCEvents_Good(t *T) {
+	svc := newServiceForTest(t, Options{WSHub: ws.NewHub()})
+	r := svc.HandleIPCEvents(nil, ChannelPush{Channel: "ax7", Data: map[string]any{"ok": true}})
+	AssertTrue(t, r.OK)
+}
+
+// moved AX-7 triplet TestRegister_Service_HandleIPCEvents_Bad
+func TestRegister_Service_HandleIPCEvents_Bad(t *T) {
+	var svc *Service
+	r := svc.HandleIPCEvents(nil, ChannelPush{Channel: "", Data: nil})
+	AssertFalse(t, r.OK)
+	AssertContains(t, r.Error(), "channel is required")
+}
+
+// moved AX-7 triplet TestRegister_Service_HandleIPCEvents_Ugly
+func TestRegister_Service_HandleIPCEvents_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	r := svc.HandleIPCEvents(nil, ChannelPush{Channel: "ax7", Data: nil})
+	AssertTrue(t, r.OK)
+}
+
+// moved AX-7 triplet TestRegister_Service_OnShutdown_Good
+func TestRegister_Service_OnShutdown_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	r := svc.OnShutdown(context.Background())
+	AssertTrue(t, r.OK)
+}
+
+// moved AX-7 triplet TestRegister_Service_OnShutdown_Bad
+func TestRegister_Service_OnShutdown_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.OnShutdown(context.Background()) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestRegister_Service_OnShutdown_Ugly
+func TestRegister_Service_OnShutdown_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	r := svc.OnShutdown(nil)
+	AssertTrue(t, r.OK)
+}
+
+// moved AX-7 triplet TestRegister_Service_OnStartup_Good
+func TestRegister_Service_OnStartup_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	r := svc.OnStartup(context.Background())
+	AssertTrue(t, r.OK)
+}
+
+// moved AX-7 triplet TestRegister_Service_OnStartup_Bad
+func TestRegister_Service_OnStartup_Bad(t *T) {
+	var svc *Service
+	r := svc.OnStartup(context.Background())
+	AssertTrue(t, r.OK)
+}
+
+// moved AX-7 triplet TestRegister_Service_OnStartup_Ugly
+func TestRegister_Service_OnStartup_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	r := svc.OnStartup(nil)
+	AssertTrue(t, r.OK)
 }

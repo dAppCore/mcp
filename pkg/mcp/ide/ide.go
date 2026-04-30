@@ -7,15 +7,14 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
-	coreerr "dappco.re/go/log"
 	"dappco.re/go/ws"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge
 // but it has not been initialised (headless mode).
-var errBridgeNotAvailable = coreerr.E("ide", "bridge not available", nil)
+var errBridgeNotAvailable = core.E("ide", "bridge not available", nil)
 
 // Subsystem implements mcp.Subsystem and mcp.SubsystemWithShutdown for the IDE.
 type Subsystem struct {
@@ -78,7 +77,11 @@ func (s *Subsystem) RegisterTools(svc *coremcp.Service) {
 }
 
 // Shutdown implements mcp.SubsystemWithShutdown.
-func (s *Subsystem) Shutdown(_ context.Context) error {
+func (s *Subsystem) Shutdown(
+	_ context.Context,
+) (
+	_ error, // result
+) {
 	if s.bridge != nil {
 		s.bridge.Shutdown()
 	}
@@ -97,6 +100,15 @@ func (s *Subsystem) Bridge() *Bridge { return s.bridge }
 func (s *Subsystem) StartBridge(ctx context.Context) {
 	if s.bridge != nil {
 		s.bridge.Start(ctx)
+	}
+}
+
+func (s *Subsystem) sendBridgeBestEffort(msg BridgeMessage) {
+	if s == nil || s.bridge == nil {
+		return
+	}
+	if err := s.bridge.Send(msg); err != nil {
+		s.recordActivity("bridge_send_error", err.Error())
 	}
 }
 

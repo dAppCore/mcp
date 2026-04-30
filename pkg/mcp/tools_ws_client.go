@@ -10,8 +10,7 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go/core"
-	"dappco.re/go/log"
+	core "dappco.re/go"
 	"github.com/gorilla/websocket"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -22,9 +21,9 @@ import (
 //
 //	input := WSConnectInput{URL: "wss://example.com/ws", Timeout: 10}
 type WSConnectInput struct {
-	URL     string            `json:"url"`                // e.g. "wss://example.com/ws"
-	Headers map[string]string `json:"headers,omitempty"`  // custom request headers
-	Timeout int               `json:"timeout,omitempty"`  // handshake timeout in seconds (default: 30)
+	URL     string            `json:"url"`               // e.g. "wss://example.com/ws"
+	Headers map[string]string `json:"headers,omitempty"` // custom request headers
+	Timeout int               `json:"timeout,omitempty"` // handshake timeout in seconds (default: 30)
 }
 
 // WSConnectOutput contains the result of opening a WebSocket connection.
@@ -41,9 +40,9 @@ type WSConnectOutput struct {
 //
 //	input := WSSendInput{ID: "ws-0af3…", Message: "ping"}
 type WSSendInput struct {
-	ID      string `json:"id"`                // e.g. "ws-0af3…"
-	Message string `json:"message"`           // payload to send
-	Binary  bool   `json:"binary,omitempty"`  // true to send a binary frame (payload is base64 text)
+	ID      string `json:"id"`               // e.g. "ws-0af3…"
+	Message string `json:"message"`          // payload to send
+	Binary  bool   `json:"binary,omitempty"` // true to send a binary frame (payload is base64 text)
 }
 
 // WSSendOutput contains the result of sending a message.
@@ -52,7 +51,7 @@ type WSSendInput struct {
 type WSSendOutput struct {
 	Success bool   `json:"success"` // true when the message was written
 	ID      string `json:"id"`      // e.g. "ws-0af3…"
-	Bytes   int    `json:"bytes"`   // number of bytes written
+	Bytes   int    "json:\"bytes\"" // number of bytes written
 }
 
 // WSCloseInput contains parameters for closing a WebSocket connection.
@@ -108,11 +107,15 @@ func (s *Service) registerWSClientTools(server *mcp.Server) {
 }
 
 // wsConnect handles the ws_connect tool call.
-func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input WSConnectInput) (*mcp.CallToolResult, WSConnectOutput, error) {
-	s.logger.Security("MCP tool execution", "tool", "ws_connect", "url", input.URL, "user", log.Username())
+func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input WSConnectInput) (
+	*mcp.CallToolResult,
+	WSConnectOutput,
+	error,
+) {
+	s.logger.Security("MCP tool execution", "tool", "ws_connect", "url", input.URL, "user", core.Username())
 
 	if core.Trim(input.URL) == "" {
-		return nil, WSConnectOutput{}, log.E("wsConnect", "url is required", nil)
+		return nil, WSConnectOutput{}, core.E("wsConnect", "url is required", nil)
 	}
 
 	timeout := time.Duration(input.Timeout) * time.Second
@@ -134,8 +137,8 @@ func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input
 
 	conn, _, err := dialer.DialContext(dialCtx, input.URL, headers)
 	if err != nil {
-		log.Error("mcp: ws connect failed", "url", input.URL, "err", err)
-		return nil, WSConnectOutput{}, log.E("wsConnect", "failed to connect", err)
+		core.Error("mcp: ws connect failed", "url", input.URL, "err", err)
+		return nil, WSConnectOutput{}, core.E("wsConnect", "failed to connect", err)
 	}
 
 	id := newWSClientID()
@@ -158,16 +161,20 @@ func (s *Service) wsConnect(ctx context.Context, req *mcp.CallToolRequest, input
 }
 
 // wsSend handles the ws_send tool call.
-func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WSSendInput) (*mcp.CallToolResult, WSSendOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "ws_send", "id", input.ID, "binary", input.Binary, "user", log.Username())
+func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WSSendInput) (
+	*mcp.CallToolResult,
+	WSSendOutput,
+	error,
+) {
+	s.logger.Info("MCP tool execution", "tool", "ws_send", "id", input.ID, "binary", input.Binary, "user", core.Username())
 
 	if core.Trim(input.ID) == "" {
-		return nil, WSSendOutput{}, log.E("wsSend", "id is required", nil)
+		return nil, WSSendOutput{}, core.E("wsSend", "id is required", nil)
 	}
 
 	client, ok := getWSClient(input.ID)
 	if !ok {
-		return nil, WSSendOutput{}, log.E("wsSend", "connection not found", nil)
+		return nil, WSSendOutput{}, core.E("wsSend", "connection not found", nil)
 	}
 
 	messageType := websocket.TextMessage
@@ -179,8 +186,8 @@ func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WS
 	err := client.conn.WriteMessage(messageType, []byte(input.Message))
 	client.writeMu.Unlock()
 	if err != nil {
-		log.Error("mcp: ws send failed", "id", input.ID, "err", err)
-		return nil, WSSendOutput{}, log.E("wsSend", "failed to send message", err)
+		core.Error("mcp: ws send failed", "id", input.ID, "err", err)
+		return nil, WSSendOutput{}, core.E("wsSend", "failed to send message", err)
 	}
 
 	return nil, WSSendOutput{
@@ -191,11 +198,15 @@ func (s *Service) wsSend(ctx context.Context, req *mcp.CallToolRequest, input WS
 }
 
 // wsClose handles the ws_close tool call.
-func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input WSCloseInput) (*mcp.CallToolResult, WSCloseOutput, error) {
-	s.logger.Info("MCP tool execution", "tool", "ws_close", "id", input.ID, "user", log.Username())
+func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input WSCloseInput) (
+	*mcp.CallToolResult,
+	WSCloseOutput,
+	error,
+) {
+	s.logger.Info("MCP tool execution", "tool", "ws_close", "id", input.ID, "user", core.Username())
 
 	if core.Trim(input.ID) == "" {
-		return nil, WSCloseOutput{}, log.E("wsClose", "id is required", nil)
+		return nil, WSCloseOutput{}, core.E("wsClose", "id is required", nil)
 	}
 
 	wsClientMu.Lock()
@@ -206,7 +217,7 @@ func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input W
 	wsClientMu.Unlock()
 
 	if !ok {
-		return nil, WSCloseOutput{}, log.E("wsClose", "connection not found", nil)
+		return nil, WSCloseOutput{}, core.E("wsClose", "connection not found", nil)
 	}
 
 	code := input.Code
@@ -219,13 +230,17 @@ func (s *Service) wsClose(ctx context.Context, req *mcp.CallToolRequest, input W
 	}
 
 	client.writeMu.Lock()
-	_ = client.conn.WriteControl(
+	if err := client.conn.WriteControl(
 		websocket.CloseMessage,
 		websocket.FormatCloseMessage(code, reason),
 		time.Now().Add(5*time.Second),
-	)
+	); err != nil {
+		core.Error("mcp: websocket close control failed", "id", input.ID, "err", err)
+	}
 	client.writeMu.Unlock()
-	_ = client.conn.Close()
+	if err := client.conn.Close(); err != nil {
+		core.Error("mcp: websocket close failed", "id", input.ID, "err", err)
+	}
 
 	return nil, WSCloseOutput{
 		Success: true,
@@ -258,7 +273,9 @@ func resetWSClients() {
 	wsClientMu.Lock()
 	defer wsClientMu.Unlock()
 	for id, client := range wsClientRegistry {
-		_ = client.conn.Close()
+		if err := client.conn.Close(); err != nil {
+			core.Error("mcp: websocket registry close failed", "id", id, "err", err)
+		}
 		delete(wsClientRegistry, id)
 	}
 }

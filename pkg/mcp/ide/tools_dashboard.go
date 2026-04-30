@@ -122,9 +122,9 @@ type DashboardUpdateOutput struct {
 // dashboardStateStore holds the mutable dashboard UI state shared between the
 // IDE frontend and MCP callers. Access is guarded by dashboardStateMu.
 var (
-	dashboardStateMu       sync.RWMutex
-	dashboardStateStore    = map[string]any{}
-	dashboardStateUpdated  time.Time
+	dashboardStateMu      sync.RWMutex
+	dashboardStateStore   = map[string]any{}
+	dashboardStateUpdated time.Time
 )
 
 func (s *Subsystem) registerDashboardTools(svc *coremcp.Service) {
@@ -157,14 +157,18 @@ func (s *Subsystem) registerDashboardTools(svc *coremcp.Service) {
 
 // dashboardOverview returns a platform overview with bridge status and
 // locally tracked session counts.
-func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest, _ DashboardOverviewInput) (*mcp.CallToolResult, DashboardOverviewOutput, error) {
+func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest, _ DashboardOverviewInput) (
+	*mcp.CallToolResult,
+	DashboardOverviewOutput,
+	error,
+) {
 	connected := s.bridge != nil && s.bridge.Connected()
 	activeSessions := len(s.listSessions())
 	builds := s.listBuilds("", 0)
 	repos := s.buildRepoCount()
 
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{Type: "dashboard_overview"})
+		s.sendBridgeBestEffort(BridgeMessage{Type: "dashboard_overview"})
 	}
 
 	return nil, DashboardOverviewOutput{
@@ -180,9 +184,13 @@ func (s *Subsystem) dashboardOverview(_ context.Context, _ *mcp.CallToolRequest,
 
 // dashboardActivity returns the local activity feed and refreshes the Laravel
 // backend when the bridge is available.
-func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest, input DashboardActivityInput) (*mcp.CallToolResult, DashboardActivityOutput, error) {
+func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest, input DashboardActivityInput) (
+	*mcp.CallToolResult,
+	DashboardActivityOutput,
+	error,
+) {
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "dashboard_activity",
 			Data: map[string]any{"limit": input.Limit},
 		})
@@ -192,13 +200,17 @@ func (s *Subsystem) dashboardActivity(_ context.Context, _ *mcp.CallToolRequest,
 
 // dashboardMetrics returns local session and message counts and refreshes the
 // Laravel backend when the bridge is available.
-func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, input DashboardMetricsInput) (*mcp.CallToolResult, DashboardMetricsOutput, error) {
+func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, input DashboardMetricsInput) (
+	*mcp.CallToolResult,
+	DashboardMetricsOutput,
+	error,
+) {
 	period := input.Period
 	if period == "" {
 		period = "24h"
 	}
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "dashboard_metrics",
 			Data: map[string]any{"period": period},
 		})
@@ -266,7 +278,11 @@ func (s *Subsystem) dashboardMetrics(_ context.Context, _ *mcp.CallToolRequest, 
 // dashboardState returns the current dashboard UI state as a snapshot.
 //
 //	out := s.dashboardState(ctx, nil, DashboardStateInput{})
-func (s *Subsystem) dashboardState(_ context.Context, _ *mcp.CallToolRequest, _ DashboardStateInput) (*mcp.CallToolResult, DashboardStateOutput, error) {
+func (s *Subsystem) dashboardState(_ context.Context, _ *mcp.CallToolRequest, _ DashboardStateInput) (
+	*mcp.CallToolResult,
+	DashboardStateOutput,
+	error,
+) {
 	dashboardStateMu.RLock()
 	defer dashboardStateMu.RUnlock()
 
@@ -285,7 +301,11 @@ func (s *Subsystem) dashboardState(_ context.Context, _ *mcp.CallToolRequest, _ 
 // activity event so the IDE can react to the change.
 //
 //	out := s.dashboardUpdate(ctx, nil, DashboardUpdateInput{State: map[string]any{"theme": "dark"}})
-func (s *Subsystem) dashboardUpdate(ctx context.Context, _ *mcp.CallToolRequest, input DashboardUpdateInput) (*mcp.CallToolResult, DashboardUpdateOutput, error) {
+func (s *Subsystem) dashboardUpdate(ctx context.Context, _ *mcp.CallToolRequest, input DashboardUpdateInput) (
+	*mcp.CallToolResult,
+	DashboardUpdateOutput,
+	error,
+) {
 	now := time.Now()
 
 	dashboardStateMu.Lock()
@@ -310,7 +330,7 @@ func (s *Subsystem) dashboardUpdate(ctx context.Context, _ *mcp.CallToolRequest,
 	// Push the update over the Laravel bridge when available so web clients
 	// stay in sync with desktop tooling.
 	if s.bridge != nil {
-		_ = s.bridge.Send(BridgeMessage{
+		s.sendBridgeBestEffort(BridgeMessage{
 			Type: "dashboard_update",
 			Data: snapshot,
 		})

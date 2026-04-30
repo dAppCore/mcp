@@ -3,15 +3,11 @@
 package agentic
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
-	"os/exec"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -56,34 +52,37 @@ func (s *PrepSubsystem) registerCreatePRTool(svc *coremcp.Service) {
 	}, s.createPR)
 }
 
-func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, input PRInput) (*mcp.CallToolResult, CreatePROutput, error) {
+func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, input PRInput) (
+	*mcp.CallToolResult,
+	CreatePROutput,
+	error,
+) {
 	if input.Workspace == "" {
-		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace is required", nil)
+		return nil, CreatePROutput{}, core.E("createPR", "workspace is required", nil)
 	}
 	if s.forgeToken == "" {
-		return nil, CreatePROutput{}, coreerr.E("createPR", "no Forge token configured", nil)
+		return nil, CreatePROutput{}, core.E("createPR", "no Forge token configured", nil)
 	}
 
 	wsDir := core.Path(s.workspaceRoot(), input.Workspace)
 	srcDir := core.Path(wsDir, "src")
 
 	if _, err := coreio.Local.List(srcDir); err != nil {
-		return nil, CreatePROutput{}, coreerr.E("createPR", "workspace not found: "+input.Workspace, nil)
+		return nil, CreatePROutput{}, core.E("createPR", "workspace not found: "+input.Workspace, nil)
 	}
 
 	// Read workspace status for repo, branch, issue context
 	st, err := readStatus(wsDir)
 	if err != nil {
-		return nil, CreatePROutput{}, coreerr.E("createPR", "no status.json", err)
+		return nil, CreatePROutput{}, core.E("createPR", "no status.json", err)
 	}
 
 	if st.Branch == "" {
 		// Detect branch from git
-		branchCmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
-		branchCmd.Dir = srcDir
+		branchCmd := shellCommand(ctx, srcDir, "git", "rev-parse", "--abbrev-ref", "HEAD")
 		out, err := branchCmd.Output()
 		if err != nil {
-			return nil, CreatePROutput{}, coreerr.E("createPR", "failed to detect branch", err)
+			return nil, CreatePROutput{}, core.E("createPR", "failed to detect branch", err)
 		}
 		st.Branch = core.Trim(string(out))
 	}
@@ -122,17 +121,16 @@ func (s *PrepSubsystem) createPR(ctx context.Context, _ *mcp.CallToolRequest, in
 	}
 
 	// Push branch to forge
-	pushCmd := exec.CommandContext(ctx, "git", "push", "-u", "origin", st.Branch)
-	pushCmd.Dir = srcDir
+	pushCmd := shellCommand(ctx, srcDir, "git", "push", "-u", "origin", st.Branch)
 	pushOut, err := pushCmd.CombinedOutput()
 	if err != nil {
-		return nil, CreatePROutput{}, coreerr.E("createPR", "git push failed: "+string(pushOut), err)
+		return nil, CreatePROutput{}, core.E("createPR", "git push failed: "+string(pushOut), err)
 	}
 
 	// Create PR via Forge API
 	prURL, prNum, err := s.forgeCreatePR(ctx, org, st.Repo, st.Branch, base, title, body)
 	if err != nil {
-		return nil, CreatePROutput{}, coreerr.E("createPR", "failed to create PR", err)
+		return nil, CreatePROutput{}, core.E("createPR", "failed to create PR", err)
 	}
 
 	// Update status with PR URL
@@ -172,7 +170,11 @@ func (s *PrepSubsystem) buildPRBody(st *WorkspaceStatus) string {
 	return b.String()
 }
 
-func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base, title, body string) (string, int, error) {
+func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base, title, body string) (
+	string,
+	int,
+	error,
+) {
 	payload, err := json.Marshal(map[string]any{
 		"title": title,
 		"body":  body,
@@ -180,30 +182,30 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 		"base":  base,
 	})
 	if err != nil {
-		return "", 0, coreerr.E("forgeCreatePR", "failed to marshal PR payload", err)
+		return "", 0, core.E("forgeCreatePR", "failed to marshal PR payload", err)
 	}
 
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/pulls", s.forgeURL, org, repo)
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, core.NewBuffer(payload))
 	if err != nil {
-		return "", 0, coreerr.E("forgeCreatePR", "failed to build PR request", err)
+		return "", 0, core.E("forgeCreatePR", "failed to build PR request", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return "", 0, coreerr.E("forgeCreatePR", "request failed", err)
+		return "", 0, core.E("forgeCreatePR", "request failed", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
 		var errBody map[string]any
 		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
-			return "", 0, coreerr.E("forgeCreatePR", core.Sprintf("HTTP %d with unreadable error body", resp.StatusCode), err)
+			return "", 0, core.E("forgeCreatePR", core.Sprintf("HTTP %d with unreadable error body", resp.StatusCode), err)
 		}
 		msg, _ := errBody["message"].(string)
-		return "", 0, coreerr.E("forgeCreatePR", core.Sprintf("HTTP %d: %s", resp.StatusCode, msg), nil)
+		return "", 0, core.E("forgeCreatePR", core.Sprintf("HTTP %d: %s", resp.StatusCode, msg), nil)
 	}
 
 	var pr struct {
@@ -211,7 +213,7 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 		HTMLURL string `json:"html_url"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-		return "", 0, coreerr.E("forgeCreatePR", "failed to decode PR response", err)
+		return "", 0, core.E("forgeCreatePR", "failed to decode PR response", err)
 	}
 
 	return pr.HTMLURL, pr.Number, nil
@@ -224,7 +226,7 @@ func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, is
 	}
 
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues/%d/comments", s.forgeURL, org, repo, issue)
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, core.NewBuffer(payload))
 	if err != nil {
 		return
 	}
@@ -283,9 +285,13 @@ func (s *PrepSubsystem) registerListPRsTool(svc *coremcp.Service) {
 	}, s.listPRs)
 }
 
-func (s *PrepSubsystem) listPRs(ctx context.Context, _ *mcp.CallToolRequest, input ListPRsInput) (*mcp.CallToolResult, ListPRsOutput, error) {
+func (s *PrepSubsystem) listPRs(ctx context.Context, _ *mcp.CallToolRequest, input ListPRsInput) (
+	*mcp.CallToolResult,
+	ListPRsOutput,
+	error,
+) {
 	if s.forgeToken == "" {
-		return nil, ListPRsOutput{}, coreerr.E("listPRs", "no Forge token configured", nil)
+		return nil, ListPRsOutput{}, core.E("listPRs", "no Forge token configured", nil)
 	}
 
 	if input.Org == "" {
@@ -334,7 +340,10 @@ func (s *PrepSubsystem) listPRs(ctx context.Context, _ *mcp.CallToolRequest, inp
 	}, nil
 }
 
-func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string) ([]PRInfo, error) {
+func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string) (
+	[]PRInfo,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=%s&limit=10",
 		s.forgeURL, org, repo, state)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -342,11 +351,11 @@ func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, coreerr.E("listRepoPRs", "failed to list PRs for "+repo, err)
+		return nil, core.E("listRepoPRs", "failed to list PRs for "+repo, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listRepoPRs", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+		return nil, core.E("listRepoPRs", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
 
 	var prs []struct {

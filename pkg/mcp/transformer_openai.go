@@ -3,8 +3,8 @@
 package mcp
 
 import (
-	"encoding/json"
-	"fmt"
+	core "dappco.re/go"
+	"github.com/goccy/go-json"
 )
 
 // OpenAITransformer maps OpenAI Chat Completions requests and responses.
@@ -20,16 +20,19 @@ func (OpenAITransformer) Detect(body []byte, contentType, path string) bool {
 	return hasTopLevelFields(body, "model", "messages")
 }
 
-func (OpenAITransformer) Normalise(body []byte) (MCPRequest, error) {
+func (OpenAITransformer) Normalise(body []byte) (
+	MCPRequest,
+	error,
+) {
 	var req openAIChatCompletionRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return MCPRequest{}, err
 	}
 	if req.Model == "" {
-		return MCPRequest{}, fmt.Errorf("openai chat completion request missing model")
+		return MCPRequest{}, core.NewError("openai chat completion request missing model")
 	}
 	if len(req.Messages) == 0 {
-		return MCPRequest{}, fmt.Errorf("openai chat completion request missing messages")
+		return MCPRequest{}, core.NewError("openai chat completion request missing messages")
 	}
 
 	params := map[string]any{
@@ -68,7 +71,10 @@ func (OpenAITransformer) Normalise(body []byte) (MCPRequest, error) {
 	return MCPRequest{JSONRPC: "2.0", Method: "sampling/createMessage", Params: params}, nil
 }
 
-func (OpenAITransformer) Transform(result MCPResult) ([]byte, error) {
+func (OpenAITransformer) Transform(result MCPResult) (
+	[]byte,
+	error,
+) {
 	text := extractMCPText(result)
 	toolCalls := extractMCPToolCalls(result)
 
@@ -221,7 +227,7 @@ func openAIToolCallsFromMCP(calls []MCPToolCall) []map[string]any {
 	for i, call := range calls {
 		id := call.ID
 		if id == "" {
-			id = fmt.Sprintf("call_%d", i)
+			id = core.Sprintf("call_%d", i)
 		}
 		args, err := json.Marshal(call.Arguments)
 		if err != nil {
@@ -243,5 +249,5 @@ func openAIResponseID(id any) string {
 	if id == nil {
 		return "chatcmpl-mcp"
 	}
-	return fmt.Sprintf("chatcmpl-%v", id)
+	return core.Sprintf("chatcmpl-%v", id)
 }

@@ -1,17 +1,22 @@
 package mcp
 
 import (
-	"os"
-	"path/filepath"
+	"context"
 	"sync"
+	"syscall"
 	"testing"
+
+	core "dappco.re/go"
+	"dappco.re/go/process"
+	"dappco.re/go/ws"
 )
 
 func TestMcp_New_Good_DefaultWorkspace(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
+	cwdResult := core.Getwd()
+	if !cwdResult.OK {
+		t.Fatalf("Failed to get working directory: %v", cwdResult.Value)
 	}
+	cwd := cwdResult.Value.(string)
 
 	s, err := New(Options{})
 	if err != nil {
@@ -73,16 +78,8 @@ func TestMcp_New_Good_RegistersBuiltInTools(t *testing.T) {
 		"rag_query",
 		"rag_ingest",
 		"rag_collections",
-		"webview_connect",
-		"webview_disconnect",
-		"webview_navigate",
-		"webview_click",
-		"webview_type",
-		"webview_query",
-		"webview_console",
-		"webview_eval",
-		"webview_screenshot",
-		"webview_wait",
+		"webview_render",
+		"webview_update",
 	} {
 		if !tools[name] {
 			t.Fatalf("expected tool %q to be registered", name)
@@ -122,7 +119,7 @@ func TestMcp_New_Ugly_ConcurrentConstruction(t *testing.T) {
 				return
 			}
 			if s.workspaceRoot != tmpDir || s.medium == nil {
-				errs <- os.ErrInvalid
+				errs <- core.NewError("invalid service")
 			}
 		}()
 	}
@@ -171,7 +168,7 @@ func TestMcp_GetSupportedLanguages_Good_IncludesAllDetectedLanguages(t *testing.
 		"html",
 		"css",
 		"scss",
-		"json",
+		`json`,
 		"yaml",
 		"xml",
 		"markdown",
@@ -284,9 +281,12 @@ func TestMcp_Medium_Good_ReadWrite(t *testing.T) {
 	}
 
 	// Verify file exists on disk
-	diskPath := filepath.Join(tmpDir, "test.txt")
-	if _, err := os.Stat(diskPath); os.IsNotExist(err) {
-		t.Error("File should exist on disk")
+	diskPath := core.PathJoin(tmpDir, "test.txt")
+	if r := core.Stat(diskPath); !r.OK {
+		err, _ := r.Value.(error)
+		if core.IsNotExist(err) {
+			t.Error("File should exist on disk")
+		}
 	}
 }
 
@@ -316,7 +316,7 @@ func TestMcp_Medium_Ugly_ConcurrentReadWrite(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			path := filepath.Join("concurrent", string(rune('a'+i))+".txt")
+			path := core.PathJoin("concurrent", string(rune('a'+i))+".txt")
 			if err := s.medium.Write(path, "content"); err != nil {
 				errs <- err
 				return
@@ -349,12 +349,15 @@ func TestMcp_Medium_Good_EnsureDir(t *testing.T) {
 	}
 
 	// Verify directory exists
-	diskPath := filepath.Join(tmpDir, "subdir", "nested")
-	info, err := os.Stat(diskPath)
-	if os.IsNotExist(err) {
-		t.Error("Directory should exist on disk")
+	diskPath := core.PathJoin(tmpDir, "subdir", "nested")
+	r := core.Stat(diskPath)
+	if !r.OK {
+		err, _ := r.Value.(error)
+		if core.IsNotExist(err) {
+			t.Error("Directory should exist on disk")
+		}
 	}
-	if err == nil && !info.IsDir() {
+	if r.OK && !r.Value.(core.FsFileInfo).IsDir() {
 		t.Error("Path should be a directory")
 	}
 }
@@ -471,7 +474,7 @@ func TestMcp_ListDirectory_Good_ReturnsDocumentedEntryPaths(t *testing.T) {
 		t.Fatalf("expected one entry, got %d", len(out.Entries))
 	}
 
-	want := filepath.Join("nested", "file.txt")
+	want := core.PathJoin("nested", "file.txt")
 	if out.Entries[0].Path != want {
 		t.Fatalf("expected entry path %q, got %q", want, out.Entries[0].Path)
 	}
@@ -496,7 +499,7 @@ func TestMcp_ListDirectory_Ugly_SortsEntries(t *testing.T) {
 		t.Fatalf("Failed to create service: %v", err)
 	}
 	for _, name := range []string{"b.txt", "a.txt", "c.txt"} {
-		if err := s.medium.Write(filepath.Join("nested", name), "content"); err != nil {
+		if err := s.medium.Write(core.PathJoin("nested", name), "content"); err != nil {
 			t.Fatalf("Failed to write %s: %v", name, err)
 		}
 	}
@@ -571,13 +574,14 @@ func TestMcp_ResolveWorkspacePath_Good(t *testing.T) {
 	}
 
 	cases := map[string]string{
-		"docs/readme.md":     filepath.Join(tmpDir, "docs", "readme.md"),
-		"/docs/readme.md":    filepath.Join(tmpDir, "docs", "readme.md"),
-		"../escape/notes.md": filepath.Join(tmpDir, "escape", "notes.md"),
+		"docs/readme.md":     core.PathJoin(tmpDir, "docs", "readme.md"),
+		"/docs/readme.md":    core.PathJoin(tmpDir, "docs", "readme.md"),
+		"../escape/notes.md": core.PathJoin(tmpDir, "escape", "notes.md"),
 		"":                   "",
 	}
+	ResolveWorkspacePath := s.resolveWorkspacePath
 	for input, want := range cases {
-		if got := s.resolveWorkspacePath(input); got != want {
+		if got := ResolveWorkspacePath(input); got != want {
 			t.Fatalf("resolveWorkspacePath(%q) = %q, want %q", input, got, want)
 		}
 	}
@@ -589,10 +593,10 @@ func TestMcp_ResolveWorkspacePath_Good_Unrestricted(t *testing.T) {
 		t.Fatalf("Failed to create service: %v", err)
 	}
 
-	if got, want := s.resolveWorkspacePath("docs/readme.md"), filepath.Clean("docs/readme.md"); got != want {
+	if got, want := s.resolveWorkspacePath("docs/readme.md"), core.CleanPath("docs/readme.md", string(core.PathSeparator)); got != want {
 		t.Fatalf("resolveWorkspacePath(relative) = %q, want %q", got, want)
 	}
-	if got, want := s.resolveWorkspacePath("/tmp/readme.md"), filepath.Clean("/tmp/readme.md"); got != want {
+	if got, want := s.resolveWorkspacePath("/tmp/readme.md"), core.CleanPath("/tmp/readme.md", string(core.PathSeparator)); got != want {
 		t.Fatalf("resolveWorkspacePath(absolute) = %q, want %q", got, want)
 	}
 }
@@ -617,7 +621,7 @@ func TestMcp_ResolveWorkspacePath_Ugly_TraversalSanitized(t *testing.T) {
 	}
 
 	got := s.resolveWorkspacePath("../../secret.txt")
-	want := filepath.Join(tmpDir, "secret.txt")
+	want := core.PathJoin(tmpDir, "secret.txt")
 	if got != want {
 		t.Fatalf("resolveWorkspacePath(traversal) = %q, want %q", got, want)
 	}
@@ -648,14 +652,14 @@ func TestMcp_Medium_Ugly_SymlinksBlocked(t *testing.T) {
 	outsideDir := t.TempDir()
 
 	// Create a target file outside workspace
-	targetFile := filepath.Join(outsideDir, "secret.txt")
-	if err := os.WriteFile(targetFile, []byte("secret"), 0644); err != nil {
-		t.Fatalf("Failed to create target file: %v", err)
+	targetFile := core.PathJoin(outsideDir, "secret.txt")
+	if r := core.WriteFile(targetFile, []byte("secret"), 0644); !r.OK {
+		t.Fatalf("Failed to create target file: %v", r.Value)
 	}
 
 	// Create symlink inside workspace pointing outside
-	symlinkPath := filepath.Join(tmpDir, "link")
-	if err := os.Symlink(targetFile, symlinkPath); err != nil {
+	symlinkPath := core.PathJoin(tmpDir, "link")
+	if err := syscall.Symlink(targetFile, symlinkPath); err != nil {
 		t.Skipf("Symlinks not supported: %v", err)
 	}
 
@@ -671,4 +675,238 @@ func TestMcp_Medium_Ugly_SymlinksBlocked(t *testing.T) {
 	if err == nil {
 		t.Error("Expected permission denied for symlink escaping sandbox, but read succeeded")
 	}
+}
+
+// moved AX-7 triplet TestMcp_New_Good
+func TestMcp_New_Good(t *T) {
+	svc, err := New(Options{WorkspaceRoot: t.TempDir()})
+	AssertNoError(t, err)
+	AssertNotNil(t, svc.Server())
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestMcp_New_Bad
+func TestMcp_New_Bad(t *T) {
+	svc, err := New(Options{WorkspaceRoot: t.TempDir(), Subsystems: []Subsystem{nil}})
+	AssertNoError(t, err)
+	AssertLen(t, svc.Subsystems(), 0)
+}
+
+// moved AX-7 triplet TestMcp_New_Ugly
+func TestMcp_New_Ugly(t *T) {
+	svc, err := New(Options{Unrestricted: true})
+	AssertNoError(t, err)
+	AssertNotNil(t, svc.medium)
+}
+
+// moved AX-7 triplet TestMcp_Service_ProcessService_Good
+func TestMcp_Service_ProcessService_Good(t *T) {
+	ps := &process.Service{}
+	svc := newServiceForTest(t, Options{ProcessService: ps})
+	AssertEqual(t, ps, svc.ProcessService())
+}
+
+// moved AX-7 triplet TestMcp_Service_ProcessService_Bad
+func TestMcp_Service_ProcessService_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNil(t, svc.ProcessService())
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestMcp_Service_ProcessService_Ugly
+func TestMcp_Service_ProcessService_Ugly(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.ProcessService() })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_Run_Good
+func TestMcp_Service_Run_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	t.Setenv("MCP_ADDR", "127.0.0.1:0")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.Run(ctx)
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestMcp_Service_Run_Bad
+func TestMcp_Service_Run_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.Run(context.Background()) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_Run_Ugly
+func TestMcp_Service_Run_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	t.Setenv("MCP_HTTP_ADDR", "127.0.0.1:bad")
+	err := svc.Run(context.Background())
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestMcp_Service_Server_Good
+func TestMcp_Service_Server_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNotNil(t, svc.Server())
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestMcp_Service_Server_Bad
+func TestMcp_Service_Server_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.Server() })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_Server_Ugly
+func TestMcp_Service_Server_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertEqual(t, svc.Server(), svc.Server())
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestMcp_Service_Shutdown_Good
+func TestMcp_Service_Shutdown_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	err := svc.Shutdown(context.Background())
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestMcp_Service_Shutdown_Bad
+func TestMcp_Service_Shutdown_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.Shutdown(context.Background()) })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_Shutdown_Ugly
+func TestMcp_Service_Shutdown_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	err := svc.Shutdown(nil)
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestMcp_Service_Subsystems_Good
+func TestMcp_Service_Subsystems_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertLen(t, svc.Subsystems(), 0)
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestMcp_Service_Subsystems_Bad
+func TestMcp_Service_Subsystems_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.Subsystems() })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_Subsystems_Ugly
+func TestMcp_Service_Subsystems_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{Subsystems: []Subsystem{nil}})
+	AssertLen(t, svc.Subsystems(), 0)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestMcp_Service_SubsystemsSeq_Good
+func TestMcp_Service_SubsystemsSeq_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	count := 0
+	for range svc.SubsystemsSeq() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestMcp_Service_SubsystemsSeq_Bad
+func TestMcp_Service_SubsystemsSeq_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() {
+		for range svc.SubsystemsSeq() {
+		}
+	})
+}
+
+// moved AX-7 triplet TestMcp_Service_SubsystemsSeq_Ugly
+func TestMcp_Service_SubsystemsSeq_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{Subsystems: []Subsystem{nil}})
+	count := 0
+	for range svc.SubsystemsSeq() {
+		count++
+	}
+	AssertEqual(t, 0, count)
+}
+
+// moved AX-7 triplet TestMcp_Service_Tools_Good
+func TestMcp_Service_Tools_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertTrue(t, len(svc.Tools()) > 0)
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestMcp_Service_Tools_Bad
+func TestMcp_Service_Tools_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() { _ = svc.Tools() })
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_Tools_Ugly
+func TestMcp_Service_Tools_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	got := svc.Tools()
+	got[0].Name = "mutated"
+	AssertNotEqual(t, "mutated", svc.Tools()[0].Name)
+}
+
+// moved AX-7 triplet TestMcp_Service_ToolsSeq_Good
+func TestMcp_Service_ToolsSeq_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	count := 0
+	for range svc.ToolsSeq() {
+		count++
+	}
+	AssertTrue(t, count > 0)
+}
+
+// moved AX-7 triplet TestMcp_Service_ToolsSeq_Bad
+func TestMcp_Service_ToolsSeq_Bad(t *T) {
+	var svc *Service
+	AssertPanics(t, func() {
+		for range svc.ToolsSeq() {
+		}
+	})
+	AssertNil(t, svc)
+}
+
+// moved AX-7 triplet TestMcp_Service_ToolsSeq_Ugly
+func TestMcp_Service_ToolsSeq_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	count := 0
+	for range svc.ToolsSeq() {
+		count++
+	}
+	AssertEqual(t, len(svc.Tools()), count)
+}
+
+// moved AX-7 triplet TestMcp_Service_WSHub_Good
+func TestMcp_Service_WSHub_Good(t *T) {
+	hub := ws.NewHub()
+	svc := newServiceForTest(t, Options{WSHub: hub})
+	AssertEqual(t, hub, svc.WSHub())
+}
+
+// moved AX-7 triplet TestMcp_Service_WSHub_Bad
+func TestMcp_Service_WSHub_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	AssertNil(t, svc.WSHub())
+	AssertNotNil(t, svc.Server())
+}
+
+// moved AX-7 triplet TestMcp_Service_WSHub_Ugly
+func TestMcp_Service_WSHub_Ugly(t *T) {
+	hub := ws.NewHub()
+	svc := newServiceForTest(t, Options{WSHub: hub})
+	AssertEqual(t, hub, svc.WSHub())
+	AssertEqual(t, hub.Stats(), svc.WSHub().Stats())
 }

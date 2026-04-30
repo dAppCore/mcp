@@ -4,14 +4,10 @@ package agentic
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"syscall"
 	"time"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -51,7 +47,11 @@ func (s *PrepSubsystem) registerDispatchTool(svc *coremcp.Service) {
 
 // agentCommand returns the command and args for a given agent type.
 // Supports model variants: "gemini", "gemini:flash", "gemini:pro", "claude", "claude:haiku".
-func agentCommand(agent, prompt string) (string, []string, error) {
+func agentCommand(agent, prompt string) (
+	string,
+	[]string,
+	error,
+) {
 	parts := core.SplitN(agent, ":", 2)
 	base := parts[0]
 	model := ""
@@ -75,23 +75,30 @@ func agentCommand(agent, prompt string) (string, []string, error) {
 		}
 		return "claude", args, nil
 	case "local":
-		home, _ := os.UserHomeDir()
+		home := ""
+		if r := core.UserHomeDir(); r.OK {
+			home, _ = r.Value.(string)
+		}
 		script := core.Path(home, "Code", "core", "agent", "scripts", "local-agent.sh")
 		return "bash", []string{script, prompt}, nil
 	default:
-		return "", nil, coreerr.E("agentCommand", "unknown agent: "+agent, nil)
+		return "", nil, core.E("agentCommand", "unknown agent: "+agent, nil)
 	}
 }
 
-func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (*mcp.CallToolResult, DispatchOutput, error) {
+func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, input DispatchInput) (
+	*mcp.CallToolResult,
+	DispatchOutput,
+	error,
+) {
 	progress := coremcp.NewProgressNotifier(ctx, req)
 	const dispatchProgressTotal = 4
 
 	if input.Repo == "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "repo is required", nil)
+		return nil, DispatchOutput{}, core.E("dispatch", "repo is required", nil)
 	}
 	if input.Task == "" {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "task is required", nil)
+		return nil, DispatchOutput{}, core.E("dispatch", "task is required", nil)
 	}
 	if input.Org == "" {
 		input.Org = "core"
@@ -103,10 +110,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		input.Template = "coding"
 	}
 
-	_ = progress.Send(1, dispatchProgressTotal, "validated dispatch request")
+	sendProgressBestEffort(progress, 1, dispatchProgressTotal, "validated dispatch request")
 
 	// Step 1: Prep the sandboxed workspace
-	_ = progress.Send(2, dispatchProgressTotal, "preparing workspace")
+	sendProgressBestEffort(progress, 2, dispatchProgressTotal, "preparing workspace")
 	prepInput := PrepInput{
 		Repo:         input.Repo,
 		Org:          input.Org,
@@ -119,9 +126,9 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	_, prepOut, err := s.prepWorkspace(ctx, req, prepInput)
 	if err != nil {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "prep workspace failed", err)
+		return nil, DispatchOutput{}, core.E("dispatch", "prep workspace failed", err)
 	}
-	_ = progress.Send(3, dispatchProgressTotal, core.Sprintf("workspace prepared for %s", prepOut.Branch))
+	sendProgressBestEffort(progress, 3, dispatchProgressTotal, core.Sprintf("workspace prepared for %s", prepOut.Branch))
 
 	wsDir := prepOut.WorkspaceDir
 	srcDir := core.Path(wsDir, "src")
@@ -132,7 +139,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	if input.DryRun {
 		// Read PROMPT.md for the dry run output
 		promptRaw, _ := coreio.Local.Read(core.Path(wsDir, "PROMPT.md"))
-		_ = progress.Send(dispatchProgressTotal, dispatchProgressTotal, "dry run complete")
+		sendProgressBestEffort(progress, dispatchProgressTotal, dispatchProgressTotal, "dry run complete")
 		return nil, DispatchOutput{
 			Success:      true,
 			Agent:        input.Agent,
@@ -156,7 +163,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			StartedAt: time.Now(),
 			Runs:      0,
 		})
-		_ = progress.Send(dispatchProgressTotal, dispatchProgressTotal, "queued until an agent slot is available")
+		sendProgressBestEffort(progress, dispatchProgressTotal, dispatchProgressTotal, "queued until an agent slot is available")
 		return nil, DispatchOutput{
 			Success:      true,
 			Agent:        input.Agent,
@@ -179,10 +186,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		StartedAt: time.Now(),
 		Runs:      1,
 	})
-	_ = progress.Send(3.5, dispatchProgressTotal, "dispatch slot acquired")
+	sendProgressBestEffort(progress, 3.5, dispatchProgressTotal, "dispatch slot acquired")
 
 	// Step 4: Spawn agent as a detached process
-	_ = progress.Send(4, dispatchProgressTotal, core.Sprintf("spawning agent %s", input.Agent))
+	sendProgressBestEffort(progress, 4, dispatchProgressTotal, core.Sprintf("spawning agent %s", input.Agent))
 	// Uses Setpgid so the agent survives parent (MCP server) death.
 	// Output goes directly to log file (not buffered in memory).
 	command, args, err := agentCommand(input.Agent, prompt)
@@ -191,29 +198,30 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 
 	outputFile := core.Path(wsDir, core.Sprintf("agent-%s.log", input.Agent))
-	outFile, err := os.Create(outputFile)
-	if err != nil {
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to create log file", err)
+	outResult := core.Create(outputFile)
+	if !outResult.OK {
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to create log file", resultError(outResult))
 	}
+	outFile := outResult.Value.(*core.OSFile)
 
 	// Fully detach from terminal:
 	// - Setpgid: own process group
 	// - Stdin from /dev/null
 	// - TERM=dumb prevents terminal control sequences
 	// - NO_COLOR=1 disables colour output
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
+	devNullResult := core.Open("/dev/null")
+	if !devNullResult.OK {
 		outFile.Close()
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to open /dev/null", err)
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to open /dev/null", resultError(devNullResult))
 	}
+	devNull := devNullResult.Value.(*core.OSFile)
 	defer devNull.Close()
 
-	cmd := exec.Command(command, args...)
-	cmd.Dir = srcDir
+	cmd := shellCommand(context.Background(), srcDir, command, args...)
 	cmd.Stdin = devNull
 	cmd.Stdout = outFile
 	cmd.Stderr = outFile
-	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
+	cmd.Env = append(core.Environ(), "TERM=dumb", "NO_COLOR=1", "CI=true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
@@ -227,11 +235,11 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 			Issue:  input.Issue,
 			Branch: prepOut.Branch,
 		})
-		return nil, DispatchOutput{}, coreerr.E("dispatch", "failed to spawn "+input.Agent, err)
+		return nil, DispatchOutput{}, core.E("dispatch", "failed to spawn "+input.Agent, err)
 	}
 
 	pid := cmd.Process.Pid
-	_ = progress.Send(dispatchProgressTotal, dispatchProgressTotal, "agent process started")
+	sendProgressBestEffort(progress, dispatchProgressTotal, dispatchProgressTotal, "agent process started")
 
 	// Update status with PID now that agent is running
 	s.saveStatus(wsDir, &WorkspaceStatus{
@@ -300,4 +308,10 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 		PID:          pid,
 		OutputFile:   outputFile,
 	}, nil
+}
+
+func sendProgressBestEffort(progress coremcp.ProgressNotifier, current float64, total float64, message string) {
+	if err := progress.Send(current, total, message); err != nil {
+		core.Error("agentic: failed to send progress", "err", err)
+	}
 }

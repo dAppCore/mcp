@@ -19,13 +19,12 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	core "dappco.re/go"
 )
 
 const (
@@ -207,7 +206,11 @@ func NewFromEnvironment() *Client {
 	return client
 }
 
-func validateAPIURL(apiURL string) error {
+func validateAPIURL(
+	apiURL string,
+) (
+	_ error, // result
+) {
 	parsed, err := url.Parse(apiURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return core.E("brain.client", "invalid API URL", err)
@@ -222,7 +225,11 @@ func validateAPIURL(apiURL string) error {
 }
 
 // WriteBrainKey stores the OpenBrain API key at ~/.claude/brain.key with owner-only permissions.
-func WriteBrainKey(apiKey string) error {
+func WriteBrainKey(
+	apiKey string,
+) (
+	_ error, // result
+) {
 	home := core.Env("HOME")
 	if home == "" {
 		return core.E("brain.client", "HOME not set", nil)
@@ -263,14 +270,20 @@ func (breaker *CircuitBreaker) State() CircuitState {
 }
 
 // Remember stores a memory in OpenBrain.
-func (c *Client) Remember(ctx context.Context, input RememberInput) (map[string]any, error) {
+func (c *Client) Remember(ctx context.Context, input RememberInput) (
+	map[string]any,
+	error,
+) {
 	input.Org = c.orgFor(input.Org)
 	input.AgentID = c.agentFor(input.AgentID)
 	return c.Call(ctx, http.MethodPost, "/v1/brain/remember", input)
 }
 
 // Recall searches memories in OpenBrain.
-func (c *Client) Recall(ctx context.Context, input RecallInput) (map[string]any, error) {
+func (c *Client) Recall(ctx context.Context, input RecallInput) (
+	map[string]any,
+	error,
+) {
 	input.Org = c.orgFor(input.Org)
 	input.AgentID = c.agentFor(input.AgentID)
 	if input.TopK == 0 {
@@ -280,12 +293,18 @@ func (c *Client) Recall(ctx context.Context, input RecallInput) (map[string]any,
 }
 
 // Forget removes one memory from OpenBrain.
-func (c *Client) Forget(ctx context.Context, input ForgetInput) (map[string]any, error) {
+func (c *Client) Forget(ctx context.Context, input ForgetInput) (
+	map[string]any,
+	error,
+) {
 	return c.Call(ctx, http.MethodDelete, core.Concat("/v1/brain/forget/", url.PathEscape(input.ID)), nil)
 }
 
 // List returns memories from OpenBrain using URL query filters.
-func (c *Client) List(ctx context.Context, input ListInput) (map[string]any, error) {
+func (c *Client) List(ctx context.Context, input ListInput) (
+	map[string]any,
+	error,
+) {
 	input.Org = c.orgFor(input.Org)
 	if input.Limit == 0 {
 		input.Limit = defaultListLimit
@@ -308,7 +327,10 @@ func (c *Client) List(ctx context.Context, input ListInput) (map[string]any, err
 }
 
 // Call performs one OpenBrain API request through retry and circuit-breaker policy.
-func (c *Client) Call(ctx context.Context, method, path string, body any) (map[string]any, error) {
+func (c *Client) Call(ctx context.Context, method, path string, body any) (
+	map[string]any,
+	error,
+) {
 	if c.configErr != nil {
 		return nil, c.configErr
 	}
@@ -356,7 +378,13 @@ func (c *Client) Call(ctx context.Context, method, path string, body any) (map[s
 	return nil, lastErr
 }
 
-func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, hasBody bool) (map[string]any, bool, time.Duration, bool, error) {
+func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, hasBody bool) (
+	map[string]any,
+	bool,
+	time.Duration,
+	bool,
+	error,
+) {
 	var reader io.Reader
 	if hasBody {
 		reader = core.NewReader(bodyString)
@@ -411,7 +439,10 @@ func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, ha
 	return result, false, 0, false, nil
 }
 
-func (c *Client) requestURL(path string) (string, error) {
+func (c *Client) requestURL(path string) (
+	string,
+	error,
+) {
 	parsed, err := url.Parse(path)
 	if err == nil && (parsed.IsAbs() || parsed.Host != "") {
 		return "", core.E("brain.client", "absolute request URL rejected", nil)
@@ -422,20 +453,35 @@ func (c *Client) requestURL(path string) (string, error) {
 	return core.Concat(c.apiURL, path), nil
 }
 
-func (c *Client) sleep(ctx context.Context, attempt int) error {
+func (c *Client) sleep(
+	ctx context.Context,
+	attempt int,
+) (
+	_ error, // result
+) {
 	retryAttempt := attempt - 1
 	delay := jitteredBackoffDelay(c.baseDelay, retryAttempt)
 	return c.sleepFor(ctx, delay)
 }
 
-func (c *Client) sleepFor(ctx context.Context, delay time.Duration) error {
+func (c *Client) sleepFor(
+	ctx context.Context,
+	delay time.Duration,
+) (
+	_ error, // result
+) {
 	if c.sleepFunc != nil {
 		return c.sleepFunc(ctx, delay)
 	}
 	return sleepDuration(ctx, delay)
 }
 
-func sleepDuration(ctx context.Context, delay time.Duration) error {
+func sleepDuration(
+	ctx context.Context,
+	delay time.Duration,
+) (
+	_ error, // result
+) {
 	if delay <= 0 {
 		return nil
 	}
@@ -501,7 +547,9 @@ func (c *Client) agentFor(agentID string) string {
 	return c.agentID
 }
 
-func (breaker *CircuitBreaker) beforeRequest() error {
+func (breaker *CircuitBreaker) beforeRequest() (
+	_ error, // result
+) {
 	if breaker == nil {
 		return nil
 	}
@@ -621,7 +669,10 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-func apiKeyFromEnvironment() (string, error) {
+func apiKeyFromEnvironment() (
+	string,
+	error,
+) {
 	if apiKey := core.Trim(core.Env("CORE_BRAIN_KEY")); apiKey != "" {
 		return apiKey, nil
 	}
@@ -643,7 +694,10 @@ func brainKeyPath(home string) string {
 	return core.JoinPath(home, ".claude", "brain.key")
 }
 
-func readBrainKeyFile(path string) (string, error) {
+func readBrainKeyFile(path string) (
+	string,
+	error,
+) {
 	info, err := coreio.Local.Stat(path)
 	if err != nil {
 		return "", err
@@ -658,11 +712,16 @@ func readBrainKeyFile(path string) (string, error) {
 	return core.Trim(data), nil
 }
 
-func writeBrainKeyFile(path, apiKey string) error {
+func writeBrainKeyFile(
+	path,
+	apiKey string,
+) (
+	_ error, // result
+) {
 	if err := coreio.Local.WriteMode(path, core.Trim(apiKey)+"\n", brainKeyFileMode); err != nil {
 		return err
 	}
-	if err := os.Chmod(path, brainKeyFileMode); err != nil {
+	if err := syscall.Chmod(path, uint32(brainKeyFileMode)); err != nil {
 		return core.E("brain.client", "chmod brain.key", err)
 	}
 	return nil

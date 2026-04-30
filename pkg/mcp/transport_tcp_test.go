@@ -1,13 +1,14 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"net"
-	"os"
-	"strings"
 	"testing"
 	"time"
+
+	core "dappco.re/go"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
 func TestNewTCPTransport_Defaults(t *testing.T) {
@@ -53,8 +54,8 @@ func TestNormalizeTCPAddr_Good_Defaults(t *testing.T) {
 
 func TestNewTCPTransport_Warning(t *testing.T) {
 	// Capture warning output via setDiagWriter (mutex-protected, no race).
-	var buf bytes.Buffer
-	old := setDiagWriter(&buf)
+	buf := core.NewBuffer()
+	old := setDiagWriter(buf)
 	defer setDiagWriter(old)
 
 	// Trigger warning — use port 0 (OS assigns free port)
@@ -65,7 +66,7 @@ func TestNewTCPTransport_Warning(t *testing.T) {
 	defer tr.listener.Close()
 
 	output := buf.String()
-	if !strings.Contains(output, "WARNING") {
+	if !core.Contains(output, "WARNING") {
 		t.Error("Expected warning for binding to 0.0.0.0, but didn't find it in stderr")
 	}
 }
@@ -130,12 +131,11 @@ func TestRun_TCPTrigger(t *testing.T) {
 	defer cancel()
 
 	// Set MCP_ADDR to empty to trigger default TCP
-	os.Setenv("MCP_ADDR", "")
-	defer os.Unsetenv("MCP_ADDR")
+	t.Setenv("MCP_ADDR", "")
 
 	// We use a random port for testing, but Run will try to use 127.0.0.1:9100 by default if we don't override.
 	// Since 9100 might be in use, we'll set MCP_ADDR to use :0 (random port)
-	os.Setenv("MCP_ADDR", "127.0.0.1:0")
+	t.Setenv("MCP_ADDR", "127.0.0.1:0")
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -201,4 +201,182 @@ func TestServeTCP_MultipleConnections(t *testing.T) {
 	if err != nil {
 		t.Errorf("ServeTCP returned error: %v", err)
 	}
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Close_Good
+func TestTransportTcp_Connection_Close_Good(t *T) {
+	c, _, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	AssertNoError(t, c.Close())
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Close_Bad
+func TestTransportTcp_Connection_Close_Bad(t *T) {
+	var c *connConnection
+	AssertPanics(t, func() { _ = c.Close() })
+	AssertNil(t, c)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Close_Ugly
+func TestTransportTcp_Connection_Close_Ugly(t *T) {
+	c, _, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	AssertNoError(t, c.Close())
+	AssertNoError(t, c.Close())
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Read_Good
+func TestTransportTcp_Connection_Read_Good(t *T) {
+	c, right, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	go func() { _, _ = right.Write([]byte(`{"jsonrpc":"2.0","id":1,"method":"x"}` + "\n")) }()
+	msg, err := c.Read(context.Background())
+	AssertNoError(t, err)
+	AssertNotNil(t, msg)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Read_Bad
+func TestTransportTcp_Connection_Read_Bad(t *T) {
+	c, right, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	go func() { _, _ = right.Write([]byte(`bad` + "\n")) }()
+	msg, err := c.Read(context.Background())
+	AssertError(t, err)
+	AssertNil(t, msg)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Read_Ugly
+func TestTransportTcp_Connection_Read_Ugly(t *T) {
+	c, right, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	AssertNoError(t, right.Close())
+	_, err := c.Read(context.Background())
+	AssertErrorIs(t, err, io.EOF)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_SessionID_Good
+func TestTransportTcp_Connection_SessionID_Good(t *T) {
+	c, _, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	AssertContains(t, c.SessionID(), "tcp-")
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_SessionID_Bad
+func TestTransportTcp_Connection_SessionID_Bad(t *T) {
+	var c *connConnection
+	AssertPanics(t, func() { _ = c.SessionID() })
+	AssertNil(t, c)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_SessionID_Ugly
+func TestTransportTcp_Connection_SessionID_Ugly(t *T) {
+	c, _, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	AssertNotEmpty(t, c.SessionID())
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Write_Good
+func TestTransportTcp_Connection_Write_Good(t *T) {
+	c, right, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	done := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 512)
+		n, _ := right.Read(buf)
+		done <- string(buf[:n])
+	}()
+	err := c.Write(context.Background(), &jsonrpc.Request{ID: jsonRPCIDForTest(t, "1"), Method: "x"})
+	AssertNoError(t, err)
+	AssertContains(t, <-done, `"method":"x"`)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Write_Bad
+func TestTransportTcp_Connection_Write_Bad(t *T) {
+	c, _, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	err := c.Write(context.Background(), nil)
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestTransportTcp_Connection_Write_Ugly
+func TestTransportTcp_Connection_Write_Ugly(t *T) {
+	c, right, cleanup := connectionPairForTest(t)
+	defer cleanup()
+	AssertNoError(t, right.Close())
+	err := c.Write(context.Background(), &jsonrpc.Request{ID: jsonRPCIDForTest(t, "1"), Method: "x"})
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestTransportTcp_NewTCPTransport_Good
+func TestTransportTcp_NewTCPTransport_Good(t *T) {
+	tr, err := NewTCPTransport("127.0.0.1:0")
+	AssertNoError(t, err)
+	defer tr.listener.Close()
+	AssertNotNil(t, tr.listener)
+}
+
+// moved AX-7 triplet TestTransportTcp_NewTCPTransport_Bad
+func TestTransportTcp_NewTCPTransport_Bad(t *T) {
+	tr, err := NewTCPTransport("127.0.0.1:bad")
+	AssertError(t, err)
+	AssertNil(t, tr)
+}
+
+// moved AX-7 triplet TestTransportTcp_NewTCPTransport_Ugly
+func TestTransportTcp_NewTCPTransport_Ugly(t *T) {
+	tr, err := NewTCPTransport(":0")
+	AssertNoError(t, err)
+	defer tr.listener.Close()
+	AssertNotEmpty(t, tr.listener.Addr().String())
+}
+
+// moved AX-7 triplet TestTransportTcp_Service_ServeTCP_Good
+func TestTransportTcp_Service_ServeTCP_Good(t *T) {
+	svc := newServiceForTest(t, Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.ServeTCP(ctx, "127.0.0.1:0")
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestTransportTcp_Service_ServeTCP_Bad
+func TestTransportTcp_Service_ServeTCP_Bad(t *T) {
+	svc := newServiceForTest(t, Options{})
+	err := svc.ServeTCP(context.Background(), "127.0.0.1:bad")
+	AssertError(t, err)
+}
+
+// moved AX-7 triplet TestTransportTcp_Service_ServeTCP_Ugly
+func TestTransportTcp_Service_ServeTCP_Ugly(t *T) {
+	svc := newServiceForTest(t, Options{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.ServeTCP(ctx, "")
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestTransportTcp_Transport_Connect_Good
+func TestTransportTcp_Transport_Connect_Good(t *T) {
+	left, right := net.Pipe()
+	defer left.Close()
+	defer right.Close()
+	conn, err := (&connTransport{conn: left}).Connect(context.Background())
+	AssertNoError(t, err)
+	AssertNotNil(t, conn)
+}
+
+// moved AX-7 triplet TestTransportTcp_Transport_Connect_Bad
+func TestTransportTcp_Transport_Connect_Bad(t *T) {
+	conn, err := (&connTransport{}).Connect(context.Background())
+	AssertNoError(t, err)
+	AssertNotNil(t, conn)
+}
+
+// moved AX-7 triplet TestTransportTcp_Transport_Connect_Ugly
+func TestTransportTcp_Transport_Connect_Ugly(t *T) {
+	left, right := net.Pipe()
+	right.Close()
+	conn, err := (&connTransport{conn: left}).Connect(nil)
+	AssertNoError(t, err)
+	AssertNotNil(t, conn)
 }

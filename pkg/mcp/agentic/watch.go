@@ -6,8 +6,7 @@ import (
 	"context"
 	"time"
 
-	core "dappco.re/go/core"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -52,7 +51,11 @@ func (s *PrepSubsystem) registerWatchTool(svc *coremcp.Service) {
 	}, s.watch)
 }
 
-func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, input WatchInput) (*mcp.CallToolResult, WatchOutput, error) {
+func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, input WatchInput) (
+	*mcp.CallToolResult,
+	WatchOutput,
+	error,
+) {
 	pollInterval := time.Duration(input.PollInterval) * time.Second
 	if pollInterval <= 0 {
 		pollInterval = defaultWatchPollInterval
@@ -77,7 +80,7 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 	total := float64(len(targets))
 
 	sendProgress := func(current float64, status WorkspaceStatus) {
-		_ = notifier.Send(current, total, core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent))
+		sendProgressBestEffort(notifier, current, total, core.Sprintf("%s %s (%s)", status.Repo, status.Status, status.Agent))
 	}
 
 	remaining := make(map[string]struct{}, len(targets))
@@ -101,13 +104,13 @@ func (s *PrepSubsystem) watch(ctx context.Context, req *mcp.CallToolRequest, inp
 
 		select {
 		case <-ctx.Done():
-			return nil, WatchOutput{}, coreerr.E("watch", "cancelled", ctx.Err())
+			return nil, WatchOutput{}, core.E("watch", "cancelled", ctx.Err())
 		case <-time.After(pollInterval):
 		}
 
 		_, statusOut, err := s.status(ctx, req, StatusInput{})
 		if err != nil {
-			return nil, WatchOutput{}, coreerr.E("watch", "failed to refresh status", err)
+			return nil, WatchOutput{}, core.E("watch", "failed to refresh status", err)
 		}
 
 		for _, info := range statusOut.Workspaces {

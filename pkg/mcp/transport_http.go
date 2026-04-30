@@ -5,16 +5,14 @@ package mcp
 import (
 	"context"
 	// Note: AX-6 — HTTP transport boundary needs streaming JSON encode/decode against ResponseWriter and MaxBytesReader.
-	"encoding/json"
+	"github.com/goccy/go-json"
 	// Note: AX-6 — structural HTTP transport requires binding an explicit TCP listener.
 	"net"
 	// Note: AX-6 — structural HTTP transport boundary requires handlers, requests, status codes, and server lifecycle APIs.
 	"net/http"
 	"time"
 
-	core "dappco.re/go/core"
-	api "dappco.re/go/api"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -42,7 +40,12 @@ const DefaultHTTPAddr = "127.0.0.1:9101"
 //   - /v1/tools/<tool_name>: auto-mounted REST bridge for MCP tools
 //   - /health: unauthenticated health endpoint
 //   - /.well-known/mcp-servers.json: MCP portal discovery
-func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
+func (s *Service) ServeHTTP(
+	ctx context.Context,
+	addr string,
+) (
+	_ error, // result
+) {
 	if addr == "" {
 		addr = DefaultHTTPAddr
 	}
@@ -58,10 +61,8 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 		},
 	)
 
-	toolBridge := api.NewToolBridge("/v1/tools")
-	BridgeToAPI(s, toolBridge)
 	toolEngine := gin.New()
-	toolBridge.RegisterRoutes(toolEngine.Group("/v1/tools"))
+	BridgeToAPI(s, toolEngine.Group("/v1/tools"))
 	toolHandler := withAuth(authToken, toolEngine)
 
 	mux := http.NewServeMux()
@@ -76,12 +77,12 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 	// Health check (no auth)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+		writeHTTPJSON(w, map[string]any{"status": "ok"})
 	})
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return coreerr.E("mcp.ServeHTTP", "failed to listen on "+addr, err)
+		return core.E("mcp.ServeHTTP", "failed to listen on "+addr, err)
 	}
 	defer listener.Close()
 
@@ -94,11 +95,13 @@ func (s *Service) ServeHTTP(ctx context.Context, addr string) error {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			core.Error("mcp: HTTP server shutdown failed", "err", err)
+		}
 	}()
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		return coreerr.E("mcp.ServeHTTP", "server error", err)
+		return core.E("mcp.ServeHTTP", "server error", err)
 	}
 	return nil
 }
@@ -162,7 +165,7 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if apiToken == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(api.Fail("unauthorized", "authentication is not configured"))
+		writeHTTPJSON(w, restFail("unauthorized", "authentication is not configured"))
 		return
 	}
 
@@ -170,7 +173,7 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(api.Fail("invalid_request", "invalid JSON payload"))
+		writeHTTPJSON(w, restFail("invalid_request", "invalid JSON payload"))
 		return
 	}
 
@@ -181,14 +184,14 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if providedToken == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(api.Fail("invalid_request", "missing token"))
+		writeHTTPJSON(w, restFail("invalid_request", "missing token"))
 		return
 	}
 
 	if _, err := parseAuthClaims("Bearer "+providedToken, apiToken); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(api.Fail("unauthorized", "invalid API token"))
+		writeHTTPJSON(w, restFail("unauthorized", "invalid API token"))
 		return
 	}
 
@@ -206,12 +209,12 @@ func serveMCPAuthExchange(w http.ResponseWriter, r *http.Request, apiToken strin
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(api.Fail("token_error", "failed to mint token"))
+		writeHTTPJSON(w, restFail("token_error", "failed to mint token"))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(mcpAuthExchangeResponse{
+	writeHTTPJSON(w, mcpAuthExchangeResponse{
 		AccessToken: minted,
 		TokenType:   "Bearer",
 		ExpiresIn:   int64(cfg.ttl.Seconds()),
@@ -262,7 +265,7 @@ func handleMCPDiscovery(w http.ResponseWriter, r *http.Request) {
 			{
 				ID:          "core-mcp",
 				Name:        "Core MCP",
-				Description: "File ops, process and build tools, RAG search, webview, dashboards — the agent-facing MCP framework.",
+				Description: "File ops, process and build tools, RAG search, and dashboards - the agent-facing MCP framework.",
 				Connection: map[string]any{
 					"type":    "stdio",
 					"command": "core-mcp",
@@ -282,6 +285,12 @@ func handleMCPDiscovery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(api.Fail("server_error", "failed to encode discovery payload"))
+		writeHTTPJSON(w, restFail("server_error", "failed to encode discovery payload"))
+	}
+}
+
+func writeHTTPJSON(w http.ResponseWriter, value any) {
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		core.Error("mcp: failed to encode HTTP JSON", "err", err)
 	}
 }

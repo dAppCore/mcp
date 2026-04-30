@@ -4,11 +4,10 @@ package agentic
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"net/http"
 
-	core "dappco.re/go/core"
-	coreerr "dappco.re/go/log"
+	core "dappco.re/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -36,9 +35,13 @@ type ScanIssue struct {
 	URL      string   `json:"url"`
 }
 
-func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input ScanInput) (*mcp.CallToolResult, ScanOutput, error) {
+func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input ScanInput) (
+	*mcp.CallToolResult,
+	ScanOutput,
+	error,
+) {
 	if s.forgeToken == "" {
-		return nil, ScanOutput{}, coreerr.E("scan", "no Forge token configured", nil)
+		return nil, ScanOutput{}, core.E("scan", "no Forge token configured", nil)
 	}
 
 	if input.Org == "" {
@@ -98,18 +101,21 @@ func (s *PrepSubsystem) scan(ctx context.Context, _ *mcp.CallToolRequest, input 
 	}, nil
 }
 
-func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string, error) {
+func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) (
+	[]string,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/orgs/%s/repos?limit=50", s.forgeURL, org)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Set("Authorization", "token "+s.forgeToken)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, coreerr.E("listOrgRepos", "failed to list repos", err)
+		return nil, core.E("listOrgRepos", "failed to list repos", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listOrgRepos", core.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
+		return nil, core.E("listOrgRepos", core.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
 	}
 
 	var repos []struct {
@@ -124,7 +130,10 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) ([]string,
 	return names, nil
 }
 
-func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label string) ([]ScanIssue, error) {
+func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label string) (
+	[]ScanIssue,
+	error,
+) {
 	url := core.Sprintf("%s/api/v1/repos/%s/%s/issues?state=open&labels=%s&limit=10&type=issues",
 		s.forgeURL, org, repo, label)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -132,11 +141,11 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, coreerr.E("listRepoIssues", "failed to list issues for "+repo, err)
+		return nil, core.E("listRepoIssues", "failed to list issues for "+repo, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, coreerr.E("listRepoIssues", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
+		return nil, core.E("listRepoIssues", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
 
 	var issues []struct {

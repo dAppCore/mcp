@@ -4,9 +4,9 @@ package agentic
 
 import (
 	"context"
-	"strings"
 	"testing"
 
+	. "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 )
 
@@ -72,7 +72,7 @@ func TestPrepWorkspace_Bad_BadRepoTraversal(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "repo") {
+	if !Contains(Lower(err.Error()), "repo") {
 		t.Fatalf("expected repo error, got %q", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestPrepWorkspace_Bad_BadPersonaTraversal(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "persona") {
+	if !Contains(Lower(err.Error()), "persona") {
 		t.Fatalf("expected persona error, got %q", err)
 	}
 }
@@ -102,7 +102,7 @@ func TestPrepWorkspace_Bad_BadPlanTemplateTraversal(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "plan_template") {
+	if !Contains(Lower(err.Error()), "plan_template") {
 		t.Fatalf("expected plan template error, got %q", err)
 	}
 }
@@ -148,4 +148,116 @@ func TestEmitHarvestComplete_Good_EmitsChannelEvents(t *testing.T) {
 	if payload["issue_created"] != true {
 		t.Fatalf("expected issue_created true, got %#v", payload["issue_created"])
 	}
+}
+
+// moved AX-7 triplet TestPrep_NewPrep_Good
+func TestPrep_NewPrep_Good(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	sub := NewPrep()
+	AssertNotNil(t, sub)
+	AssertEqual(t, "agentic", sub.Name())
+}
+
+// moved AX-7 triplet TestPrep_NewPrep_Bad
+func TestPrep_NewPrep_Bad(t *T) {
+	t.Setenv("HOME", "")
+	sub := NewPrep()
+	AssertNotNil(t, sub)
+	AssertNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestPrep_NewPrep_Ugly
+func TestPrep_NewPrep_Ugly(t *T) {
+	t.Setenv("HOME", t.TempDir())
+	first := NewPrep()
+	second := NewPrep()
+	AssertNotNil(t, first)
+	AssertNotNil(t, second)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_Name_Good
+func TestPrep_PrepSubsystem_Name_Good(t *T) {
+	sub := &PrepSubsystem{}
+	AssertEqual(t, "agentic", sub.Name())
+	AssertNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_Name_Bad
+func TestPrep_PrepSubsystem_Name_Bad(t *T) {
+	var sub *PrepSubsystem
+	AssertEqual(t, "agentic", sub.Name())
+	AssertNil(t, sub)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_Name_Ugly
+func TestPrep_PrepSubsystem_Name_Ugly(t *T) {
+	sub := NewPrep()
+	AssertEqual(t, "agentic", sub.Name())
+	AssertNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_RegisterTools_Good
+func TestPrep_PrepSubsystem_RegisterTools_Good(t *T) {
+	svc := agenticMCPServiceForTest(t)
+	sub := NewPrep()
+	sub.RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_RegisterTools_Bad
+func TestPrep_PrepSubsystem_RegisterTools_Bad(t *T) {
+	sub := NewPrep()
+	AssertPanics(t, func() { sub.RegisterTools(nil) })
+	AssertEqual(t, "agentic", sub.Name())
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_RegisterTools_Ugly
+func TestPrep_PrepSubsystem_RegisterTools_Ugly(t *T) {
+	svc := agenticMCPServiceForTest(t)
+	sub := &PrepSubsystem{}
+	sub.RegisterTools(svc)
+	AssertTrue(t, len(svc.Tools()) > 0)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_SetNotifier_Good
+func TestPrep_PrepSubsystem_SetNotifier_Good(t *T) {
+	sub := NewPrep()
+	svc := agenticMCPServiceForTest(t)
+	sub.SetNotifier(svc)
+	AssertEqual(t, svc, sub.notifier)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_SetNotifier_Bad
+func TestPrep_PrepSubsystem_SetNotifier_Bad(t *T) {
+	sub := NewPrep()
+	sub.SetNotifier(nil)
+	AssertNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_SetNotifier_Ugly
+func TestPrep_PrepSubsystem_SetNotifier_Ugly(t *T) {
+	sub := &PrepSubsystem{}
+	sub.SetNotifier(agenticMCPServiceForTest(t))
+	AssertNotNil(t, sub.notifier)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_Shutdown_Good
+func TestPrep_PrepSubsystem_Shutdown_Good(t *T) {
+	sub := NewPrep()
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_Shutdown_Bad
+func TestPrep_PrepSubsystem_Shutdown_Bad(t *T) {
+	sub := NewPrep()
+	err := sub.Shutdown(nil)
+	AssertNoError(t, err)
+}
+
+// moved AX-7 triplet TestPrep_PrepSubsystem_Shutdown_Ugly
+func TestPrep_PrepSubsystem_Shutdown_Ugly(t *T) {
+	var sub *PrepSubsystem
+	err := sub.Shutdown(context.Background())
+	AssertNoError(t, err)
 }

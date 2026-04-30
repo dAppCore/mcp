@@ -350,7 +350,8 @@ func TestToolsProcess_ProcessRun_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = svc.processRun(t.Context(), nil, ProcessRunInput{Command: "echo", Args: []string{"hi"}})
+	ProcessRun := svc.processRun
+	_, _, err = ProcessRun(t.Context(), nil, ProcessRunInput{Command: "echo", Args: []string{"hi"}})
 	if err == nil {
 		t.Fatal("expected error when process service is unavailable")
 	}

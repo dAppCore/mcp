@@ -3,8 +3,8 @@
 package mcp
 
 import (
-	"encoding/json"
-	"fmt"
+	core "dappco.re/go"
+	"github.com/goccy/go-json"
 )
 
 // AnthropicTransformer maps Anthropic Messages requests and responses.
@@ -23,16 +23,19 @@ func (AnthropicTransformer) Detect(body []byte, contentType, path string) bool {
 	return looksAnthropicBody(body) || messagesHaveNoSystemRole(body)
 }
 
-func (AnthropicTransformer) Normalise(body []byte) (MCPRequest, error) {
+func (AnthropicTransformer) Normalise(body []byte) (
+	MCPRequest,
+	error,
+) {
 	var req anthropicMessagesRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return MCPRequest{}, err
 	}
 	if req.Model == "" {
-		return MCPRequest{}, fmt.Errorf("anthropic messages request missing model")
+		return MCPRequest{}, core.NewError("anthropic messages request missing model")
 	}
 	if len(req.Messages) == 0 {
-		return MCPRequest{}, fmt.Errorf("anthropic messages request missing messages")
+		return MCPRequest{}, core.NewError("anthropic messages request missing messages")
 	}
 
 	params := map[string]any{
@@ -68,7 +71,10 @@ func (AnthropicTransformer) Normalise(body []byte) (MCPRequest, error) {
 	return MCPRequest{JSONRPC: "2.0", Method: "sampling/createMessage", Params: params}, nil
 }
 
-func (AnthropicTransformer) Transform(result MCPResult) ([]byte, error) {
+func (AnthropicTransformer) Transform(result MCPResult) (
+	[]byte,
+	error,
+) {
 	text := extractMCPText(result)
 	toolCalls := extractMCPToolCalls(result)
 
@@ -82,7 +88,7 @@ func (AnthropicTransformer) Transform(result MCPResult) ([]byte, error) {
 	for i, call := range toolCalls {
 		id := call.ID
 		if id == "" {
-			id = fmt.Sprintf("toolu_%d", i)
+			id = core.Sprintf("toolu_%d", i)
 		}
 		content = append(content, map[string]any{
 			"type":  "tool_use",
@@ -234,5 +240,5 @@ func anthropicResponseID(id any) string {
 	if id == nil {
 		return "msg_mcp"
 	}
-	return fmt.Sprintf("msg_%v", id)
+	return core.Sprintf("msg_%v", id)
 }

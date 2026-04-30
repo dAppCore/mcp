@@ -17,7 +17,8 @@ func TestToolsWebviewEmbed_WebviewRender_Good(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, out, err := svc.webviewRender(context.Background(), nil, WebviewRenderInput{
+	WebviewRender := svc.webviewRender
+	_, out, err := WebviewRender(context.Background(), nil, WebviewRenderInput{
 		ViewID: "dashboard",
 		HTML:   "<p>hello</p>",
 		Title:  "Demo",
@@ -57,7 +58,8 @@ func TestToolsWebviewEmbed_WebviewRender_Bad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = svc.webviewRender(context.Background(), nil, WebviewRenderInput{})
+	WebviewRender := svc.webviewRender
+	_, _, err = WebviewRender(context.Background(), nil, WebviewRenderInput{})
 	if err == nil {
 		t.Fatal("expected error for empty view_id")
 	}
@@ -82,7 +84,8 @@ func TestToolsWebviewEmbed_WebviewUpdate_Good(t *testing.T) {
 		t.Fatalf("seed render failed: %v", err)
 	}
 
-	_, out, err := svc.webviewUpdate(context.Background(), nil, WebviewUpdateInput{
+	WebviewUpdate := svc.webviewUpdate
+	_, out, err := WebviewUpdate(context.Background(), nil, WebviewUpdateInput{
 		ViewID: "dashboard",
 		State:  map[string]any{"theme": "dark"},
 		Merge:  true,
@@ -116,7 +119,8 @@ func TestToolsWebviewEmbed_WebviewUpdate_Ugly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, out, err := svc.webviewUpdate(context.Background(), nil, WebviewUpdateInput{
+	WebviewUpdate := svc.webviewUpdate
+	_, out, err := WebviewUpdate(context.Background(), nil, WebviewUpdateInput{
 		ViewID: "ghost",
 		HTML:   "<p>new</p>",
 	})

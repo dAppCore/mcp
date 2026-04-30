@@ -6,8 +6,7 @@ import (
 	"context"
 	"net/http"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/io"
+	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
 )
 
