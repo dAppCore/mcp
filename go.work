@@ -6,9 +6,9 @@ go 1.26.2
 use (
 	./go
 	./external/go
-	./external/io
-	./external/log
-	./external/process
-	./external/rag
-	./external/ws
+	./external/io/go
+	./external/log/go
+	./external/process/go
+	./external/rag/go
+	./external/ws/go
 )
