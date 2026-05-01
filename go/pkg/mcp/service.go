@@ -11,7 +11,33 @@ import (
 	"dappco.re/go/ws"
 )
 
-// Register is the service factory for core.WithService.
+// NewService returns a factory that constructs the MCP Service from
+// explicit Options and produces a *Service ready for c.Service()
+// registration via core.WithName. Use NewService when wiring MCP with
+// known subsystems / dependencies, e.g. inside a top-level binary that
+// owns the construction order.
+//
+//	c, _ := core.New(
+//	    core.WithName("mcp", mcp.NewService(mcp.Options{
+//	        WorkspaceRoot: "/srv/app",
+//	        ProcessService: ps,
+//	    })),
+//	)
+//
+// For the discovery-based path that picks subsystems off the already-
+// registered services on Core, use Register instead.
+func NewService(opts Options) func(*core.Core) core.Result {
+	return func(c *core.Core) core.Result {
+		svc, err := New(opts)
+		if err != nil {
+			return core.Fail(err)
+		}
+		svc.ServiceRuntime = core.NewServiceRuntime(c, struct{}{})
+		return core.Ok(svc)
+	}
+}
+
+// Register is the discovery-based service factory for core.WithService.
 // Creates the MCP service, discovers subsystems from other Core services,
 // and wires optional process and WebSocket dependencies when they are
 // already registered in Core.
@@ -22,6 +48,9 @@ import (
 //	    core.WithService(brain.Register),
 //	    core.WithService(mcp.Register),
 //	)
+//
+// Prefer Register when callers don't have direct handles to the
+// dependent services; prefer NewService(opts) when they do.
 func Register(c *core.Core) core.Result {
 	// Collect subsystems from registered services
 	var subsystems []Subsystem
