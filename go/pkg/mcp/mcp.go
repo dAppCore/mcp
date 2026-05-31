@@ -804,8 +804,10 @@ func supportedLanguages() []LanguageInfo {
 //	os.Setenv("MCP_UNIX_SOCKET", "/tmp/core-mcp.sock")
 //	svc.Run(ctx)
 //
-//	// HTTP (set MCP_HTTP_ADDR):
+//	// HTTP+SSE served transport (fail-closed — both env vars mandatory):
 //	os.Setenv("MCP_HTTP_ADDR", "127.0.0.1:9101")
+//	os.Setenv("MCP_AUTH_TOKEN", "sk-abc123")
+//	os.Setenv("MCP_JWT_SECRET", "a-distinct-signing-key")
 //	svc.Run(ctx)
 func (s *Service) Run(
 	ctx context.Context,
