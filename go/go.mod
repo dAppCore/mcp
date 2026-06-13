@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	dappco.re/go v0.10.3
+	dappco.re/go v0.10.4
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
