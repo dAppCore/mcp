@@ -66,14 +66,20 @@ type authConfig struct {
 	ttl      time.Duration
 }
 
+// currentAuthConfig derives the served-transport auth configuration from the
+// environment. The JWT signing secret is read from MCP_JWT_SECRET and is
+// deliberately NOT allowed to fall back to the API token: conflating the
+// bearer credential with the JWT signing key means a leak of one is a leak of
+// both, and lets any API-token holder self-mint tool:* claims. A served
+// transport with an empty secret cannot verify or mint JWTs (see
+// servedAuthConfigError, enforced at ServeHTTP startup).
+//
+//	cfg := currentAuthConfig(core.Env("MCP_AUTH_TOKEN"))
 func currentAuthConfig(apiToken string) authConfig {
 	cfg := authConfig{
 		apiToken: apiToken,
 		secret:   []byte(core.Env(authJWTSecretEnv)),
 		ttl:      authDefaultJWTTTL,
-	}
-	if len(cfg.secret) == 0 {
-		cfg.secret = []byte(apiToken)
 	}
 	if ttlRaw := core.Trim(core.Env(authJWTTTLSecondsEnv)); ttlRaw != "" {
 		if ttlVal, err := strconv.Atoi(ttlRaw); err == nil && ttlVal > 0 {
@@ -81,6 +87,33 @@ func currentAuthConfig(apiToken string) authConfig {
 		}
 	}
 	return cfg
+}
+
+// servedAuthConfigError validates the auth configuration the served HTTP+SSE
+// transport requires before it is allowed to bind a listener. The served,
+// multi-client transport refuses to start fail-open: it requires a non-empty
+// MCP_AUTH_TOKEN bearer credential AND a distinct MCP_JWT_SECRET signing key.
+// Returns nil only when both are present.
+//
+//	if err := servedAuthConfigError(); err != nil {
+//	    return err // ServeHTTP refuses to bind
+//	}
+func servedAuthConfigError() error {
+	if core.Trim(core.Env("MCP_AUTH_TOKEN")) == "" {
+		return core.E(
+			"mcp.servedAuth",
+			"served MCP HTTP+SSE transport refuses to serve without MCP_AUTH_TOKEN (fail-closed; set a bearer secret)",
+			nil,
+		)
+	}
+	if len(core.Env(authJWTSecretEnv)) == 0 {
+		return core.E(
+			"mcp.servedAuth",
+			"served MCP HTTP+SSE transport refuses to serve without a distinct "+authJWTSecretEnv+" (no API-token fallback; set a separate signing key)",
+			nil,
+		)
+	}
+	return nil
 }
 
 func extractBearerToken(raw string) string {
@@ -370,6 +403,12 @@ func workspaceFromMap(v reflect.Value) string {
 		}
 		if mapKey.IsValid() {
 			raw := v.MapIndex(mapKey)
+			// Unwrap interface values: a map[string]any value reports Kind
+			// Interface, not String — without this the workspace scope
+			// silently fails open for the common map[string]any input shape.
+			for raw.IsValid() && raw.Kind() == reflect.Interface && !raw.IsNil() {
+				raw = raw.Elem()
+			}
 			if raw.IsValid() && raw.Kind() == reflect.String {
 				return core.Trim(raw.String())
 			}

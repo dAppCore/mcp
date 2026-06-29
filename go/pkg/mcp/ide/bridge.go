@@ -48,7 +48,11 @@ type Bridge struct {
 //
 //	bridge := NewBridge(hub, cfg)
 func NewBridge(hub *ws.Hub, cfg Config) *Bridge {
-	return &Bridge{cfg: cfg, hub: hub}
+	// WithDefaults guarantees non-zero reconnect intervals. Without it a raw
+	// Config{} leaves ReconnectInterval at 0, and connectLoop's backoff
+	// (min(delay*2, max)) stays pinned at 0 → a tight reconnect flood. Callers
+	// that build the Config inline (e.g. the agent hub) rely on this.
+	return &Bridge{cfg: cfg.WithDefaults(), hub: hub}
 }
 
 // SetObserver registers a callback for inbound bridge messages.

@@ -23,15 +23,20 @@ import (
 const DefaultHTTPAddr = "127.0.0.1:9101"
 
 // ServeHTTP starts the MCP server with Streamable HTTP transport.
-// Supports Bearer token authentication via MCP_AUTH_TOKEN env var.
-// If no token is set, authentication is disabled (local development mode).
 //
-//	// Local development (no auth):
-//	svc.ServeHTTP(ctx, "127.0.0.1:9101")
+// This is the served, multi-client MCP plane and it is FAIL-CLOSED: it refuses
+// to bind a listener unless a bearer credential and a distinct JWT signing key
+// are both configured. Set MCP_AUTH_TOKEN (the per-request Bearer secret) and
+// MCP_JWT_SECRET (a key distinct from the API token, used to sign/verify minted
+// JWTs). With either absent, ServeHTTP returns an error and never opens a
+// socket — there is no unauthenticated open-listener mode on this transport.
+// The stdio transport (single-client, OS-isolated pipe) keeps its permissive
+// default; the served HTTP path does not.
 //
-//	// Production (with auth):
+//	// Served transport (mandatory auth — both env vars required):
 //	os.Setenv("MCP_AUTH_TOKEN", "sk-abc123")
-//	svc.ServeHTTP(ctx, "0.0.0.0:9101")
+//	os.Setenv("MCP_JWT_SECRET", "a-distinct-signing-key")
+//	svc.ServeHTTP(ctx, "127.0.0.1:9101")
 //
 // Endpoint /mcp: GET (SSE stream), POST (JSON-RPC), DELETE (terminate session).
 //
@@ -48,6 +53,12 @@ func (s *Service) ServeHTTP(
 ) {
 	if addr == "" {
 		addr = DefaultHTTPAddr
+	}
+
+	// Fail-closed: the served transport refuses to bind without a bearer
+	// credential AND a distinct JWT signing secret (S1.1 + S1.3).
+	if err := servedAuthConfigError(); err != nil {
+		return err
 	}
 
 	authToken := core.Env("MCP_AUTH_TOKEN")
