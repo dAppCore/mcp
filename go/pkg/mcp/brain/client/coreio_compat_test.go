@@ -61,7 +61,7 @@ func TestCoreioCompat_CoreFS_WriteMode_Good(t *T) {
 	fs := localFSForTest(t)
 	err := fs.WriteMode("a.txt", "ok", core.FileMode(0o600))
 	AssertNoError(t, err)
-	AssertTrue(t, fs.fs.IsFile("a.txt"))
+	AssertTrue(t, fs.fs.IsFile("a.txt").OK)
 }
 
 // moved AX-7 triplet TestCoreioCompat_CoreFS_WriteMode_Bad
@@ -77,5 +77,5 @@ func TestCoreioCompat_CoreFS_WriteMode_Ugly(t *T) {
 	AssertTrue(t, fs.fs.EnsureDir("nested").OK)
 	err := fs.WriteMode("nested/a.txt", "", core.FileMode(0o600))
 	AssertNoError(t, err)
-	AssertTrue(t, fs.fs.IsFile("nested/a.txt"))
+	AssertTrue(t, fs.fs.IsFile("nested/a.txt").OK)
 }
