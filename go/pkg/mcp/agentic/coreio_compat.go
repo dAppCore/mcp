@@ -75,7 +75,7 @@ func (l *localCoreFS) List(path string) (
 }
 
 func (l *localCoreFS) IsFile(path string) bool {
-	return l.fs.IsFile(path)
+	return l.fs.IsFile(path).OK
 }
 
 func (l *localCoreFS) Delete(

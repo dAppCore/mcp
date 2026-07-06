@@ -306,7 +306,7 @@ func discoverClaudeMdFiles(codePath string) []string {
 	var files []string
 
 	// Walk up to 4 levels deep, skip node_modules/vendor/.claude
-	if err := core.PathWalkDir(codePath, func(path string, d core.FsDirEntry, err error) error {
+	if r := core.PathWalkDir(codePath, func(path string, d core.FsDirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -330,8 +330,8 @@ func discoverClaudeMdFiles(codePath string) []string {
 			files = append(files, path)
 		}
 		return nil
-	}); err != nil {
-		core.Error("brain-seed: failed to discover CLAUDE.md files", `path`, codePath, "err", err)
+	}); !r.OK {
+		core.Error("brain-seed: failed to discover CLAUDE.md files", `path`, codePath, "err", r.Error())
 	}
 
 	return files

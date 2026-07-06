@@ -3,10 +3,10 @@ module dappco.re/go/mcp
 go 1.26.2
 
 require (
-	dappco.re/go/io v0.9.0
-	dappco.re/go/process v0.10.0
-	dappco.re/go/rag v0.10.0
-	dappco.re/go/ws v0.5.0
+	dappco.re/go/io v0.13.1
+	dappco.re/go/process v0.16.1
+	dappco.re/go/rag v0.15.1
+	dappco.re/go/ws v0.7.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.5.0
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	dappco.re/go/log v0.9.0 // indirect
+	dappco.re/go/log v0.13.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	dappco.re/go v0.10.4
+	dappco.re/go v0.11.0
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
