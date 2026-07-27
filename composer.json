@@ -1,11 +1,16 @@
 {
-    "name": "lthn/mcp",
-    "description": "Model Context Protocol — Laravel MCP server + standalone Go binary",
-    "keywords": ["mcp", "ai", "laravel", "model-context-protocol"],
+    "name": "dappcore/mcp",
+    "description": "Model Context Protocol \u2014 Laravel MCP server + standalone Go binary",
+    "keywords": [
+        "mcp",
+        "ai",
+        "laravel",
+        "model-context-protocol"
+    ],
     "license": "EUPL-1.2",
     "require": {
         "php": "^8.2",
-        "lthn/php": "*"
+        "dappcore/php": "*"
     },
     "autoload": {
         "psr-4": {
