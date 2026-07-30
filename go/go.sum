@@ -1,7 +1,7 @@
-dappco.re/go v0.11.0 h1:ag+nt9p9vP+J+GKxLu+o+pBDRADlVVWKs34zPZhXMJ4=
-dappco.re/go v0.11.0/go.mod h1:xapr7fLK4/9Pu2iSCr4qZuIuatmtx1j56zS/oPDbGyQ=
-dappco.re/go/io v0.13.1 h1:sDihlOLHTO74EQXD8omskwp6nKQA2dpyjN7wryhXyZ4=
-dappco.re/go/io v0.13.1/go.mod h1:qZyzV46BQWKai4+Tf4Yfpac0yTkAEUye8XCTk3vILzU=
+dappco.re/go v0.12.0 h1:lotJop5nvhrIQ1J2L5IP37H72ihnQnIjNzFT0iMEfx0=
+dappco.re/go v0.12.0/go.mod h1:xapr7fLK4/9Pu2iSCr4qZuIuatmtx1j56zS/oPDbGyQ=
+dappco.re/go/io v0.15.3 h1:cG+pHjzi1jja99rPRiTG3DYFxQ9XUognHr8rNrPofGg=
+dappco.re/go/io v0.15.3/go.mod h1:I2kYHxtgactjcyih9TYQADA8jLE3NjfZHbwCVwQ3KyE=
 dappco.re/go/log v0.13.1 h1:sfrB1hrxODsCo0A8psIvBqDkQD2mpoQ8S5S72zO2KlI=
 dappco.re/go/log v0.13.1/go.mod h1:FBMMEdmIvbXfvv3qOdW6acFnwMFgTw56csevEIELi/c=
 dappco.re/go/process v0.16.1 h1:CMsiDrY7cMKd8B9UtUh0WIG9FkuNJ2wlz2x80KS20p4=

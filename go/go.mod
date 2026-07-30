@@ -3,7 +3,7 @@ module dappco.re/go/mcp
 go 1.26.2
 
 require (
-	dappco.re/go/io v0.13.1
+	dappco.re/go/io v0.15.3
 	dappco.re/go/process v0.16.1
 	dappco.re/go/rag v0.15.1
 	dappco.re/go/ws v0.7.1
@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	dappco.re/go v0.11.0
+	dappco.re/go v0.12.0
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
