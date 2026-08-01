@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/goccy/go-json"
 	"net/http"
+	"slices"
 
 	core "dappco.re/go"
 	coremcp "dappco.re/go/mcp/pkg/mcp"
@@ -77,13 +78,7 @@ func (s *PrepSubsystem) createEpic(ctx context.Context, req *mcp.CallToolRequest
 
 	// Ensure "agentic" label exists
 	labels := input.Labels
-	hasAgentic := false
-	for _, l := range labels {
-		if l == "agentic" {
-			hasAgentic = true
-			break
-		}
-	}
+	hasAgentic := slices.Contains(labels, "agentic")
 	if !hasAgentic {
 		labels = append(labels, "agentic")
 	}

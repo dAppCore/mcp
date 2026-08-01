@@ -301,10 +301,7 @@ func (s *Service) ragRetrieve(ctx context.Context, req *mcp.CallToolRequest, inp
 	// will rank highly, and we then keep only chunks whose Source matches.
 	// Over-fetch by an order of magnitude so document-level limits are met
 	// even when the source appears beyond the top-K of the raw query.
-	overfetch := limit * 10
-	if overfetch < 100 {
-		overfetch = 100
-	}
+	overfetch := max(limit*10, 100)
 
 	queryResult := rag.QueryDocs(ctx, input.Source, collection, overfetch)
 	if !queryResult.OK {

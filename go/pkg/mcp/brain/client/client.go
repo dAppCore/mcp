@@ -519,7 +519,7 @@ func backoffDelayLimit(baseDelay time.Duration, attempt int) time.Duration {
 	}
 
 	delay := baseDelay
-	for i := 0; i < attempt; i++ {
+	for range attempt {
 		if delay >= maxBackoffDelay/2 {
 			return maxBackoffDelay
 		}

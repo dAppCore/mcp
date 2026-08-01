@@ -64,8 +64,7 @@ func TestHandleIPCEvents_Good_ForwardsProcessActions(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {
@@ -160,8 +159,7 @@ func TestHandleIPCEvents_Good_ForwardsProcessOutput(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {
@@ -245,8 +243,7 @@ func TestHandleIPCEvents_Good_ForwardsTestResult(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {

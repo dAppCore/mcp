@@ -53,7 +53,7 @@ type RememberOutput struct {
 type RecallInput struct {
 	Query  string       `json:"query"`
 	TopK   int          `json:"top_k,omitempty"`
-	Filter RecallFilter `json:"filter,omitempty"`
+	Filter RecallFilter `json:"filter"`
 }
 
 // RecallFilter holds optional filter criteria for brain_recall.

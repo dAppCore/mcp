@@ -342,7 +342,7 @@ func sessionMCPConnection(session *mcp.ServerSession) (
 	error,
 ) {
 	value := reflect.ValueOf(session)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
+	if value.Kind() != reflect.Pointer || value.IsNil() {
 		return nil, coreNotifyError("invalid session")
 	}
 
@@ -359,7 +359,7 @@ func sessionJSONRPCConnection(session *mcp.ServerSession) (
 	error,
 ) {
 	value := reflect.ValueOf(session)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
+	if value.Kind() != reflect.Pointer || value.IsNil() {
 		return nil, coreNotifyError("invalid session")
 	}
 

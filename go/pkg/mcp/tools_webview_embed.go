@@ -4,6 +4,7 @@ package mcp
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -187,9 +188,7 @@ func (s *Service) webviewUpdate(ctx context.Context, req *mcp.CallToolRequest, i
 			if view.State == nil {
 				view.State = map[string]any{}
 			}
-			for k, v := range input.State {
-				view.State[k] = v
-			}
+			maps.Copy(view.State, input.State)
 		} else {
 			view.State = cloneStateMap(input.State)
 		}
@@ -224,9 +223,7 @@ func cloneStateMap(in map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
+	maps.Copy(out, in)
 	return out
 }
 

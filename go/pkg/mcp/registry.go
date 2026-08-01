@@ -229,7 +229,6 @@ func schemaForType(t reflect.Type, seen map[reflect.Type]bool) map[string]any {
 		required := make([]string, 0, t.NumField())
 
 		for f := range t.Fields() {
-			f := f
 			if !f.IsExported() {
 				continue
 			}
@@ -310,5 +309,5 @@ func cloneSeenSet(seen map[reflect.Type]bool) map[reflect.Type]bool {
 }
 
 func isTimeType(t reflect.Type) bool {
-	return t == reflect.TypeOf(time.Time{})
+	return t == reflect.TypeFor[time.Time]()
 }

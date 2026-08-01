@@ -109,10 +109,8 @@ func TestMcp_New_Ugly_ConcurrentConstruction(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range workers {
+		wg.Go(func() {
 			s, err := New(Options{WorkspaceRoot: tmpDir})
 			if err != nil {
 				errs <- err
@@ -121,7 +119,7 @@ func TestMcp_New_Ugly_ConcurrentConstruction(t *testing.T) {
 			if s.workspaceRoot != tmpDir || s.medium == nil {
 				errs <- core.NewError("invalid service")
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -312,7 +310,7 @@ func TestMcp_Medium_Ugly_ConcurrentReadWrite(t *testing.T) {
 	const workers = 8
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -384,7 +382,7 @@ func TestMcp_Medium_Ugly_EnsureDirIdempotentNestedBoundary(t *testing.T) {
 		t.Fatalf("Failed to create service: %v", err)
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if err := s.medium.EnsureDir("subdir/nested"); err != nil {
 			t.Fatalf("EnsureDir call %d failed: %v", i+1, err)
 		}

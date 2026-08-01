@@ -41,7 +41,7 @@ type ReviewResult struct {
 // RateLimitInfo tracks review rate limit state.
 type RateLimitInfo struct {
 	Limited bool      `json:"limited"`
-	RetryAt time.Time `json:"retry_at,omitempty"`
+	RetryAt time.Time `json:"retry_at"`
 	Message string    `json:"message,omitempty"`
 }
 

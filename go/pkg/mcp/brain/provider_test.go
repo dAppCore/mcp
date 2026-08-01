@@ -5,6 +5,7 @@ package brain
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	coremcp "dappco.re/go/mcp/pkg/mcp"
@@ -17,13 +18,7 @@ func TestBrainProviderChannels_Good_IncludesListComplete(t *testing.T) {
 	p := NewProvider(nil, nil)
 
 	channels := p.Channels()
-	found := false
-	for _, channel := range channels {
-		if channel == "brain.list.complete" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(channels, "brain.list.complete")
 
 	if !found {
 		t.Fatalf("expected brain.list.complete in provider channels: %#v", channels)

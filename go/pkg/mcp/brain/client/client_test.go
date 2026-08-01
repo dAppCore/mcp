@@ -307,7 +307,7 @@ func TestClientSleep_Good_AppliesJitterAcrossClients(t *testing.T) {
 		return nil
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		if err := c1.sleep(ctx, 3); err != nil {
 			t.Fatalf("first client sleep failed: %v", err)
 		}
@@ -331,7 +331,7 @@ func TestJitteredBackoffDelay_Good_CapsHighAttempt(t *testing.T) {
 	if limit := backoffDelayLimit(defaultBaseDelay, 20); limit != maxBackoffDelay {
 		t.Fatalf("expected high-attempt backoff limit %v, got %v", maxBackoffDelay, limit)
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		if delay := jitteredBackoffDelay(defaultBaseDelay, 20); delay < 0 || delay > maxBackoffDelay {
 			t.Fatalf("expected high-attempt jitter <= %v, got %v", maxBackoffDelay, delay)
 		}
@@ -343,7 +343,7 @@ func TestJitteredBackoffDelay_Good_UsesFullJitterRange(t *testing.T) {
 	if got := backoffDelayLimit(100*time.Millisecond, 3); got != limit {
 		t.Fatalf("expected attempt 3 backoff limit %v, got %v", limit, got)
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		if delay := jitteredBackoffDelay(100*time.Millisecond, 3); delay < 0 || delay > limit {
 			t.Fatalf("expected jitter in [0, %v], got %v", limit, delay)
 		}

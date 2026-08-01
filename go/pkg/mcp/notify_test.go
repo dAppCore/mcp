@@ -177,8 +177,7 @@ func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {
@@ -279,8 +278,7 @@ func TestChannelSendToSession_Good_CustomNotification(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {
@@ -342,8 +340,7 @@ func TestChannelSendToClient_Good_CustomNotification(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {
@@ -390,8 +387,7 @@ func TestSendNotificationToClient_Good_CustomNotification(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	session, err := svc.server.Connect(ctx, &connTransport{conn: serverConn}, nil)
 	if err != nil {
@@ -517,8 +513,7 @@ func TestSendNotificationToAllClients_Good_BroadcastsToMultipleSessions(t *testi
 		t.Fatalf("New() failed: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cancel1, session1, clientConn1 := connectNotificationSession(t, svc)
 	defer cancel1()

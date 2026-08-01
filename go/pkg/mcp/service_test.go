@@ -168,4 +168,3 @@ func TestService_Service_HandleIPCEvents_Ugly(t *core.T) {
 		t.FailNow()
 	}
 }
-

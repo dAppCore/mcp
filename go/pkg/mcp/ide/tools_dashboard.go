@@ -4,6 +4,7 @@ package ide
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -287,9 +288,7 @@ func (s *Subsystem) dashboardState(_ context.Context, _ *mcp.CallToolRequest, _ 
 	defer dashboardStateMu.RUnlock()
 
 	snapshot := make(map[string]any, len(dashboardStateStore))
-	for k, v := range dashboardStateStore {
-		snapshot[k] = v
-	}
+	maps.Copy(snapshot, dashboardStateStore)
 
 	return nil, DashboardStateOutput{
 		State:     snapshot,
@@ -312,15 +311,11 @@ func (s *Subsystem) dashboardUpdate(ctx context.Context, _ *mcp.CallToolRequest,
 	if input.Replace || dashboardStateStore == nil {
 		dashboardStateStore = make(map[string]any, len(input.State))
 	}
-	for k, v := range input.State {
-		dashboardStateStore[k] = v
-	}
+	maps.Copy(dashboardStateStore, input.State)
 	dashboardStateUpdated = now
 
 	snapshot := make(map[string]any, len(dashboardStateStore))
-	for k, v := range dashboardStateStore {
-		snapshot[k] = v
-	}
+	maps.Copy(snapshot, dashboardStateStore)
 	dashboardStateMu.Unlock()
 
 	// Record the change on the activity feed so ide_dashboard_activity
