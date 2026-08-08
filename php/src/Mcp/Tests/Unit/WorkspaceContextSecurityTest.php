@@ -23,10 +23,24 @@ use Core\Mcp\Exceptions\MissingWorkspaceContextException;
 use Core\Mcp\Middleware\ValidateWorkspaceContext;
 use Core\Mcp\Tools\Concerns\RequiresWorkspaceContext;
 
-// Test class using the trait
+// Test class using the trait.
+//
+// The trait's accessors are protected, which is right for a tool but leaves
+// them unreachable from a test — every assertion below that touched one died
+// on "Call to protected method ... from scope". Aliasing them to public on the
+// stand-in exposes them for assertion without widening them on the trait, so
+// real tools keep the encapsulation the trait intends.
 class TestToolWithWorkspaceContext
 {
-    use RequiresWorkspaceContext;
+    use RequiresWorkspaceContext {
+        getToolName as public;
+        getWorkspaceContext as public;
+        getWorkspaceId as public;
+        getWorkspace as public;
+        hasWorkspaceContext as public;
+        validateResourceOwnership as public;
+        requireWorkspaceContext as public;
+    }
 
     protected string $name = 'test_tool';
 }

@@ -9,10 +9,13 @@ use Core\Mcp\Dependencies\ToolDependency;
 use Core\Mcp\Exceptions\MissingDependencyException;
 use Core\Mcp\Services\ToolDependencyService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ToolDependencyServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected ToolDependencyService $service;
 
     protected function setUp(): void
