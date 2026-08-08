@@ -79,7 +79,7 @@ class DescribeTableTest extends TestCase
 
         $tool = new DescribeTable();
         $response = $tool->handle(new Request(['table' => 'users']));
-        $data = json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $data = json_decode((string) $response->content(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame('users', $data['table']);
         $this->assertCount(2, $data['columns']);
@@ -93,7 +93,7 @@ class DescribeTableTest extends TestCase
     {
         $tool = new DescribeTable();
         $response = $tool->handle(new Request(['table' => 'users; DROP TABLE users']));
-        $data = json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $data = json_decode((string) $response->content(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame('VALIDATION_ERROR', $data['code']);
         $this->assertStringContainsString('Invalid table name', $data['error']);
@@ -105,7 +105,7 @@ class DescribeTableTest extends TestCase
 
         $tool = new DescribeTable();
         $response = $tool->handle(new Request(['table' => 'information_schema']));
-        $data = json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        $data = json_decode((string) $response->content(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame('VALIDATION_ERROR', $data['code']);
         $this->assertStringContainsString('not permitted', $data['error']);

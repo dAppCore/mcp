@@ -28,8 +28,8 @@ class ListInvoices extends Tool
         // Get workspace from authenticated context (not from request parameters)
         $workspaceId = $this->getWorkspaceId();
 
-        $status = $request->input('status'); // paid, pending, overdue, void
-        $limit = min($request->input('limit', 10), 50);
+        $status = $request->get('status'); // paid, pending, overdue, void
+        $limit = min($request->get('limit', 10), 50);
 
         $query = Invoice::with('order')
             ->where('workspace_id', $workspaceId)
