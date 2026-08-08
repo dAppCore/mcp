@@ -128,14 +128,15 @@ class Boot extends ServiceProvider
         $event->middleware('mcp.quota', Middleware\CheckMcpQuota::class);
         $event->middleware('mcp.dependencies', Middleware\ValidateToolDependencies::class);
 
-        $event->command(Console\Commands\McpAgentServerCommand::class);
         $event->command(Console\Commands\PruneMetricsCommand::class);
         $event->command(Console\Commands\VerifyAuditLogCommand::class);
     }
 
     public function onMcpTools(McpToolsRegistering $event): void
     {
-        // MCP tool handlers will be registered here once extracted
-        // from the monolithic McpAgentServerCommand
+        // Nothing to register. The agent tool surface — plans, phases,
+        // sessions, state, content — belongs to dappcore/agent, which
+        // registers its own tools and now serves its own resources. This
+        // package holds the protocol, not the agent's domain.
     }
 }
