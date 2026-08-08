@@ -6,7 +6,6 @@ import (
 	"context"
 	"testing"
 
-	. "dappco.re/go"
 	core "dappco.re/go"
 	"dappco.re/go/mcp/pkg/mcp"
 )
@@ -228,27 +227,27 @@ func stubMCPService(t *testing.T) func() {
 }
 
 // moved AX-7 triplet TestCmdMcp_AddMCPCommands_Good
-func TestCmdMcp_AddMCPCommands_Good(t *T) {
-	c := New()
+func TestCmdMcp_AddMCPCommands_Good(t *core.T) {
+	c := core.New()
 	AddMCPCommands(c)
 	commands := c.Commands()
-	AssertContains(t, commands, "mcp")
-	AssertContains(t, commands, "mcp/serve")
+	core.AssertContains(t, commands, "mcp")
+	core.AssertContains(t, commands, "mcp/serve")
 }
 
 // moved AX-7 triplet TestCmdMcp_AddMCPCommands_Bad
-func TestCmdMcp_AddMCPCommands_Bad(t *T) {
-	var c *Core
-	AssertPanics(t, func() { AddMCPCommands(c) })
-	AssertNil(t, c)
+func TestCmdMcp_AddMCPCommands_Bad(t *core.T) {
+	var c *core.Core
+	core.AssertPanics(t, func() { AddMCPCommands(c) })
+	core.AssertNil(t, c)
 }
 
 // moved AX-7 triplet TestCmdMcp_AddMCPCommands_Ugly
-func TestCmdMcp_AddMCPCommands_Ugly(t *T) {
-	c := New()
+func TestCmdMcp_AddMCPCommands_Ugly(t *core.T) {
+	c := core.New()
 	AddMCPCommands(c)
 	AddMCPCommands(c)
 	commands := c.Commands()
-	AssertContains(t, commands, "mcp")
-	AssertContains(t, commands, "mcp/serve")
+	core.AssertContains(t, commands, "mcp")
+	core.AssertContains(t, commands, "mcp/serve")
 }
