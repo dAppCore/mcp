@@ -11,7 +11,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-use Mod\Mcp\Tools\Concerns\RequiresWorkspaceContext;
+use Core\Mcp\Tools\Concerns\RequiresWorkspaceContext;
 
 /**
  * Preview or execute a plan upgrade/downgrade for the authenticated workspace.

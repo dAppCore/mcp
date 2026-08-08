@@ -2,6 +2,11 @@
 .idea/
 core-mcp
 .DS_Store
+# Composer had never been run here, so there was nothing to ignore and no rule
+# for it. A package must not commit the tree it resolves.
+/vendor/
+.phpunit.cache/
+.phpunit.result.cache
 .lintdeps/
 .scannerwork/
 node_modules/

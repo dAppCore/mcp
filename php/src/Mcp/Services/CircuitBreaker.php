@@ -7,7 +7,7 @@ namespace Core\Mcp\Services;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Mod\Mcp\Exceptions\CircuitOpenException;
+use Core\Mcp\Exceptions\CircuitOpenException;
 use Throwable;
 
 /**

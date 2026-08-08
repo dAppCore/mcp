@@ -11,8 +11,8 @@ declare(strict_types=1);
 use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 use Illuminate\Http\Request;
-use Mod\Mcp\Context\WorkspaceContext;
-use Mod\Mcp\Middleware\ValidateWorkspaceContext;
+use Core\Mcp\Context\WorkspaceContext;
+use Core\Mcp\Middleware\ValidateWorkspaceContext;
 
 describe('ValidateWorkspaceContext Middleware', function () {
     beforeEach(function () {

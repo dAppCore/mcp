@@ -18,10 +18,10 @@ declare(strict_types=1);
 use Core\Tenant\Models\User;
 use Core\Tenant\Models\Workspace;
 use Illuminate\Http\Request;
-use Mod\Mcp\Context\WorkspaceContext;
-use Mod\Mcp\Exceptions\MissingWorkspaceContextException;
-use Mod\Mcp\Middleware\ValidateWorkspaceContext;
-use Mod\Mcp\Tools\Concerns\RequiresWorkspaceContext;
+use Core\Mcp\Context\WorkspaceContext;
+use Core\Mcp\Exceptions\MissingWorkspaceContextException;
+use Core\Mcp\Middleware\ValidateWorkspaceContext;
+use Core\Mcp\Tools\Concerns\RequiresWorkspaceContext;
 
 // Test class using the trait
 class TestToolWithWorkspaceContext

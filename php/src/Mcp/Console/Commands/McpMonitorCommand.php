@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Core\Mcp\Console\Commands;
 
 use Illuminate\Console\Command;
-use Mod\Mcp\Services\McpMetricsService;
+use Core\Mcp\Services\McpMetricsService;
 use Mod\Mcp\Services\McpMonitoringService;
 
 /**

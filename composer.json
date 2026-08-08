@@ -9,8 +9,9 @@
     ],
     "license": "EUPL-1.2",
     "require": {
-        "php": "^8.2",
-        "dappcore/php": "*"
+        "dappcore/php": "*",
+        "laravel/mcp": "^0.9",
+        "php": "^8.2"
     },
     "autoload": {
         "psr-4": {
@@ -21,7 +22,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Core\\Mcp\\Tests\\": "php/tests/"
+            "Core\\Mcp\\Tests\\": "php/tests/",
+            "Tests\\": "php/tests/"
         }
     },
     "extra": {
@@ -32,12 +34,28 @@
         }
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "replace": {
         "core/php-mcp": "self.version",
         "lthn/php-mcp": "self.version"
+    },
+    "require-dev": {
+        "dappcore/php-tenant": "^0.1",
+        "dappcore/php-uptelligence": "*",
+        "laravel/pint": "^1.18",
+        "livewire/livewire": "^3.0",
+        "mockery/mockery": "^1.6",
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^3.0"
+    },
+    "scripts": {
+        "lint": "pint",
+        "test": "pest"
     }
 }

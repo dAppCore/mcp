@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The package ships eleven test files and a Pest.php binding a TestCase to
+    them, but there was no phpunit config anywhere in the repo, no test script
+    in composer.json, and no vendor tree — so nothing has ever run this suite.
+    The paths below are the three directories Pest.php names in its uses()
+    calls, including the Unit tests that live inside src/ rather than tests/.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>php/tests/Unit</directory>
+            <!-- Shipped inside the package rather than under tests/, so they
+                 are named explicitly rather than picked up by convention. -->
+            <directory>php/src/Mcp/Tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>php/tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>php/src</directory>
+        </include>
+        <exclude>
+            <directory>php/src/Mcp/Tests</directory>
+        </exclude>
+    </source>
+
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <!-- sqlite, not "testing": Testbench only pre-defines a `testing`
+             connection when the app skeleton supplies one, and this package
+             boots a bare Testbench, so the name resolves to a driver Laravel
+             does not have. -->
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+    </php>
+</phpunit>
