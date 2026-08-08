@@ -6,10 +6,13 @@ namespace Core\Mcp\Tests\Unit;
 
 use Core\Mcp\Services\QueryAuditService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class QueryAuditServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected QueryAuditService $auditService;
 
     protected function setUp(): void

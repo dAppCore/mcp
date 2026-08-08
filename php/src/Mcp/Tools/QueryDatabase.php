@@ -49,14 +49,14 @@ class QueryDatabase extends Tool
 
     public function handle(Request $request): Response
     {
-        $query = $request->input('query');
-        $explain = $request->input('explain', false);
+        $query = $request->get('query');
+        $explain = $request->get('explain', false);
 
         // Extract context from request for audit logging
         $workspaceId = $this->getWorkspaceId($request);
         $userId = $this->getUserId($request);
         $userIp = $this->getUserIp($request);
-        $sessionId = $request->input('session_id');
+        $sessionId = $request->get('session_id');
 
         if (empty($query)) {
             return $this->errorResponse('Query is required');
@@ -219,7 +219,7 @@ class QueryDatabase extends Tool
     private function getWorkspaceId(Request $request): ?int
     {
         // Try to get from request context or metadata
-        $workspaceId = $request->input('workspace_id');
+        $workspaceId = $request->get('workspace_id');
         if ($workspaceId !== null) {
             return (int) $workspaceId;
         }
@@ -238,7 +238,7 @@ class QueryDatabase extends Tool
     private function getUserId(Request $request): ?int
     {
         // Try to get from request context
-        $userId = $request->input('user_id');
+        $userId = $request->get('user_id');
         if ($userId !== null) {
             return (int) $userId;
         }
@@ -257,7 +257,7 @@ class QueryDatabase extends Tool
     private function getUserIp(Request $request): ?string
     {
         // Try from request metadata
-        $ip = $request->input('user_ip');
+        $ip = $request->get('user_ip');
         if ($ip !== null) {
             return $ip;
         }

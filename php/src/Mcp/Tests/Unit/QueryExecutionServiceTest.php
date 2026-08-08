@@ -11,10 +11,13 @@ use Core\Tenant\Services\EntitlementService;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Mockery;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class QueryExecutionServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected QueryExecutionService $executionService;
 
     protected QueryAuditService $auditMock;

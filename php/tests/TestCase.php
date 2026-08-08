@@ -45,4 +45,22 @@ abstract class TestCase extends BaseTestCase
     {
         $app['config']->set('app.key', 'base64:'.base64_encode('core-mcp-testing-key-32-bytes!!!'));
     }
+
+    /**
+     * Run both packages' migrations against the in-memory database.
+     *
+     * Boot.php publishes the package's migrations for a host application to
+     * run rather than loading them itself, so under Testbench there is no
+     * schema at all unless the directories are named here. Without this the
+     * suite failed 180 of its 187 tests on "no such table" — workspaces and
+     * users from php-tenant, mcp_tool_metrics and mcp_tool_versions from this
+     * package — none of which is the behaviour any of those tests assert.
+     *
+     * php-tenant first: the mcp tables carry workspace_id foreign keys.
+     */
+    protected function defineDatabaseMigrations(): void
+    {
+        $this->loadMigrationsFrom(dirname(__DIR__, 2).'/vendor/dappcore/php-tenant/Migrations');
+        $this->loadMigrationsFrom(dirname(__DIR__).'/src/Mcp/Migrations');
+    }
 }

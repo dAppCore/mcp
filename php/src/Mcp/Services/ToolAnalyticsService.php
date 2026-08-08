@@ -331,31 +331,45 @@ class ToolAnalyticsService
                     $pair = [$tools[$i], $tools[$j]];
                     sort($pair);
 
-                    DB::table('mcp_tool_combinations')
-                        ->updateOrInsert(
-                            [
-                                'tool_a' => $pair[0],
-                                'tool_b' => $pair[1],
-                                'workspace_id' => $workspaceId,
-                                'date' => $date,
-                            ],
-                            [
-                                'occurrence_count' => DB::raw('occurrence_count + 1'),
-                                'updated_at' => now(),
-                            ]
-                        );
-
-                    // Handle insert case where occurrence_count wasn't set
-                    DB::table('mcp_tool_combinations')
+                    // Increment first, insert only if nothing matched.
+                    //
+                    // This was an updateOrInsert() carrying
+                    // DB::raw('occurrence_count + 1') as the value. That works
+                    // on the update path and is invalid on the insert path,
+                    // where it becomes `insert into ... (occurrence_count)
+                    // values (occurrence_count + 1)` — a column reference in a
+                    // VALUES clause. The first time any pair was seen the write
+                    // threw, so the follow-up query meant to repair the insert
+                    // case never ran either.
+                    //
+                    // whereNull for a null workspace, not where(): `= null` is
+                    // never true in SQL, so a global (workspace-less) pair would
+                    // match nothing and be re-inserted on every flush.
+                    $match = DB::table('mcp_tool_combinations')
                         ->where('tool_a', $pair[0])
                         ->where('tool_b', $pair[1])
-                        ->where('workspace_id', $workspaceId)
-                        ->where('date', $date)
-                        ->whereNull('created_at')
-                        ->update([
-                            'created_at' => now(),
+                        ->where('date', $date);
+
+                    $workspaceId === null
+                        ? $match->whereNull('workspace_id')
+                        : $match->where('workspace_id', $workspaceId);
+
+                    $incremented = (clone $match)->update([
+                        'occurrence_count' => DB::raw('occurrence_count + 1'),
+                        'updated_at' => now(),
+                    ]);
+
+                    if ($incremented === 0) {
+                        DB::table('mcp_tool_combinations')->insert([
+                            'tool_a' => $pair[0],
+                            'tool_b' => $pair[1],
+                            'workspace_id' => $workspaceId,
+                            'date' => $date,
                             'occurrence_count' => 1,
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ]);
+                    }
                 }
             }
         }

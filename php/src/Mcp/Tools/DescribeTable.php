@@ -17,7 +17,7 @@ class DescribeTable extends Tool
 
     public function handle(Request $request): Response
     {
-        $table = trim((string) $request->input('table', ''));
+        $table = trim((string) $request->get('table', ''));
 
         if ($table === '') {
             return $this->errorResponse('Table name is required');

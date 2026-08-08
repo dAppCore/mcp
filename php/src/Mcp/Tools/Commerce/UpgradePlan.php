@@ -31,9 +31,9 @@ class UpgradePlan extends Tool
         $workspace = $this->getWorkspace();
         $workspaceId = $workspace->id;
 
-        $newPackageCode = $request->input('package_code');
-        $preview = $request->input('preview', true);
-        $immediate = $request->input('immediate', true);
+        $newPackageCode = $request->get('package_code');
+        $preview = $request->get('preview', true);
+        $immediate = $request->get('immediate', true);
 
         $newPackage = Package::where('code', $newPackageCode)->first();
 

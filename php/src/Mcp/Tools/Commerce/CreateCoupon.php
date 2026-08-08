@@ -14,13 +14,13 @@ class CreateCoupon extends Tool
 
     public function handle(Request $request): Response
     {
-        $code = strtoupper($request->input('code'));
-        $name = $request->input('name');
-        $type = $request->input('type', 'percentage');
-        $value = $request->input('value');
-        $duration = $request->input('duration', 'once');
-        $maxUses = $request->input('max_uses');
-        $validUntil = $request->input('valid_until');
+        $code = strtoupper($request->get('code'));
+        $name = $request->get('name');
+        $type = $request->get('type', 'percentage');
+        $value = $request->get('value');
+        $duration = $request->get('duration', 'once');
+        $maxUses = $request->get('max_uses');
+        $validUntil = $request->get('valid_until');
 
         // Validate code format
         if (! preg_match('/^[A-Z0-9_-]+$/', $code)) {
