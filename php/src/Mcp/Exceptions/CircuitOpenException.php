@@ -1,5 +1,7 @@
 <?php
 
+// SPDX-License-Identifier: EUPL-1.2
+
 declare(strict_types=1);
 
 namespace Core\Mcp\Exceptions;
@@ -7,21 +9,36 @@ namespace Core\Mcp\Exceptions;
 use RuntimeException;
 
 /**
- * Exception thrown when the circuit breaker is open and no fallback is provided.
+ * Thrown by CircuitBreaker when a downstream service has tripped its
+ * failure threshold and the circuit is open. The exception carries the
+ * service identifier so callers can produce a user-readable retry hint
+ * without parsing the message.
  *
- * This indicates the target service is temporarily unavailable due to repeated failures.
+ * Example:
+ *
+ *   try {
+ *       $breaker->call('openbrain', fn () => $client->dispatch(...));
+ *   } catch (CircuitOpenException $e) {
+ *       return ['error' => "service '{$e->service}' temporarily unavailable"];
+ *   }
  */
-class CircuitOpenException extends RuntimeException
+final class CircuitOpenException extends RuntimeException
 {
+    /**
+     * Construct an open-circuit exception. When $message is empty, a
+     * default human-readable message is generated from $service.
+     *
+     * Example:
+     *
+     *   throw new CircuitOpenException('openbrain');
+     */
     public function __construct(
         public readonly string $service,
         string $message = '',
     ) {
-        $message = $message ?: sprintf(
+        parent::__construct($message !== '' ? $message : sprintf(
             "Service '%s' is temporarily unavailable. Please try again later.",
-            $service
-        );
-
-        parent::__construct($message);
+            $service,
+        ));
     }
 }

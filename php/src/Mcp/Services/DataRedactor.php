@@ -1,20 +1,22 @@
 <?php
 
+// SPDX-License-Identifier: EUPL-1.2
+
 declare(strict_types=1);
 
 namespace Core\Mcp\Services;
 
 /**
- * Data Redactor - redacts sensitive information from tool call logs.
+ * Redact sensitive values from MCP payloads before they are logged or shown.
  *
- * Prevents PII, credentials, and secrets from being stored in tool call
- * logs while maintaining enough context for debugging.
+ * @example
+ * $redactor = new DataRedactor();
+ * $safe = $redactor->redact(['token' => 'sk_live_secret']);
  */
-class DataRedactor
+final class DataRedactor
 {
-    /**
-     * Keys that should always be fully redacted.
-     */
+    protected const REDACTED = '[REDACTED]';
+
     protected const SENSITIVE_KEYS = [
         'password',
         'passwd',
@@ -47,9 +49,6 @@ class DataRedactor
         'bank_account',
     ];
 
-    /**
-     * Keys containing PII that should be partially redacted.
-     */
     protected const PII_KEYS = [
         'email',
         'phone',
@@ -71,17 +70,19 @@ class DataRedactor
     ];
 
     /**
-     * Replacement string for fully redacted values.
-     */
-    protected const REDACTED = '[REDACTED]';
-
-    /**
-     * Redact sensitive data from an array recursively.
+     * Recursively redact secrets and personal data from a value.
+     *
+     * @example
+     * $safe = $redactor->redact(['authorization' => 'Bearer sk_live_secret']);
      */
     public function redact(mixed $data, int $maxDepth = 10): mixed
     {
         if ($maxDepth <= 0) {
             return '[MAX_DEPTH_EXCEEDED]';
+        }
+
+        if (is_object($data)) {
+            return $this->redactObject($data, $maxDepth - 1);
         }
 
         if (is_array($data)) {
@@ -96,7 +97,108 @@ class DataRedactor
     }
 
     /**
-     * Redact sensitive values from an array.
+     * Produce a shortened, redacted preview of a value for dashboards.
+     *
+     * @example
+     * $preview = $redactor->summarize(['email' => 'agent@example.com', 'notes' => 'Long body text']);
+     */
+    public function summarize(mixed $data, int $maxDepth = 3): mixed
+    {
+        if ($maxDepth <= 0) {
+            return '[...]';
+        }
+
+        if (is_object($data)) {
+            return $this->summarizeObject($data, $maxDepth - 1);
+        }
+
+        if (is_array($data)) {
+            $result = [];
+            $count = count($data);
+            $limit = 10;
+            $items = array_slice($data, 0, $limit, true);
+
+            foreach ($items as $key => $value) {
+                $lowerKey = strtolower((string) $key);
+
+                if ($this->isSensitiveKey($lowerKey)) {
+                    $result[$key] = self::REDACTED;
+
+                    continue;
+                }
+
+                if ($this->isPiiKey($lowerKey) && is_string($value)) {
+                    $result[$key] = $this->partialRedact($value);
+
+                    continue;
+                }
+
+                $result[$key] = $this->summarize($value, $maxDepth - 1);
+            }
+
+            if ($count > $limit) {
+                $result['_truncated'] = sprintf('... and %d more items', $count - $limit);
+            }
+
+            return $result;
+        }
+
+        if (is_string($data)) {
+            $redacted = $this->redactString($data);
+
+            return strlen($redacted) > 100
+                ? substr($redacted, 0, 97).'...'
+                : $redacted;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Redact a structured object after normalising it to array-like data.
+     *
+     * @example
+     * $safe = $this->redactObject((object) ['token' => 'sk_live_secret'], 3);
+     */
+    protected function redactObject(object $data, int $maxDepth): mixed
+    {
+        $normalised = $this->normaliseObject($data);
+
+        if (is_object($normalised)) {
+            return $this->redactObject($normalised, $maxDepth);
+        }
+
+        if (is_array($normalised)) {
+            return $this->redactArray($normalised, $maxDepth);
+        }
+
+        return is_string($normalised)
+            ? $this->redactString($normalised)
+            : $normalised;
+    }
+
+    /**
+     * Summarise a structured object after normalising it to array-like data.
+     *
+     * @example
+     * $summary = $this->summarizeObject((object) ['email' => 'agent@example.com'], 2);
+     */
+    protected function summarizeObject(object $data, int $maxDepth): mixed
+    {
+        $normalised = $this->normaliseObject($data);
+
+        if (is_object($normalised)) {
+            return $this->summarizeObject($normalised, $maxDepth);
+        }
+
+        return $this->summarize($normalised, $maxDepth);
+    }
+
+    /**
+     * Redact one associative array while preserving non-sensitive keys.
+     *
+     * @example
+     * $safe = $this->redactArray(['password' => 'secret', 'status' => 'ok'], 2);
      */
     protected function redactArray(array $data, int $maxDepth): array
     {
@@ -105,46 +207,39 @@ class DataRedactor
         foreach ($data as $key => $value) {
             $lowerKey = strtolower((string) $key);
 
-            // Check for fully sensitive keys
             if ($this->isSensitiveKey($lowerKey)) {
                 $result[$key] = self::REDACTED;
 
                 continue;
             }
 
-            // Check for PII keys - partially redact
             if ($this->isPiiKey($lowerKey) && is_string($value)) {
                 $result[$key] = $this->partialRedact($value);
 
                 continue;
             }
 
-            // Recurse into nested arrays (with depth guard)
             if (is_array($value)) {
-                if ($maxDepth <= 0) {
-                    $result[$key] = '[MAX_DEPTH_EXCEEDED]';
-                } else {
-                    $result[$key] = $this->redactArray($value, $maxDepth - 1);
-                }
+                $result[$key] = $maxDepth <= 0
+                    ? '[MAX_DEPTH_EXCEEDED]'
+                    : $this->redactArray($value, $maxDepth - 1);
 
                 continue;
             }
 
-            // Check string values for embedded sensitive patterns
-            if (is_string($value)) {
-                $result[$key] = $this->redactString($value);
-
-                continue;
-            }
-
-            $result[$key] = $value;
+            $result[$key] = is_string($value)
+                ? $this->redactString($value)
+                : $value;
         }
 
         return $result;
     }
 
     /**
-     * Check if a key name indicates sensitive data.
+     * Decide whether an array key should always be fully redacted.
+     *
+     * @example
+     * $sensitive = $this->isSensitiveKey('api_key');
      */
     protected function isSensitiveKey(string $key): bool
     {
@@ -158,7 +253,10 @@ class DataRedactor
     }
 
     /**
-     * Check if a key name indicates PII.
+     * Decide whether an array key should receive partial personal-data redaction.
+     *
+     * @example
+     * $pii = $this->isPiiKey('email');
      */
     protected function isPiiKey(string $key): bool
     {
@@ -172,57 +270,28 @@ class DataRedactor
     }
 
     /**
-     * Redact sensitive patterns from a string value.
+     * Scrub sensitive token formats from a free-form string.
+     *
+     * @example
+     * $safe = $this->redactString('Bearer sk_live_secret');
      */
     protected function redactString(string $value): string
     {
-        // Redact bearer tokens
-        $value = preg_replace(
-            '/Bearer\s+[A-Za-z0-9\-_\.]+/i',
-            'Bearer '.self::REDACTED,
-            $value
-        ) ?? $value;
-
-        // Redact Basic auth
-        $value = preg_replace(
-            '/Basic\s+[A-Za-z0-9\+\/=]+/i',
-            'Basic '.self::REDACTED,
-            $value
-        ) ?? $value;
-
-        // Redact common API key patterns (key_xxx, sk_xxx, pk_xxx)
-        $value = preg_replace(
-            '/\b(sk|pk|key|api|token)_[a-zA-Z0-9]{16,}/i',
-            '$1_'.self::REDACTED,
-            $value
-        ) ?? $value;
-
-        // Redact JWT tokens (xxx.xxx.xxx format with base64)
-        $value = preg_replace(
-            '/eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/i',
-            self::REDACTED,
-            $value
-        ) ?? $value;
-
-        // Redact UK National Insurance numbers
-        $value = preg_replace(
-            '/[A-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-Z]/i',
-            self::REDACTED,
-            $value
-        ) ?? $value;
-
-        // Redact credit card numbers (basic pattern)
-        $value = preg_replace(
-            '/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
-            self::REDACTED,
-            $value
-        ) ?? $value;
+        $value = preg_replace('/Bearer\s+[A-Za-z0-9\-_\.]+/i', 'Bearer '.self::REDACTED, $value) ?? $value;
+        $value = preg_replace('/Basic\s+[A-Za-z0-9+\/=]+/i', 'Basic '.self::REDACTED, $value) ?? $value;
+        $value = preg_replace('/\b(sk|pk|key|api|token)_[A-Za-z0-9]{16,}\b/i', '$1_'.self::REDACTED, $value) ?? $value;
+        $value = preg_replace('/eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/i', self::REDACTED, $value) ?? $value;
+        $value = preg_replace('/[A-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-Z]/i', self::REDACTED, $value) ?? $value;
+        $value = preg_replace('/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/', self::REDACTED, $value) ?? $value;
 
         return $value;
     }
 
     /**
-     * Partially redact a value, showing first and last characters.
+     * Partially mask a personally identifiable string while leaving a hint.
+     *
+     * @example
+     * $masked = $this->partialRedact('agent@example.com');
      */
     protected function partialRedact(string $value): string
     {
@@ -236,70 +305,23 @@ class DataRedactor
             return substr($value, 0, 2).'***'.substr($value, -1);
         }
 
-        // For longer values, show more context
-        $showChars = min(3, (int) floor($length / 4));
+        $visible = min(3, (int) floor($length / 4));
 
-        return substr($value, 0, $showChars).'***'.substr($value, -$showChars);
+        return substr($value, 0, $visible).'***'.substr($value, -$visible);
     }
 
     /**
-     * Create a summary of array data without sensitive information.
+     * Convert an object into data that can be traversed by the redactor.
      *
-     * Useful for result_summary where we want structure info without details.
+     * @example
+     * $normalised = $this->normaliseObject((object) ['token' => 'sk_live_secret']);
      */
-    public function summarize(mixed $data, int $maxDepth = 3): mixed
+    protected function normaliseObject(object $data): mixed
     {
-        if ($maxDepth <= 0) {
-            return '[...]';
+        if ($data instanceof \JsonSerializable) {
+            return $data->jsonSerialize();
         }
 
-        if (is_array($data)) {
-            $result = [];
-            $count = count($data);
-
-            // Limit array size in summary
-            $limit = 10;
-            $truncated = $count > $limit;
-            $items = array_slice($data, 0, $limit, true);
-
-            foreach ($items as $key => $value) {
-                $lowerKey = strtolower((string) $key);
-
-                // Fully redact sensitive keys
-                if ($this->isSensitiveKey($lowerKey)) {
-                    $result[$key] = self::REDACTED;
-
-                    continue;
-                }
-
-                // Partially redact PII keys
-                if ($this->isPiiKey($lowerKey) && is_string($value)) {
-                    $result[$key] = $this->partialRedact($value);
-
-                    continue;
-                }
-
-                // Recurse with reduced depth
-                $result[$key] = $this->summarize($value, $maxDepth - 1);
-            }
-
-            if ($truncated) {
-                $result['_truncated'] = '... and '.($count - $limit).' more items';
-            }
-
-            return $result;
-        }
-
-        if (is_string($data)) {
-            // Redact first, then truncate (prevents leaking sensitive patterns)
-            $redacted = $this->redactString($data);
-            if (strlen($redacted) > 100) {
-                return substr($redacted, 0, 97).'...';
-            }
-
-            return $redacted;
-        }
-
-        return $data;
+        return get_object_vars($data);
     }
 }

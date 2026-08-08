@@ -11,7 +11,6 @@ use Core\Mcp\Models\McpToolCall;
 use Core\Mcp\Resources\Contracts\AgentResourceProvider;
 use Core\Mcp\Services\McpQuotaService;
 use Core\Mcp\Services\McpWebhookDispatcher;
-use Core\Mod\Agentic\Services\AgentToolRegistry;
 use Core\Mod\Content\Models\ContentItem;
 use Core\Tenant\Models\Workspace;
 use Illuminate\Http\JsonResponse;
@@ -430,7 +429,12 @@ class McpApiController extends Controller
      */
     protected function executeTool(string $tool, array $arguments, ?ApiKey $apiKey): mixed
     {
-        $registryClass = AgentToolRegistry::class;
+        // A string literal, not ::class with an import: this is a late-bound,
+        // optional lookup into the consumer, and pint's
+        // fully_qualified_strict_types fixer rewrites an inline FQCN into a
+        // top-of-file `use` — which is how a package whose whole point is not
+        // to import its consumer ended up importing it.
+        $registryClass = 'Core\\Mod\\Agentic\\Services\\AgentToolRegistry';
 
         if (! app()->bound($registryClass)) {
             throw new \RuntimeException('AgentToolRegistry not available — is the agentic module installed?');
