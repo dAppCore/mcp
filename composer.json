@@ -46,6 +46,7 @@
         "lthn/php-mcp": "self.version"
     },
     "require-dev": {
+        "dappcore/php-content": "*",
         "dappcore/php-tenant": "^0.1",
         "dappcore/php-uptelligence": "*",
         "laravel/pint": "^1.18",
