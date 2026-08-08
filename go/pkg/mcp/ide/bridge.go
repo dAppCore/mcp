@@ -102,7 +102,7 @@ func (b *Bridge) Shutdown() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.conn != nil {
-		b.conn.Close()
+		_ = b.conn.Close()
 		b.conn = nil
 	}
 	b.connected = false
@@ -197,7 +197,7 @@ func (b *Bridge) readLoop(ctx context.Context) {
 	defer func() {
 		b.mu.Lock()
 		if b.conn != nil {
-			b.conn.Close()
+			_ = b.conn.Close()
 		}
 		b.connected = false
 		b.mu.Unlock()

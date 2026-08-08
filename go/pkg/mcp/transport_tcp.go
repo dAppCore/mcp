@@ -152,10 +152,10 @@ func (s *Service) handleConnection(ctx context.Context, conn net.Conn) {
 	session, err := s.server.Connect(ctx, transport, nil)
 	if err != nil {
 		diagPrintf("Connection error: %v\n", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 	// Block until the session ends
 	if err := session.Wait(); err != nil {
 		diagPrintf("Session ended: %v\n", err)

@@ -165,7 +165,7 @@ func (s *PrepSubsystem) unlockIssue(ctx context.Context, org, repo string, issue
 	if err != nil {
 		return core.E("unlockIssue", "failed to update issue", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= http.StatusBadRequest {
 		return core.E("unlockIssue", core.Sprintf("issue unlock returned %d", resp.StatusCode), nil)
 	}
@@ -188,7 +188,7 @@ func (s *PrepSubsystem) fetchIssue(ctx context.Context, org, repo string, issue 
 	if err != nil {
 		return nil, core.E("fetchIssue", "failed to fetch issue", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, core.E("fetchIssue", core.Sprintf("issue %d not found in %s/%s", issue, org, repo), nil)
 	}
@@ -230,7 +230,7 @@ func (s *PrepSubsystem) lockIssue(
 	if err != nil {
 		return core.E("lockIssue", "failed to update issue", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= http.StatusBadRequest {
 		return core.E("lockIssue", core.Sprintf("issue update returned %d", resp.StatusCode), nil)
 	}

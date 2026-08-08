@@ -113,7 +113,7 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) (
 	if err != nil {
 		return nil, core.E("listOrgRepos", "failed to list repos", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return nil, core.E("listOrgRepos", core.Sprintf("HTTP %d listing repos", resp.StatusCode), nil)
 	}
@@ -121,7 +121,9 @@ func (s *PrepSubsystem) listOrgRepos(ctx context.Context, org string) (
 	var repos []struct {
 		Name string `json:"name"`
 	}
-	json.NewDecoder(resp.Body).Decode(&repos)
+	if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+		return nil, core.E("listOrgRepos", "decoding repo list failed", err)
+	}
 
 	var names []string
 	for _, r := range repos {
@@ -143,7 +145,7 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 	if err != nil {
 		return nil, core.E("listRepoIssues", "failed to list issues for "+repo, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return nil, core.E("listRepoIssues", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
@@ -159,7 +161,9 @@ func (s *PrepSubsystem) listRepoIssues(ctx context.Context, org, repo, label str
 		} `json:"assignee"`
 		HTMLURL string `json:"html_url"`
 	}
-	json.NewDecoder(resp.Body).Decode(&issues)
+	if err := json.NewDecoder(resp.Body).Decode(&issues); err != nil {
+		return nil, core.E("listRepoIssues", "decoding issue list failed", err)
+	}
 
 	var result []ScanIssue
 	for _, issue := range issues {

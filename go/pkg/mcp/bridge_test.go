@@ -188,7 +188,7 @@ func TestBridgeToAPI_Good_EndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lang_list request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 for /tools/lang_list, got %d", resp.StatusCode)
 	}
