@@ -137,7 +137,7 @@ class ToolVersionService
             // First try to find explicitly marked latest
             $latest = McpToolVersion::forServer($serverId)
                 ->forTool($toolName)
-                ->latest()
+                ->markedLatest()
                 ->first();
 
             if ($latest) {

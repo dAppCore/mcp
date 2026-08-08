@@ -99,7 +99,7 @@ class ToolVersionManager extends Component
         }
 
         if ($this->status === 'latest') {
-            $query->latest();
+            $query->markedLatest();
         } elseif ($this->status === 'deprecated') {
             $query->deprecated();
         } elseif ($this->status === 'sunset') {
