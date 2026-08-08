@@ -7,11 +7,11 @@ namespace Core\Website\Mcp\View\Modal;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Mod\Uptelligence\Models\AnalysisLog;
-use Mod\Uptelligence\Models\Asset;
-use Mod\Uptelligence\Models\Pattern;
-use Mod\Uptelligence\Models\UpstreamTodo;
-use Mod\Uptelligence\Models\Vendor;
+use Core\Mod\Uptelligence\Models\AnalysisLog;
+use Core\Mod\Uptelligence\Models\Asset;
+use Core\Mod\Uptelligence\Models\Pattern;
+use Core\Mod\Uptelligence\Models\UpstreamTodo;
+use Core\Mod\Uptelligence\Models\Vendor;
 
 /**
  * MCP Dashboard

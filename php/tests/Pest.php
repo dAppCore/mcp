@@ -26,7 +26,15 @@ use Tests\TestCase;
 |
 */
 
-uses(TestCase::class)->in('Feature', 'Unit', '../src/Mcp/Tests/Unit');
+// __DIR__, not bare names: Pest resolves a bare 'Feature' against its default
+// test path (./tests), but this suite lives at php/tests. Unanchored, nothing
+// matched, so no TestCase was bound, no Testbench app booted, and every test
+// would have died on a null application had the suite ever been run.
+uses(TestCase::class)->in(
+    __DIR__.'/Feature',
+    __DIR__.'/Unit',
+    __DIR__.'/../src/Mcp/Tests/Unit',
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -38,4 +46,7 @@ uses(TestCase::class)->in('Feature', 'Unit', '../src/Mcp/Tests/Unit');
 |
 */
 
-uses(RefreshDatabase::class)->in('Feature', '../src/Mcp/Tests/Unit');
+uses(RefreshDatabase::class)->in(
+    __DIR__.'/Feature',
+    __DIR__.'/../src/Mcp/Tests/Unit',
+);

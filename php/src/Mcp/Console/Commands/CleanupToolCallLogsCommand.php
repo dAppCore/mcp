@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Core\Mcp\Console\Commands;
 
 use Illuminate\Console\Command;
-use Mod\Mcp\Models\McpApiRequest;
-use Mod\Mcp\Models\McpToolCall;
-use Mod\Mcp\Models\McpToolCallStat;
+use Core\Mcp\Models\McpApiRequest;
+use Core\Mcp\Models\McpToolCall;
+use Core\Mcp\Models\McpToolCallStat;
 
 /**
  * Cleanup old MCP tool call logs and API request logs.

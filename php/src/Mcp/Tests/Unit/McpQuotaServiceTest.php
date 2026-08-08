@@ -25,7 +25,6 @@ use Core\Tenant\Services\EntitlementResult;
 use Core\Tenant\Services\EntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Mockery;
 
 // =============================================================================
 // Usage Recording Tests
