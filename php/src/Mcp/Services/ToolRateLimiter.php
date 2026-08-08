@@ -1,5 +1,7 @@
 <?php
 
+// SPDX-License-Identifier: EUPL-1.2
+
 declare(strict_types=1);
 
 namespace Core\Mcp\Services;
@@ -7,24 +9,32 @@ namespace Core\Mcp\Services;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Rate limiter for MCP tool calls.
+ * Per-(caller, tool) rate limiter for MCP tool invocations. Backed by
+ * Laravel's cache; respects mcp.rate_limiting.enabled / decay_seconds /
+ * limit-by-tool configuration. Returns a structured result so callers
+ * can produce 429 responses with retry-after headers.
  *
- * Provides rate limiting for both HTTP and STDIO server tool invocations.
- * Uses cache-based rate limiting that works with any cache driver.
+ * Example:
+ *
+ *   $rl = new ToolRateLimiter();
+ *   $result = $rl->check($apiKey, 'agent.brain.recall');
+ *   if ($result['limited']) {
+ *       return response()->json(['error' => 'rate_limited'], 429);
+ *   }
+ *   $rl->hit($apiKey, 'agent.brain.recall');
  */
-class ToolRateLimiter
+final class ToolRateLimiter
 {
-    /**
-     * Cache key prefix for rate limit tracking.
-     */
     protected const CACHE_PREFIX = 'mcp_rate_limit:';
 
     /**
-     * Check if a tool call should be rate limited.
+     * Inspect the rate-limit state for a (caller, tool) pair without
+     * incrementing it. Returns ['limited' => bool, 'remaining' => int,
+     * 'retry_after' => ?int].
      *
-     * @param  string  $identifier  Session ID, API key, or other unique identifier
-     * @param  string  $toolName  The tool being called
-     * @return array{limited: bool, remaining: int, retry_after: int|null}
+     * Example:
+     *
+     *   ['limited' => false, 'remaining' => 99, 'retry_after' => null]
      */
     public function check(string $identifier, string $toolName): array
     {
@@ -32,14 +42,13 @@ class ToolRateLimiter
             return ['limited' => false, 'remaining' => PHP_INT_MAX, 'retry_after' => null];
         }
 
-        $limit = $this->getLimitForTool($toolName);
-        $decaySeconds = config('mcp.rate_limiting.decay_seconds', 60);
-        $cacheKey = $this->getCacheKey($identifier, $toolName);
-
+        $limit = $this->limitForTool($toolName);
+        $cacheKey = $this->cacheKey($identifier, $toolName);
         $current = (int) Cache::get($cacheKey, 0);
+        $decaySeconds = (int) config('mcp.rate_limiting.decay_seconds', 60);
 
         if ($current >= $limit) {
-            $ttl = Cache::ttl($cacheKey);
+            $ttl = $this->ttl($cacheKey, $decaySeconds);
 
             return [
                 'limited' => true,
@@ -50,16 +59,16 @@ class ToolRateLimiter
 
         return [
             'limited' => false,
-            'remaining' => $limit - $current - 1,
+            'remaining' => max($limit - $current - 1, 0),
             'retry_after' => null,
         ];
     }
 
     /**
-     * Record a tool call against the rate limit.
+     * Increment the rate-limit counter for a (caller, tool) pair.
      *
-     * @param  string  $identifier  Session ID, API key, or other unique identifier
-     * @param  string  $toolName  The tool being called
+     * @example
+     * $rl->hit($apiKey, 'agent.brain.recall');
      */
     public function hit(string $identifier, string $toolName): void
     {
@@ -67,78 +76,99 @@ class ToolRateLimiter
             return;
         }
 
-        $decaySeconds = config('mcp.rate_limiting.decay_seconds', 60);
-        $cacheKey = $this->getCacheKey($identifier, $toolName);
+        $cacheKey = $this->cacheKey($identifier, $toolName);
+        $decaySeconds = (int) config('mcp.rate_limiting.decay_seconds', 60);
 
-        $current = (int) Cache::get($cacheKey, 0);
-
-        if ($current === 0) {
-            // First call - set with expiration
-            Cache::put($cacheKey, 1, $decaySeconds);
-        } else {
-            // Increment without resetting TTL
-            Cache::increment($cacheKey);
+        if (Cache::add($cacheKey, 1, $decaySeconds)) {
+            return;
         }
+
+        Cache::increment($cacheKey);
     }
 
     /**
-     * Clear rate limit for an identifier.
+     * Clear one rate-limit bucket or every configured bucket for a caller.
      *
-     * @param  string  $identifier  Session ID, API key, or other unique identifier
-     * @param  string|null  $toolName  Specific tool, or null to clear all
+     * @example
+     * $rl->clear($apiKey, 'agent.brain.recall');
      */
     public function clear(string $identifier, ?string $toolName = null): void
     {
         if ($toolName !== null) {
-            Cache::forget($this->getCacheKey($identifier, $toolName));
-        } else {
-            // Clear all tool rate limits for this identifier (requires knowing tools)
-            // For now, just clear the specific key pattern
-            Cache::forget($this->getCacheKey($identifier, '*'));
+            Cache::forget($this->cacheKey($identifier, $toolName));
+
+            return;
         }
+
+        foreach (array_keys((array) config('mcp.rate_limiting.per_tool', [])) as $configuredTool) {
+            Cache::forget($this->cacheKey($identifier, (string) $configuredTool));
+        }
+
+        Cache::forget($this->cacheKey($identifier, '*'));
     }
 
     /**
-     * Get the rate limit for a specific tool.
+     * Return the current limit, remaining calls, and reset timestamp.
+     *
+     * @example
+     * $status = $rl->getStatus($apiKey, 'agent.brain.recall');
      */
-    protected function getLimitForTool(string $toolName): int
+    public function getStatus(string $identifier, string $toolName): array
     {
-        // Check for tool-specific limit
-        $perToolLimits = config('mcp.rate_limiting.per_tool', []);
+        $limit = $this->limitForTool($toolName);
+        $cacheKey = $this->cacheKey($identifier, $toolName);
+        $current = (int) Cache::get($cacheKey, 0);
+        $ttl = $this->ttl($cacheKey, (int) config('mcp.rate_limiting.decay_seconds', 60));
 
-        if (isset($perToolLimits[$toolName])) {
-            return (int) $perToolLimits[$toolName];
+        return [
+            'limit' => $limit,
+            'remaining' => max($limit - $current, 0),
+            'reset_at' => $ttl > 0 ? now()->addSeconds($ttl)->toIso8601String() : null,
+        ];
+    }
+
+    /**
+     * Resolve the configured call limit for one tool name.
+     *
+     * @example
+     * $limit = $this->limitForTool('agent.brain.recall');
+     */
+    protected function limitForTool(string $toolName): int
+    {
+        $perTool = (array) config('mcp.rate_limiting.per_tool', []);
+
+        if (array_key_exists($toolName, $perTool)) {
+            return (int) $perTool[$toolName];
         }
 
-        // Use default limit
         return (int) config('mcp.rate_limiting.calls_per_minute', 60);
     }
 
     /**
-     * Generate cache key for rate limiting.
+     * Build the cache key used for one caller and tool bucket.
+     *
+     * @example
+     * $key = $this->cacheKey($apiKey, 'agent.brain.recall');
      */
-    protected function getCacheKey(string $identifier, string $toolName): string
+    protected function cacheKey(string $identifier, string $toolName): string
     {
-        // Use general key for overall rate limiting
         return self::CACHE_PREFIX.$identifier.':'.$toolName;
     }
 
     /**
-     * Get rate limit status for reporting.
+     * Read the remaining time-to-live for a cached rate-limit bucket.
      *
-     * @return array{limit: int, remaining: int, reset_at: string|null}
+     * @example
+     * $ttl = $this->ttl($this->cacheKey($apiKey, 'agent.brain.recall'), 60);
      */
-    public function getStatus(string $identifier, string $toolName): array
+    protected function ttl(string $cacheKey, int $default): int
     {
-        $limit = $this->getLimitForTool($toolName);
-        $cacheKey = $this->getCacheKey($identifier, $toolName);
-        $current = (int) Cache::get($cacheKey, 0);
-        $ttl = Cache::ttl($cacheKey);
+        try {
+            $ttl = Cache::ttl($cacheKey);
 
-        return [
-            'limit' => $limit,
-            'remaining' => max(0, $limit - $current),
-            'reset_at' => $ttl > 0 ? now()->addSeconds($ttl)->toIso8601String() : null,
-        ];
+            return is_int($ttl) ? $ttl : $default;
+        } catch (\Throwable) {
+            return $default;
+        }
     }
 }

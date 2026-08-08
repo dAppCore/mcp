@@ -1,20 +1,24 @@
 <?php
 
+// SPDX-License-Identifier: EUPL-1.2
+
 declare(strict_types=1);
 
 namespace Core\Mcp\Services;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
-use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * MCP Server Health Check Service
+ * Check registered MCP servers and cache their health status.
  *
- * Pings MCP servers via stdio to check their health status.
- * Results are cached for 60 seconds to avoid excessive subprocess spawning.
+ * @example
+ * $service = new McpHealthService();
+ * $status = $service->check('host-hub');
  */
+// Not final: loadServerConfig() / executeProcess() are protected seams the suite
+// substitutes to health-check without spawning real MCP servers.
+// `final` contradicted that and made McpHealthServiceTest a fatal error.
 class McpHealthService
 {
     public const STATUS_ONLINE = 'online';
@@ -25,30 +29,27 @@ class McpHealthService
 
     public const STATUS_UNKNOWN = 'unknown';
 
-    /**
-     * Cache TTL in seconds for health check results.
-     */
     protected int $cacheTtl = 60;
 
-    /**
-     * Timeout in seconds for health check ping.
-     */
     protected int $timeout = 5;
 
     /**
-     * Check health of a specific MCP server.
+     * Check one MCP server and optionally bypass the cached status.
+     *
+     * @example
+     * $status = $service->check('host-hub', true);
      */
     public function check(string $serverId, bool $forceRefresh = false): array
     {
-        $cacheKey = "mcp:health:{$serverId}";
+        $cacheKey = sprintf('mcp:health:%s', $serverId);
 
         if (! $forceRefresh && Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
+            return (array) Cache::get($cacheKey, []);
         }
 
         $server = $this->loadServerConfig($serverId);
 
-        if (! $server) {
+        if ($server === null) {
             $result = $this->buildResult(self::STATUS_UNKNOWN, 'Server not found');
             Cache::put($cacheKey, $result, $this->cacheTtl);
 
@@ -62,14 +63,16 @@ class McpHealthService
     }
 
     /**
-     * Check health of all registered MCP servers.
+     * Check every registered MCP server and return their status map.
+     *
+     * @example
+     * $statuses = $service->checkAll();
      */
     public function checkAll(bool $forceRefresh = false): array
     {
-        $servers = $this->getRegisteredServers();
         $results = [];
 
-        foreach ($servers as $serverId) {
+        foreach ($this->registeredServers() as $serverId) {
             $results[$serverId] = $this->check($serverId, $forceRefresh);
         }
 
@@ -77,206 +80,47 @@ class McpHealthService
     }
 
     /**
-     * Get cached health status without triggering a check.
+     * Return a cached health result for one MCP server when present.
+     *
+     * @example
+     * $cached = $service->getCachedStatus('host-hub');
      */
     public function getCachedStatus(string $serverId): ?array
     {
-        return Cache::get("mcp:health:{$serverId}");
+        $status = Cache::get(sprintf('mcp:health:%s', $serverId));
+
+        return is_array($status) ? $status : null;
     }
 
     /**
-     * Clear cached health status for a server.
+     * Remove the cached health entry for one MCP server.
+     *
+     * @example
+     * $service->clearCache('host-hub');
      */
     public function clearCache(string $serverId): void
     {
-        Cache::forget("mcp:health:{$serverId}");
+        Cache::forget(sprintf('mcp:health:%s', $serverId));
     }
 
     /**
-     * Clear all cached health statuses.
+     * Remove cached health entries for all registered MCP servers.
+     *
+     * @example
+     * $service->clearAllCache();
      */
     public function clearAllCache(): void
     {
-        foreach ($this->getRegisteredServers() as $serverId) {
-            Cache::forget("mcp:health:{$serverId}");
+        foreach ($this->registeredServers() as $serverId) {
+            $this->clearCache($serverId);
         }
     }
 
     /**
-     * Ping a server by sending a minimal MCP request.
-     */
-    protected function pingServer(array $server): array
-    {
-        $connection = $server['connection'] ?? [];
-        $type = $connection['type'] ?? 'stdio';
-
-        // Only support stdio for now
-        if ($type !== 'stdio') {
-            return $this->buildResult(
-                self::STATUS_UNKNOWN,
-                "Connection type '{$type}' health check not supported"
-            );
-        }
-
-        $command = $connection['command'] ?? null;
-        $args = $connection['args'] ?? [];
-        $cwd = $this->resolveEnvVars($connection['cwd'] ?? getcwd());
-
-        if (! $command) {
-            return $this->buildResult(self::STATUS_OFFLINE, 'No command configured');
-        }
-
-        // Build the MCP initialize request
-        $initRequest = json_encode([
-            'jsonrpc' => '2.0',
-            'method' => 'initialize',
-            'params' => [
-                'protocolVersion' => '2024-11-05',
-                'capabilities' => [],
-                'clientInfo' => [
-                    'name' => 'mcp-health-check',
-                    'version' => '1.0.0',
-                ],
-            ],
-            'id' => 1,
-        ]);
-
-        try {
-            $startTime = microtime(true);
-
-            // Build full command
-            $fullCommand = array_merge([$command], $args);
-            $process = new Process($fullCommand, $cwd);
-            $process->setInput($initRequest);
-            $process->setTimeout($this->timeout);
-
-            $process->run();
-
-            $duration = round((microtime(true) - $startTime) * 1000);
-            $output = $process->getOutput();
-
-            // Check for valid JSON-RPC response
-            if ($process->isSuccessful() && ! empty($output)) {
-                // Try to parse the response
-                $lines = explode("\n", trim($output));
-                foreach ($lines as $line) {
-                    $response = json_decode($line, true);
-                    if ($response && isset($response['result'])) {
-                        return $this->buildResult(
-                            self::STATUS_ONLINE,
-                            'Server responding',
-                            [
-                                'response_time_ms' => $duration,
-                                'server_info' => $response['result']['serverInfo'] ?? null,
-                                'protocol_version' => $response['result']['protocolVersion'] ?? null,
-                            ]
-                        );
-                    }
-                }
-            }
-
-            // Process ran but didn't return expected response
-            if ($process->isSuccessful()) {
-                return $this->buildResult(
-                    self::STATUS_DEGRADED,
-                    'Server started but returned unexpected response',
-                    [
-                        'response_time_ms' => $duration,
-                        'output' => substr($output, 0, 500),
-                    ]
-                );
-            }
-
-            // Process failed
-            return $this->buildResult(
-                self::STATUS_OFFLINE,
-                'Server failed to start',
-                [
-                    'exit_code' => $process->getExitCode(),
-                    'error' => substr($process->getErrorOutput(), 0, 500),
-                ]
-            );
-
-        } catch (\Exception $e) {
-            Log::warning("MCP health check failed for {$server['id']}", [
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->buildResult(
-                self::STATUS_OFFLINE,
-                'Health check failed: '.$e->getMessage()
-            );
-        }
-    }
-
-    /**
-     * Build a health check result array.
-     */
-    protected function buildResult(string $status, string $message, array $extra = []): array
-    {
-        return array_merge([
-            'status' => $status,
-            'message' => $message,
-            'checked_at' => now()->toIso8601String(),
-        ], $extra);
-    }
-
-    /**
-     * Get list of registered server IDs.
-     */
-    protected function getRegisteredServers(): array
-    {
-        $registry = $this->loadRegistry();
-
-        return collect($registry['servers'] ?? [])
-            ->pluck('id')
-            ->all();
-    }
-
-    /**
-     * Load the main registry file.
-     */
-    protected function loadRegistry(): array
-    {
-        $path = resource_path('mcp/registry.yaml');
-
-        if (! file_exists($path)) {
-            return ['servers' => []];
-        }
-
-        return Yaml::parseFile($path);
-    }
-
-    /**
-     * Load a server's YAML config.
-     */
-    protected function loadServerConfig(string $id): ?array
-    {
-        $path = resource_path("mcp/servers/{$id}.yaml");
-
-        if (! file_exists($path)) {
-            return null;
-        }
-
-        return Yaml::parseFile($path);
-    }
-
-    /**
-     * Resolve environment variables in a string.
-     */
-    protected function resolveEnvVars(string $value): string
-    {
-        return preg_replace_callback('/\$\{([^}]+)\}/', function ($matches) {
-            $parts = explode(':-', $matches[1], 2);
-            $var = $parts[0];
-            $default = $parts[1] ?? '';
-
-            return env($var, $default);
-        }, $value);
-    }
-
-    /**
-     * Get status badge HTML.
+     * Render an HTML badge for a resolved MCP server status.
+     *
+     * @example
+     * $badge = $service->getStatusBadge(McpHealthService::STATUS_ONLINE);
      */
     public function getStatusBadge(string $status): string
     {
@@ -289,7 +133,10 @@ class McpHealthService
     }
 
     /**
-     * Get status colour class for Tailwind.
+     * Map a server status to the dashboard colour token.
+     *
+     * @example
+     * $colour = $service->getStatusColour(McpHealthService::STATUS_DEGRADED);
      */
     public function getStatusColour(string $status): string
     {
@@ -299,5 +146,224 @@ class McpHealthService
             self::STATUS_DEGRADED => 'yellow',
             default => 'gray',
         };
+    }
+
+    /**
+     * Probe one server definition and derive its health result.
+     *
+     * @example
+     * $result = $this->pingServer(['connection' => ['type' => 'stdio', 'command' => 'php', 'args' => ['artisan', 'mcp:agent-server']]]);
+     */
+    protected function pingServer(array $server): array
+    {
+        $connection = (array) ($server['connection'] ?? []);
+        $type = (string) ($connection['type'] ?? 'stdio');
+
+        if ($type !== 'stdio') {
+            return $this->buildResult(self::STATUS_UNKNOWN, sprintf(
+                "Connection type '%s' health check not supported",
+                $type,
+            ));
+        }
+
+        $command = trim($this->resolveEnvVars((string) ($connection['command'] ?? '')));
+        if ($command === '') {
+            return $this->buildResult(self::STATUS_OFFLINE, 'No command configured');
+        }
+
+        $args = array_map(
+            fn (mixed $value): string => $this->resolveEnvVars((string) $value),
+            (array) ($connection['args'] ?? []),
+        );
+        $cwd = $this->resolveEnvVars((string) ($connection['cwd'] ?? getcwd()));
+        $payload = json_encode([
+            'jsonrpc' => '2.0',
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2024-11-05',
+                'capabilities' => new \stdClass,
+                'clientInfo' => [
+                    'name' => 'mcp-health-check',
+                    'version' => '1.0.0',
+                ],
+            ],
+            'id' => 1,
+        ], JSON_UNESCAPED_SLASHES);
+
+        $result = $this->executeProcess(array_merge([$command], $args), $cwd, $payload.PHP_EOL);
+        $duration = (int) ($result['response_time_ms'] ?? 0);
+        $output = (string) ($result['output'] ?? '');
+        $error = trim((string) ($result['error'] ?? ''));
+        $exitCode = (int) ($result['exit_code'] ?? 1);
+
+        if ($exitCode === 0 && $output !== '') {
+            foreach (preg_split('/\R/', trim($output)) ?: [] as $line) {
+                $decoded = json_decode($line, true);
+
+                if (is_array($decoded) && isset($decoded['result'])) {
+                    return $this->buildResult(self::STATUS_ONLINE, 'Server responding', [
+                        'response_time_ms' => $duration,
+                        'server_info' => $decoded['result']['serverInfo'] ?? null,
+                        'protocol_version' => $decoded['result']['protocolVersion'] ?? null,
+                    ]);
+                }
+            }
+
+            return $this->buildResult(self::STATUS_DEGRADED, 'Server started but returned unexpected response', [
+                'response_time_ms' => $duration,
+                'output' => substr($output, 0, 500),
+            ]);
+        }
+
+        return $this->buildResult(self::STATUS_OFFLINE, 'Server failed to start', [
+            'response_time_ms' => $duration,
+            'exit_code' => $exitCode,
+            'error' => $error !== '' ? substr($error, 0, 500) : null,
+        ]);
+    }
+
+    /**
+     * Execute a server process and capture its output, error, and timing.
+     *
+     * @example
+     * $result = $this->executeProcess(['php', 'artisan', 'mcp:agent-server'], base_path(), "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}\n");
+     */
+    protected function executeProcess(array $command, string $cwd, string $input): array
+    {
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $startedAt = microtime(true);
+        $process = @proc_open($command, $descriptors, $pipes, $cwd);
+
+        if (! is_resource($process)) {
+            return [
+                'exit_code' => 1,
+                'output' => '',
+                'error' => 'Unable to start process',
+                'response_time_ms' => 0,
+            ];
+        }
+
+        fwrite($pipes[0], $input);
+        fclose($pipes[0]);
+
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $stdout = '';
+        $stderr = '';
+        $timedOut = false;
+
+        while (true) {
+            $stdout .= stream_get_contents($pipes[1]);
+            $stderr .= stream_get_contents($pipes[2]);
+            $status = proc_get_status($process);
+
+            if (! is_array($status) || ! ($status['running'] ?? false)) {
+                break;
+            }
+
+            if ((microtime(true) - $startedAt) >= $this->timeout) {
+                $timedOut = true;
+                proc_terminate($process, 9);
+                break;
+            }
+
+            usleep(100000);
+        }
+
+        $stdout .= stream_get_contents($pipes[1]);
+        $stderr .= stream_get_contents($pipes[2]);
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $closeCode = proc_close($process);
+        $exitCode = $timedOut ? 124 : $closeCode;
+
+        return [
+            'exit_code' => $exitCode,
+            'output' => $stdout,
+            'error' => $timedOut ? trim($stderr."\nTimed out waiting for MCP response.") : $stderr,
+            'response_time_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ];
+    }
+
+    /**
+     * Build a normalised health result payload for dashboard consumers.
+     *
+     * @example
+     * $result = $this->buildResult(self::STATUS_ONLINE, 'Server responding', ['response_time_ms' => 42]);
+     */
+    protected function buildResult(string $status, string $message, array $extra = []): array
+    {
+        return array_merge([
+            'status' => $status,
+            'message' => $message,
+            'checked_at' => now()->toIso8601String(),
+        ], array_filter($extra, static fn (mixed $value): bool => $value !== null));
+    }
+
+    /**
+     * Return the server identifiers listed in the MCP registry.
+     *
+     * @example
+     * $serverIds = $this->registeredServers();
+     */
+    protected function registeredServers(): array
+    {
+        $servers = $this->loadRegistry()['servers'] ?? [];
+
+        return array_values(array_filter(array_map(
+            static fn (mixed $server): ?string => is_array($server) && isset($server['id']) ? (string) $server['id'] : null,
+            is_array($servers) ? $servers : [],
+        )));
+    }
+
+    /**
+     * Load the top-level MCP registry document from resources.
+     *
+     * @example
+     * $registry = $this->loadRegistry();
+     */
+    protected function loadRegistry(): array
+    {
+        $path = resource_path('mcp/registry.yaml');
+
+        return file_exists($path) ? (array) Yaml::parseFile($path) : ['servers' => []];
+    }
+
+    /**
+     * Load one server definition from the MCP resources directory.
+     *
+     * @example
+     * $server = $this->loadServerConfig('host-hub');
+     */
+    protected function loadServerConfig(string $serverId): ?array
+    {
+        $path = resource_path(sprintf('mcp/servers/%s.yaml', $serverId));
+
+        return file_exists($path) ? (array) Yaml::parseFile($path) : null;
+    }
+
+    /**
+     * Resolve `${NAME}` placeholders inside registry values from the environment.
+     *
+     * @example
+     * $command = $this->resolveEnvVars('${PHP_BINARY:-php}');
+     */
+    protected function resolveEnvVars(string $value): string
+    {
+        return preg_replace_callback('/\$\{([^}]+)\}/', static function (array $matches): string {
+            $parts = explode(':-', $matches[1], 2);
+            $name = $parts[0];
+            $default = $parts[1] ?? '';
+
+            return (string) env($name, $default);
+        }, $value) ?? $value;
     }
 }

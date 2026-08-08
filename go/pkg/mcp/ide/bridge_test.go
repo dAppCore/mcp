@@ -516,7 +516,18 @@ func TestBridge_NewBridge_Good(t *T) {
 func TestBridge_NewBridge_Bad(t *T) {
 	bridge := NewBridge(nil, Config{})
 	AssertNil(t, bridge.hub)
-	AssertEqual(t, "", bridge.cfg.LaravelWSURL)
+
+	// A zero Config must come back defaulted, not raw. This asserted "" until
+	// now, which was the behaviour before NewBridge started calling
+	// WithDefaults — the test kept the old contract while the fix that
+	// introduced defaults went in without it. A raw Config leaves
+	// ReconnectInterval at 0, and connectLoop's min(delay*2, max) backoff stays
+	// pinned at zero, which is a tight reconnect flood: the exact thing that
+	// change existed to stop.
+	AssertEqual(t, "ws://localhost:9876/ws", bridge.cfg.LaravelWSURL)
+	AssertEqual(t, ".", bridge.cfg.WorkspaceRoot)
+	AssertTrue(t, bridge.cfg.ReconnectInterval > 0)
+	AssertTrue(t, bridge.cfg.MaxReconnectInterval > 0)
 }
 
 // moved AX-7 triplet TestBridge_NewBridge_Ugly

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "046221ccacb791f74f3c92d26bbef72a",
+    "content-hash": "aa56bd1b5284faed1d81bb8f01ffc13b",
     "packages": [
         {
             "name": "brick/math",
@@ -6303,6 +6303,70 @@
             "time": "2025-08-20T19:15:30+00:00"
         },
         {
+            "name": "dappcore/php-content",
+            "version": "v0.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/dAppCore/php-content.git",
+                "reference": "eee31983226418c3da6bded3833eae239b3ccf6f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/dAppCore/php-content/zipball/eee31983226418c3da6bded3833eae239b3ccf6f",
+                "reference": "eee31983226418c3da6bded3833eae239b3ccf6f",
+                "shasum": ""
+            },
+            "require": {
+                "dappcore/php": "*",
+                "ezyang/htmlpurifier": "^4.17",
+                "php": "^8.2"
+            },
+            "replace": {
+                "core/php-content": "self.version"
+            },
+            "require-dev": {
+                "dappcore/php-tenant": "@dev",
+                "laravel/pint": "^1.18",
+                "orchestra/testbench": "^9.0|^10.0",
+                "pestphp/pest": "^3.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Core\\Mod\\Content\\Boot"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Core\\Mod\\Content\\": ""
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "EUPL-1.2"
+            ],
+            "description": "Content management and headless CMS for Laravel",
+            "keywords": [
+                "cms",
+                "content",
+                "headless",
+                "laravel"
+            ],
+            "support": {
+                "issues": "https://github.com/dAppCore/php-content/issues",
+                "source": "https://github.com/dAppCore/php-content/tree/v0.1.1"
+            },
+            "funding": [
+                {
+                    "url": "https://donate.trees.org/-/NPMMSVUP?member=SWZTDDWH",
+                    "type": "custom"
+                }
+            ],
+            "time": "2026-07-31T16:32:24+00:00"
+        },
+        {
             "name": "dappcore/php-tenant",
             "version": "v0.1.2",
             "source": {
@@ -6473,6 +6537,67 @@
                 "source": "https://github.com/doctrine/deprecations/tree/1.1.6"
             },
             "time": "2026-02-07T07:09:04+00:00"
+        },
+        {
+            "name": "ezyang/htmlpurifier",
+            "version": "v4.19.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ezyang/htmlpurifier.git",
+                "reference": "b287d2a16aceffbf6e0295559b39662612b77fcf"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/ezyang/htmlpurifier/zipball/b287d2a16aceffbf6e0295559b39662612b77fcf",
+                "reference": "b287d2a16aceffbf6e0295559b39662612b77fcf",
+                "shasum": ""
+            },
+            "require": {
+                "php": "~5.6.0 || ~7.0.0 || ~7.1.0 || ~7.2.0 || ~7.3.0 || ~7.4.0 || ~8.0.0 || ~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0"
+            },
+            "require-dev": {
+                "cerdic/css-tidy": "^1.7 || ^2.0",
+                "simpletest/simpletest": "dev-master"
+            },
+            "suggest": {
+                "cerdic/css-tidy": "If you want to use the filter 'Filter.ExtractStyleBlocks'.",
+                "ext-bcmath": "Used for unit conversion and imagecrash protection",
+                "ext-iconv": "Converts text to and from non-UTF-8 encodings",
+                "ext-tidy": "Used for pretty-printing HTML"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "library/HTMLPurifier.composer.php"
+                ],
+                "psr-0": {
+                    "HTMLPurifier": "library/"
+                },
+                "exclude-from-classmap": [
+                    "/library/HTMLPurifier/Language/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-2.1-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Edward Z. Yang",
+                    "email": "admin@htmlpurifier.org",
+                    "homepage": "http://ezyang.com"
+                }
+            ],
+            "description": "Standards compliant HTML filter written in PHP",
+            "homepage": "http://htmlpurifier.org/",
+            "keywords": [
+                "html"
+            ],
+            "support": {
+                "issues": "https://github.com/ezyang/htmlpurifier/issues",
+                "source": "https://github.com/ezyang/htmlpurifier/tree/v4.19.0"
+            },
+            "time": "2025-10-17T16:34:55+00:00"
         },
         {
             "name": "fakerphp/faker",
