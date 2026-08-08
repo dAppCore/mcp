@@ -162,10 +162,18 @@ func TestNotificationMethods_Good_NilContext(t *testing.T) {
 		t.Fatalf("New() failed: %v", err)
 	}
 
-	svc.SendNotificationToAllClients(context.TODO(), "info", "test", map[string]any{"ok": true})
-	svc.SendNotificationToSession(context.TODO(), nil, "info", "test", map[string]any{"ok": true})
-	svc.ChannelSend(context.TODO(), ChannelBuildComplete, map[string]any{"ok": true})
-	svc.ChannelSendToSession(context.TODO(), nil, ChannelBuildComplete, map[string]any{"ok": true})
+	// The nil Context IS the input under test. This test has no assertions: its
+	// only mechanism is "these four do not panic on a nil ctx", so substituting a
+	// real Context leaves a test that passes while checking nothing.
+	//
+	//nolint:staticcheck // SA1012: deliberate — see above.
+	svc.SendNotificationToAllClients(nil, "info", "test", map[string]any{"ok": true})
+	//nolint:staticcheck // SA1012: deliberate — see above.
+	svc.SendNotificationToSession(nil, nil, "info", "test", map[string]any{"ok": true})
+	//nolint:staticcheck // SA1012: deliberate — see above.
+	svc.ChannelSend(nil, ChannelBuildComplete, map[string]any{"ok": true})
+	//nolint:staticcheck // SA1012: deliberate — see above.
+	svc.ChannelSendToSession(nil, nil, ChannelBuildComplete, map[string]any{"ok": true})
 }
 
 func TestSendNotificationToAllClients_Good_CustomNotification(t *testing.T) {
