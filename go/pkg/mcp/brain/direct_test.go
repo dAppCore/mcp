@@ -636,7 +636,7 @@ func TestDirect_DirectSubsystem_Shutdown_Good(t *T) {
 // moved AX-7 triplet TestDirect_DirectSubsystem_Shutdown_Bad
 func TestDirect_DirectSubsystem_Shutdown_Bad(t *T) {
 	sub := NewDirect()
-	err := sub.Shutdown(nil)
+	err := sub.Shutdown(context.TODO())
 	AssertNoError(t, err)
 }
 

@@ -90,7 +90,7 @@ func TestIde_Subsystem_Shutdown_Bad(t *T) {
 // moved AX-7 triplet TestIde_Subsystem_Shutdown_Ugly
 func TestIde_Subsystem_Shutdown_Ugly(t *T) {
 	sub := New(nil, DefaultConfig())
-	AssertNoError(t, sub.Shutdown(nil))
+	AssertNoError(t, sub.Shutdown(context.TODO()))
 	AssertNil(t, sub.bridge)
 }
 

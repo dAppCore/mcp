@@ -137,7 +137,7 @@ func TestMcp_GetSupportedLanguages_Good_IncludesAllDetectedLanguages(t *testing.
 		t.Fatalf("Failed to create service: %v", err)
 	}
 
-	_, out, err := s.getSupportedLanguages(nil, nil, GetSupportedLanguagesInput{})
+	_, out, err := s.getSupportedLanguages(context.TODO(), nil, GetSupportedLanguagesInput{})
 	if err != nil {
 		t.Fatalf("getSupportedLanguages failed: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestMcp_GetSupportedLanguages_Good_IncludesAllDetectedLanguages(t *testing.
 func TestMcp_GetSupportedLanguages_Bad_IgnoresUnsupportedInputState(t *testing.T) {
 	s := &Service{}
 
-	_, out, err := s.getSupportedLanguages(nil, nil, GetSupportedLanguagesInput{})
+	_, out, err := s.getSupportedLanguages(context.TODO(), nil, GetSupportedLanguagesInput{})
 	if err != nil {
 		t.Fatalf("getSupportedLanguages failed without initialized service state: %v", err)
 	}
@@ -200,13 +200,13 @@ func TestMcp_GetSupportedLanguages_Ugly_ReturnsIndependentSnapshots(t *testing.T
 		t.Fatalf("Failed to create service: %v", err)
 	}
 
-	_, first, err := s.getSupportedLanguages(nil, nil, GetSupportedLanguagesInput{})
+	_, first, err := s.getSupportedLanguages(context.TODO(), nil, GetSupportedLanguagesInput{})
 	if err != nil {
 		t.Fatalf("getSupportedLanguages failed: %v", err)
 	}
 	first.Languages[0].ID = "mutated"
 
-	_, second, err := s.getSupportedLanguages(nil, nil, GetSupportedLanguagesInput{})
+	_, second, err := s.getSupportedLanguages(context.TODO(), nil, GetSupportedLanguagesInput{})
 	if err != nil {
 		t.Fatalf("getSupportedLanguages failed on second call: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestMcp_FileExists_Good_FileAndDirectory(t *testing.T) {
 		t.Fatalf("Failed to write file: %v", err)
 	}
 
-	_, fileOut, err := s.fileExists(nil, nil, FileExistsInput{Path: "nested/file.txt"})
+	_, fileOut, err := s.fileExists(context.TODO(), nil, FileExistsInput{Path: "nested/file.txt"})
 	if err != nil {
 		t.Fatalf("fileExists(file) failed: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestMcp_FileExists_Good_FileAndDirectory(t *testing.T) {
 		t.Fatal("expected file to not be reported as a directory")
 	}
 
-	_, dirOut, err := s.fileExists(nil, nil, FileExistsInput{Path: "nested"})
+	_, dirOut, err := s.fileExists(context.TODO(), nil, FileExistsInput{Path: "nested"})
 	if err != nil {
 		t.Fatalf("fileExists(dir) failed: %v", err)
 	}
@@ -433,7 +433,7 @@ func TestMcp_FileExists_Bad_MissingPath(t *testing.T) {
 		t.Fatalf("Failed to create service: %v", err)
 	}
 
-	_, out, err := s.fileExists(nil, nil, FileExistsInput{Path: "missing.txt"})
+	_, out, err := s.fileExists(context.TODO(), nil, FileExistsInput{Path: "missing.txt"})
 	if err != nil {
 		t.Fatalf("fileExists(missing) failed: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestMcp_FileExists_Bad_MissingPath(t *testing.T) {
 func TestMcp_FileExists_Ugly_NilMedium(t *testing.T) {
 	s := &Service{}
 
-	if _, _, err := s.fileExists(nil, nil, FileExistsInput{Path: "anything"}); err == nil {
+	if _, _, err := s.fileExists(context.TODO(), nil, FileExistsInput{Path: "anything"}); err == nil {
 		t.Fatal("expected fileExists to fail when medium is nil")
 	}
 }
@@ -464,7 +464,7 @@ func TestMcp_ListDirectory_Good_ReturnsDocumentedEntryPaths(t *testing.T) {
 		t.Fatalf("Failed to write file: %v", err)
 	}
 
-	_, out, err := s.listDirectory(nil, nil, ListDirectoryInput{Path: "nested"})
+	_, out, err := s.listDirectory(context.TODO(), nil, ListDirectoryInput{Path: "nested"})
 	if err != nil {
 		t.Fatalf("listDirectory failed: %v", err)
 	}
@@ -485,7 +485,7 @@ func TestMcp_ListDirectory_Bad_MissingDirectory(t *testing.T) {
 		t.Fatalf("Failed to create service: %v", err)
 	}
 
-	if _, _, err := s.listDirectory(nil, nil, ListDirectoryInput{Path: "missing"}); err == nil {
+	if _, _, err := s.listDirectory(context.TODO(), nil, ListDirectoryInput{Path: "missing"}); err == nil {
 		t.Fatal("expected listing a missing directory to fail")
 	}
 }
@@ -502,7 +502,7 @@ func TestMcp_ListDirectory_Ugly_SortsEntries(t *testing.T) {
 		}
 	}
 
-	_, out, err := s.listDirectory(nil, nil, ListDirectoryInput{Path: "nested"})
+	_, out, err := s.listDirectory(context.TODO(), nil, ListDirectoryInput{Path: "nested"})
 	if err != nil {
 		t.Fatalf("listDirectory failed: %v", err)
 	}
@@ -781,7 +781,7 @@ func TestMcp_Service_Shutdown_Bad(t *T) {
 // moved AX-7 triplet TestMcp_Service_Shutdown_Ugly
 func TestMcp_Service_Shutdown_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	err := svc.Shutdown(nil)
+	err := svc.Shutdown(context.TODO())
 	AssertNoError(t, err)
 }
 

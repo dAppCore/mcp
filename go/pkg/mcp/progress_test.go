@@ -58,7 +58,7 @@ func TestProgress_NewProgressNotifier_Bad(t *T) {
 
 // moved AX-7 triplet TestProgress_NewProgressNotifier_Ugly
 func TestProgress_NewProgressNotifier_Ugly(t *T) {
-	notifier := NewProgressNotifier(nil, &sdkmcp.CallToolRequest{})
+	notifier := NewProgressNotifier(context.TODO(), &sdkmcp.CallToolRequest{})
 	AssertNoError(t, notifier.Send(-1, 0, ""))
 	AssertNotNil(t, notifier.req)
 }
@@ -79,7 +79,7 @@ func TestProgress_ProgressNotifier_Send_Bad(t *T) {
 
 // moved AX-7 triplet TestProgress_ProgressNotifier_Send_Ugly
 func TestProgress_ProgressNotifier_Send_Ugly(t *T) {
-	notifier := NewProgressNotifier(nil, nil)
+	notifier := NewProgressNotifier(context.TODO(), nil)
 	err := notifier.Send(-1, 0, "")
 	AssertNoError(t, err)
 }

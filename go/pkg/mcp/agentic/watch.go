@@ -199,10 +199,3 @@ func (s *PrepSubsystem) findActiveWorkspaces() []string {
 	}
 	return active
 }
-
-func (s *PrepSubsystem) resolveWorkspaceDir(name string) string {
-	if core.PathIsAbs(name) {
-		return name
-	}
-	return core.JoinPath(s.workspaceRoot(), name)
-}

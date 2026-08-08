@@ -592,7 +592,7 @@ func TestBridge_Bridge_Start_Good(t *T) {
 // moved AX-7 triplet TestBridge_Bridge_Start_Bad
 func TestBridge_Bridge_Start_Bad(t *T) {
 	bridge := NewBridge(nil, DefaultConfig())
-	AssertPanics(t, func() { bridge.Start(nil) })
+	AssertPanics(t, func() { bridge.Start(context.TODO()) })
 	AssertFalse(t, bridge.Connected())
 }
 

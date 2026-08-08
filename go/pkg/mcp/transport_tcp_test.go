@@ -376,7 +376,7 @@ func TestTransportTcp_Transport_Connect_Bad(t *T) {
 func TestTransportTcp_Transport_Connect_Ugly(t *T) {
 	left, right := net.Pipe()
 	right.Close()
-	conn, err := (&connTransport{conn: left}).Connect(nil)
+	conn, err := (&connTransport{conn: left}).Connect(context.TODO())
 	AssertNoError(t, err)
 	AssertNotNil(t, conn)
 }

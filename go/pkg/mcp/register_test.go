@@ -393,7 +393,7 @@ func TestRegister_Service_OnShutdown_Bad(t *T) {
 // moved AX-7 triplet TestRegister_Service_OnShutdown_Ugly
 func TestRegister_Service_OnShutdown_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	r := svc.OnShutdown(nil)
+	r := svc.OnShutdown(context.TODO())
 	AssertTrue(t, r.OK)
 }
 
@@ -414,6 +414,6 @@ func TestRegister_Service_OnStartup_Bad(t *T) {
 // moved AX-7 triplet TestRegister_Service_OnStartup_Ugly
 func TestRegister_Service_OnStartup_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	r := svc.OnStartup(nil)
+	r := svc.OnStartup(context.TODO())
 	AssertTrue(t, r.OK)
 }

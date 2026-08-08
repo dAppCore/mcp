@@ -195,11 +195,6 @@ func parseSimpleInt(s string) (int, bool) {
 	return n, true
 }
 
-// canDispatch is kept for backwards compat.
-func (s *PrepSubsystem) canDispatch() bool {
-	return true
-}
-
 // drainQueue finds the oldest queued workspace and spawns it if a slot is available.
 // Applies rate-based delay between spawns.
 func (s *PrepSubsystem) drainQueue() {

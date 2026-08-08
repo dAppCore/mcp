@@ -381,7 +381,7 @@ func TestBrain_Subsystem_Shutdown_Good(t *T) {
 // moved AX-7 triplet TestBrain_Subsystem_Shutdown_Bad
 func TestBrain_Subsystem_Shutdown_Bad(t *T) {
 	sub := New(nil)
-	err := sub.Shutdown(nil)
+	err := sub.Shutdown(context.TODO())
 	AssertNoError(t, err)
 }
 

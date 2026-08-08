@@ -25,9 +25,12 @@ import (
 const seedDivider = "======================================================="
 
 var (
-	apiURL     = flag.String("api", brainclient.DefaultURL, "OpenBrain API base URL")
-	apiKey     = flag.String("api-key", core.Env("CORE_BRAIN_KEY"), "OpenBrain API key (Bearer token)")
-	server     = flag.String("server", "hosthub-agent", "Legacy MCP server ID flag; accepted for compatibility")
+	apiURL = flag.String("api", brainclient.DefaultURL, "OpenBrain API base URL")
+	apiKey = flag.String("api-key", core.Env("CORE_BRAIN_KEY"), "OpenBrain API key (Bearer token)")
+	// Registered but deliberately never read: this keeps `-server=x` parsing
+	// for callers that still pass it. Assigning to _ keeps the side effect
+	// while saying the value is unwanted.
+	_          = flag.String("server", "hosthub-agent", "Legacy MCP server ID flag; accepted for compatibility")
 	org        = flag.String("org", core.Env("CORE_BRAIN_ORG"), "OpenBrain org for seeded memories")
 	agent      = flag.String("agent", "charon", "Agent ID for attribution")
 	dryRun     = flag.Bool("dry-run", false, "Preview without storing")
