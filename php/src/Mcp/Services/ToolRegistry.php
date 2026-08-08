@@ -108,7 +108,7 @@ class ToolRegistry
                     if ($includeVersionInfo) {
                         $latestVersion = McpToolVersion::forServer($serverId)
                             ->forTool($name)
-                            ->latest()
+                            ->markedLatest()
                             ->first();
 
                         if ($latestVersion) {

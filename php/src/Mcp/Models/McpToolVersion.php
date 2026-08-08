@@ -60,6 +60,21 @@ class McpToolVersion extends Model
         'sunset_at' => 'datetime',
     ];
 
+    /**
+     * Keep the sortable key in step with the version on every write.
+     *
+     * On saving rather than creating: a version string can be corrected after
+     * the fact, and a key that silently stopped matching its version would be
+     * worse than no key at all. version_sort is derived, never assigned by a
+     * caller, so it is deliberately absent from $fillable.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $model): void {
+            $model->version_sort = static::versionSortKey((string) $model->version);
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Scopes
     // -------------------------------------------------------------------------
@@ -89,9 +104,19 @@ class McpToolVersion extends Model
     }
 
     /**
-     * Get only latest versions.
+     * Get only the version flagged is_latest.
+     *
+     * Named markedLatest, not latest: Illuminate's query builder already
+     * defines latest(), and a real method always wins over a local scope, so
+     * scopeLatest() was never once called. Every caller that meant "the marked
+     * latest version" silently got orderBy('created_at', 'desc') instead —
+     * which filters nothing, and on rows created in the same second does not
+     * even order deterministically.
+     *
+     * @example
+     * McpToolVersion::forTool('plan_create')->markedLatest()->first();
      */
-    public function scopeLatest(Builder $query): Builder
+    public function scopeMarkedLatest(Builder $query): Builder
     {
         return $query->where('is_latest', true);
     }
@@ -127,16 +152,63 @@ class McpToolVersion extends Model
 
     /**
      * Order by version (newest first using semver sort).
+     *
+     * Orders on the stored version_sort key, which is written at save time and
+     * compares correctly as a plain string. This was three nested
+     * SUBSTRING_INDEX calls in raw SQL — a MySQL-only construct, so the scope
+     * could not run on sqlite at all and nothing that ordered versions was
+     * testable. It also interpolated $direction straight into the raw string.
+     *
+     * @example
+     * McpToolVersion::forTool('plan_create')->orderByVersion()->first();
      */
     public function scopeOrderByVersion(Builder $query, string $direction = 'desc'): Builder
     {
-        // Basic version ordering - splits on dots and orders numerically
-        // For production use, consider a more robust semver sorting approach
-        return $query->orderByRaw(
-            "CAST(SUBSTRING_INDEX(version, '.', 1) AS UNSIGNED) {$direction}, ".
-            "CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(version, '.', 2), '.', -1) AS UNSIGNED) {$direction}, ".
-            "CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(version, '.', 3), '.', -1) AS UNSIGNED) {$direction}"
-        );
+        // Whitelisted, not interpolated: $direction reaches the query builder as
+        // a direction keyword, and anything else is a caller bug, not a value.
+        $direction = strtolower($direction) === 'asc' ? 'asc' : 'desc';
+
+        return $query->orderBy('version_sort', $direction);
+    }
+
+    /**
+     * Build the sortable key for a semver string.
+     *
+     * Each numeric component is zero-padded to a fixed width so a plain string
+     * comparison matches numeric order — without padding "10.0.0" sorts before
+     * "9.0.0". The pre-release suffix is appended after a separator, and a
+     * release with no suffix gets "~" (0x7E), which sorts after every
+     * alphanumeric, so 1.0.0 correctly outranks 1.0.0-beta as semver requires.
+     *
+     * Non-numeric or missing components resolve to 0, so a malformed version
+     * still yields a comparable key rather than throwing on write.
+     *
+     * @example
+     * McpToolVersion::versionSortKey('1.2.3');      // '00001.00002.00003.~'
+     * McpToolVersion::versionSortKey('1.0.0-beta'); // '00001.00000.00000.beta'
+     */
+    public static function versionSortKey(string $version): string
+    {
+        $version = trim($version);
+
+        // Split the pre-release/build suffix off the numeric core.
+        $core = $version;
+        $suffix = '';
+        foreach (['-', '+'] as $separator) {
+            $at = strpos($core, $separator);
+            if ($at !== false) {
+                $suffix = substr($core, $at + 1);
+                $core = substr($core, 0, $at);
+            }
+        }
+
+        $parts = explode('.', $core);
+        $key = '';
+        for ($i = 0; $i < 3; $i++) {
+            $key .= sprintf('%05d.', (int) ($parts[$i] ?? 0));
+        }
+
+        return $key.($suffix === '' ? '~' : $suffix);
     }
 
     // -------------------------------------------------------------------------
@@ -217,7 +289,7 @@ class McpToolVersion extends Model
         // Find the latest version to suggest
         $latest = static::forServer($this->server_id)
             ->forTool($this->tool_name)
-            ->latest()
+            ->markedLatest()
             ->first();
 
         if ($latest && $latest->version !== $this->version) {
@@ -256,7 +328,7 @@ class McpToolVersion extends Model
         // Find the latest version to suggest
         $latest = static::forServer($this->server_id)
             ->forTool($this->tool_name)
-            ->latest()
+            ->markedLatest()
             ->first();
 
         if ($latest && $latest->version !== $this->version) {
