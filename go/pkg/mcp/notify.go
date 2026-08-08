@@ -154,6 +154,11 @@ type ChannelNotification struct {
 // Errors on individual sessions are logged but do not stop the broadcast.
 //
 //	s.SendNotificationToAllClients(ctx, "info", "monitor", map[string]any{"event": "build complete"})
+//
+// successor call — there is nothing to migrate to. Functional for a window of
+// at least 12 months from 2026-07-28; revisit by 2027-07-28.
+//
+//nolint:staticcheck // SA1019: MCP logging is deprecated by SEP-2577 with NO
 func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.LoggingLevel, logger string, data any) {
 	if s == nil || s.server == nil {
 		return
@@ -168,6 +173,11 @@ func (s *Service) SendNotificationToAllClients(ctx context.Context, level mcp.Lo
 // MCP session.
 //
 //	s.SendNotificationToSession(ctx, session, "info", "monitor", data)
+//
+// successor call — there is nothing to migrate to. Functional for a window of
+// at least 12 months from 2026-07-28; revisit by 2027-07-28.
+//
+//nolint:staticcheck // SA1019: MCP logging is deprecated by SEP-2577 with NO
 func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
 	if s == nil || s.server == nil {
 		return
@@ -180,16 +190,28 @@ func (s *Service) SendNotificationToSession(ctx context.Context, session *mcp.Se
 // MCP client.
 //
 //	s.SendNotificationToClient(ctx, client, "info", "monitor", data)
+//
+// successor call — there is nothing to migrate to. Functional for a window of
+// at least 12 months from 2026-07-28; revisit by 2027-07-28.
+//
+//nolint:staticcheck // SA1019: MCP logging is deprecated by SEP-2577 with NO
 func (s *Service) SendNotificationToClient(ctx context.Context, client *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
 	s.SendNotificationToSession(ctx, client, level, logger, data)
 }
 
+// successor call — there is nothing to migrate to. Functional for a window of
+// at least 12 months from 2026-07-28; revisit by 2027-07-28.
+//
+//nolint:staticcheck // SA1019: MCP logging is deprecated by SEP-2577 with NO
 func (s *Service) sendLoggingNotificationToSession(ctx context.Context, session *mcp.ServerSession, level mcp.LoggingLevel, logger string, data any) {
 	if s == nil || s.server == nil || session == nil {
 		return
 	}
 	ctx = normalizeNotificationContext(ctx)
 
+	//nolint:staticcheck // SA1019: MCP logging is deprecated by SEP-2577 with NO
+	// successor call — there is nothing to migrate to. Functional for a window of
+	// at least 12 months from 2026-07-28; revisit by 2027-07-28.
 	if err := sendSessionNotification(ctx, session, LoggingNotificationMethod, &mcp.LoggingMessageParams{
 		Level:  level,
 		Logger: logger,

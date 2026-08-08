@@ -1,0 +1,32 @@
+# golangci-lint configuration.
+#
+# This repository had none, so policy lived in a CI argument where it was both
+# wrong and invisible. Two instruments were lying about the debt at once:
+#
+#   * The defaults cap output at max-issues-per-linter: 50 and
+#     max-same-issues: 3. This repo's lint gate reported "71 issues" for as long
+#     as anyone looked. Uncapped, the same code reports 248. A capped number is
+#     not a measurement — fixing findings can move the total by zero as
+#     suppressed ones surface to replace them, which is how the same fiction was
+#     caught in dappcore/agent.
+#
+#   * --tests=false, passed in CI, skipped test files entirely. That reports
+#     production symbols as dead when their only callers are test-injection
+#     seams, and simultaneously hides dead scaffolding inside the test files.
+#     Both directions wrong, from one flag.
+#
+# So: everything is reported, and tests are linted. errcheck is excluded for
+# them instead, which is the narrower cut — an unchecked Close() in test setup
+# is noise, while an unchecked write-close in production loses data.
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      - path: '_test\.go'
+        linters:
+          - errcheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

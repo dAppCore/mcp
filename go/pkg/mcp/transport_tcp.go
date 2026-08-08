@@ -68,9 +68,10 @@ func NewTCPTransport(addr string) (
 	addr = normalizeTCPAddr(addr)
 
 	host, port, _ := net.SplitHostPort(addr)
-	if host == "" {
+	switch host {
+	case "":
 		addr = net.JoinHostPort("127.0.0.1", port)
-	} else if host == "0.0.0.0" {
+	case "0.0.0.0":
 		diagPrintf("WARNING: MCP TCP server binding to all interfaces (%s). Use 127.0.0.1 for local-only access.\n", addr)
 	}
 	listener, err := net.Listen("tcp", addr)
@@ -151,10 +152,10 @@ func (s *Service) handleConnection(ctx context.Context, conn net.Conn) {
 	session, err := s.server.Connect(ctx, transport, nil)
 	if err != nil {
 		diagPrintf("Connection error: %v\n", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 	// Block until the session ends
 	if err := session.Wait(); err != nil {
 		diagPrintf("Session ended: %v\n", err)

@@ -410,7 +410,7 @@ func (c *Client) doOnce(ctx context.Context, method, path, bodyString string, ha
 		}
 		return nil, true, 0, false, core.E("brain.client", "request failed", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	readResult := core.ReadAll(io.LimitReader(response.Body, c.maxResponseBytes+1))
 	if !readResult.OK {

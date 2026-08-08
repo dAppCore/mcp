@@ -103,7 +103,6 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 	// ServeTCP creates its own listener internally, so we need to probe.
 	// We'll retry connecting for up to 2 seconds.
 	var conn net.Conn
-	deadline := time.Now().Add(2 * time.Second)
 	// Since ServeTCP binds :0, we can't predict the port. Instead, create
 	// our own listener to find a free port, close it, then pass that port
 	// to ServeTCP. This is a known race, but fine for tests.
@@ -127,7 +126,7 @@ func TestTCPTransport_E2E_FullRoundTrip(t *testing.T) {
 	}()
 
 	// Wait for server to accept connections
-	deadline = time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		conn, err = net.DialTimeout("tcp", addr, 200*time.Millisecond)
 		if err == nil {

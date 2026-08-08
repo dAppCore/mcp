@@ -42,8 +42,18 @@ var unrestrictedFlag bool
 // AddMCPCommands registers the `mcp` command tree on the Core instance.
 //
 //	cli.Main(cli.WithCommands("mcp", mcpcmd.AddMCPCommands))
+//
+// register reports a failed command registration instead of dropping it: an
+// unregistered command is not a missing feature at startup, it is a "command
+// not found" much later, a long way from the cause.
+func register(c *core.Core, path string, cmd core.Command) {
+	if r := c.Command(path, cmd); !r.OK {
+		core.Warn("mcpcmd: registering command failed", "path", path, "reason", r.Value)
+	}
+}
+
 func AddMCPCommands(c *core.Core) {
-	c.Command("mcp", core.Command{
+	register(c, "mcp", core.Command{
 		Description: "Model Context Protocol server (stdio, TCP, Unix socket, HTTP).",
 		Action:      runServeAction,
 		Flags: core.NewOptions(
@@ -53,7 +63,7 @@ func AddMCPCommands(c *core.Core) {
 		),
 	})
 
-	c.Command("mcp/serve", core.Command{
+	register(c, "mcp/serve", core.Command{
 		Description: "Start the MCP server with auto-selected transport (stdio, TCP, Unix, or HTTP).",
 		Action:      runServeAction,
 		Flags: core.NewOptions(

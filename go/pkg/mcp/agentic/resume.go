@@ -112,7 +112,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, ResumeOutput{}, core.E("resume", "failed to open /dev/null", resultError(devNullResult))
 	}
 	devNull := devNullResult.Value.(*core.OSFile)
-	defer devNull.Close()
+	defer func() { _ = devNull.Close() }()
 
 	outResult := core.Create(outputFile)
 	if !outResult.OK {
@@ -128,7 +128,7 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
-		outFile.Close()
+		_ = outFile.Close()
 		return nil, ResumeOutput{}, core.E("resume", "failed to spawn "+agent, err)
 	}
 
@@ -140,8 +140,17 @@ func (s *PrepSubsystem) resume(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	s.saveStatus(wsDir, st)
 
 	go func() {
-		cmd.Wait()
-		outFile.Close()
+		// The exit status is the only signal that the agent crashed rather than
+		// finished. Status is still reported as "completed" below — see the
+		// dedicated issue; this at least stops the crash being silent.
+		if err := cmd.Wait(); err != nil {
+			core.Warn("agentic: agent process exited non-zero", "workspace", wsDir, "error", err)
+		}
+		// The agent's whole transcript is in this file; a failed close can mean a
+		// truncated log, and the log is the only record of what the agent did.
+		if err := outFile.Close(); err != nil {
+			core.Warn("agentic: closing agent log failed", "workspace", wsDir, "error", err)
+		}
 
 		postCtx := context.WithoutCancel(ctx)
 		status := "completed"

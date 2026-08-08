@@ -162,9 +162,17 @@ func TestNotificationMethods_Good_NilContext(t *testing.T) {
 		t.Fatalf("New() failed: %v", err)
 	}
 
+	// The nil Context IS the input under test. This test has no assertions: its
+	// only mechanism is "these four do not panic on a nil ctx", so substituting a
+	// real Context leaves a test that passes while checking nothing.
+	//
+	//nolint:staticcheck // SA1012: deliberate — see above.
 	svc.SendNotificationToAllClients(nil, "info", "test", map[string]any{"ok": true})
+	//nolint:staticcheck // SA1012: deliberate — see above.
 	svc.SendNotificationToSession(nil, nil, "info", "test", map[string]any{"ok": true})
+	//nolint:staticcheck // SA1012: deliberate — see above.
 	svc.ChannelSend(nil, ChannelBuildComplete, map[string]any{"ok": true})
+	//nolint:staticcheck // SA1012: deliberate — see above.
 	svc.ChannelSendToSession(nil, nil, ChannelBuildComplete, map[string]any{"ok": true})
 }
 
@@ -689,9 +697,9 @@ func TestNotify_NotifySession_Bad(t *T) {
 
 // moved AX-7 triplet TestNotify_NotifySession_Ugly
 func TestNotify_NotifySession_Ugly(t *T) {
-	err := NotifySession(nil, nil, "method", map[string]any{})
+	err := NotifySession(context.TODO(), nil, "method", map[string]any{})
 	AssertNoError(t, err)
-	AssertNoError(t, NotifySession(nil, nil, "", map[string]any{}))
+	AssertNoError(t, NotifySession(context.TODO(), nil, "", map[string]any{}))
 }
 
 // moved AX-7 triplet TestNotify_Service_ChannelSend_Good
@@ -711,7 +719,7 @@ func TestNotify_Service_ChannelSend_Bad(t *T) {
 // moved AX-7 triplet TestNotify_Service_ChannelSend_Ugly
 func TestNotify_Service_ChannelSend_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	AssertNotPanics(t, func() { svc.ChannelSend(nil, "", nil) })
+	AssertNotPanics(t, func() { svc.ChannelSend(context.TODO(), "", nil) })
 	AssertNil(t, svc.WSHub())
 }
 
@@ -732,7 +740,7 @@ func TestNotify_Service_ChannelSendToClient_Bad(t *T) {
 // moved AX-7 triplet TestNotify_Service_ChannelSendToClient_Ugly
 func TestNotify_Service_ChannelSendToClient_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	AssertNotPanics(t, func() { svc.ChannelSendToClient(nil, nil, "", nil) })
+	AssertNotPanics(t, func() { svc.ChannelSendToClient(context.TODO(), nil, "", nil) })
 	count := 0
 	for range svc.Sessions() {
 		count++
@@ -757,7 +765,7 @@ func TestNotify_Service_ChannelSendToSession_Bad(t *T) {
 // moved AX-7 triplet TestNotify_Service_ChannelSendToSession_Ugly
 func TestNotify_Service_ChannelSendToSession_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	AssertNotPanics(t, func() { svc.ChannelSendToSession(nil, nil, "", nil) })
+	AssertNotPanics(t, func() { svc.ChannelSendToSession(context.TODO(), nil, "", nil) })
 	count := 0
 	for range svc.Sessions() {
 		count++
@@ -784,7 +792,7 @@ func TestNotify_Service_SendNotificationToAllClients_Bad(t *T) {
 // moved AX-7 triplet TestNotify_Service_SendNotificationToAllClients_Ugly
 func TestNotify_Service_SendNotificationToAllClients_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	AssertNotPanics(t, func() { svc.SendNotificationToAllClients(nil, "", "", nil) })
+	AssertNotPanics(t, func() { svc.SendNotificationToAllClients(context.TODO(), "", "", nil) })
 	count := 0
 	for range svc.Sessions() {
 		count++
@@ -809,7 +817,7 @@ func TestNotify_Service_SendNotificationToClient_Bad(t *T) {
 // moved AX-7 triplet TestNotify_Service_SendNotificationToClient_Ugly
 func TestNotify_Service_SendNotificationToClient_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	AssertNotPanics(t, func() { svc.SendNotificationToClient(nil, nil, "", "", nil) })
+	AssertNotPanics(t, func() { svc.SendNotificationToClient(context.TODO(), nil, "", "", nil) })
 	count := 0
 	for range svc.Sessions() {
 		count++
@@ -834,7 +842,7 @@ func TestNotify_Service_SendNotificationToSession_Bad(t *T) {
 // moved AX-7 triplet TestNotify_Service_SendNotificationToSession_Ugly
 func TestNotify_Service_SendNotificationToSession_Ugly(t *T) {
 	svc := newServiceForTest(t, Options{})
-	AssertNotPanics(t, func() { svc.SendNotificationToSession(nil, nil, "", "", nil) })
+	AssertNotPanics(t, func() { svc.SendNotificationToSession(context.TODO(), nil, "", "", nil) })
 	count := 0
 	for range svc.Sessions() {
 		count++

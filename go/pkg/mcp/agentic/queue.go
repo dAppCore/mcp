@@ -195,11 +195,6 @@ func parseSimpleInt(s string) (int, bool) {
 	return n, true
 }
 
-// canDispatch is kept for backwards compat.
-func (s *PrepSubsystem) canDispatch() bool {
-	return true
-}
-
 // drainQueue finds the oldest queued workspace and spawns it if a slot is available.
 // Applies rate-based delay between spawns.
 func (s *PrepSubsystem) drainQueue() {
@@ -241,7 +236,7 @@ func (s *PrepSubsystem) drainQueue() {
 
 		devNullResult := core.Open("/dev/null")
 		if !devNullResult.OK {
-			outFile.Close()
+			_ = outFile.Close()
 			continue
 		}
 		devNull := devNullResult.Value.(*core.OSFile)
@@ -254,11 +249,11 @@ func (s *PrepSubsystem) drainQueue() {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 		if err := cmd.Start(); err != nil {
-			outFile.Close()
-			devNull.Close()
+			_ = outFile.Close()
+			_ = devNull.Close()
 			continue
 		}
-		devNull.Close()
+		_ = devNull.Close()
 
 		st.Status = "running"
 		st.PID = cmd.Process.Pid
@@ -266,8 +261,17 @@ func (s *PrepSubsystem) drainQueue() {
 		s.saveStatus(wsDir, st)
 
 		go func() {
-			cmd.Wait()
-			outFile.Close()
+			// The exit status is the only signal that the agent crashed rather than
+			// finished. Status is still reported as "completed" below — see the
+			// dedicated issue; this at least stops the crash being silent.
+			if err := cmd.Wait(); err != nil {
+				core.Warn("agentic: agent process exited non-zero", "workspace", wsDir, "error", err)
+			}
+			// The agent's whole transcript is in this file; a failed close can mean a
+			// truncated log, and the log is the only record of what the agent did.
+			if err := outFile.Close(); err != nil {
+				core.Warn("agentic: closing agent log failed", "workspace", wsDir, "error", err)
+			}
 
 			if st2, err := readStatus(wsDir); err == nil {
 				st2.Status = "completed"

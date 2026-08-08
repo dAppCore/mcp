@@ -197,7 +197,7 @@ func (s *PrepSubsystem) forgeCreatePR(ctx context.Context, org, repo, head, base
 	if err != nil {
 		return "", 0, core.E("forgeCreatePR", "request failed", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 201 {
 		var errBody map[string]any
@@ -237,7 +237,7 @@ func (s *PrepSubsystem) commentOnIssue(ctx context.Context, org, repo string, is
 	if err != nil {
 		return
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 // --- agentic_list_prs ---
@@ -353,7 +353,7 @@ func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string
 	if err != nil {
 		return nil, core.E("listRepoPRs", "failed to list PRs for "+repo, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return nil, core.E("listRepoPRs", core.Sprintf("HTTP %d for "+repo, resp.StatusCode), nil)
 	}
@@ -377,7 +377,9 @@ func (s *PrepSubsystem) listRepoPRs(ctx context.Context, org, repo, state string
 			Name string `json:"name"`
 		} `json:"labels"`
 	}
-	json.NewDecoder(resp.Body).Decode(&prs)
+	if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil {
+		return nil, core.E("listRepoPRs", "decoding PR list failed", err)
+	}
 
 	var result []PRInfo
 	for _, pr := range prs {

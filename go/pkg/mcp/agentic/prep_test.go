@@ -251,7 +251,7 @@ func TestPrep_PrepSubsystem_Shutdown_Good(t *T) {
 // moved AX-7 triplet TestPrep_PrepSubsystem_Shutdown_Bad
 func TestPrep_PrepSubsystem_Shutdown_Bad(t *T) {
 	sub := NewPrep()
-	err := sub.Shutdown(nil)
+	err := sub.Shutdown(context.TODO())
 	AssertNoError(t, err)
 }
 

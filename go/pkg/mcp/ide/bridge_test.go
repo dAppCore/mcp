@@ -603,6 +603,9 @@ func TestBridge_Bridge_Start_Good(t *T) {
 // moved AX-7 triplet TestBridge_Bridge_Start_Bad
 func TestBridge_Bridge_Start_Bad(t *T) {
 	bridge := NewBridge(nil, DefaultConfig())
+	//nolint:staticcheck // SA1012: the nil Context IS the input under test —
+	// Start does not guard it, so context.WithCancel(nil) panics. Substituting a
+	// real Context here removes the case rather than fixing it.
 	AssertPanics(t, func() { bridge.Start(nil) })
 	AssertFalse(t, bridge.Connected())
 }

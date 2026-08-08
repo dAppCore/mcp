@@ -120,7 +120,7 @@ func (s *PrepSubsystem) createIssueViaAPI(repo, title, description, issueType, p
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return resp.StatusCode < 400
 }
 

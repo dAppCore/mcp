@@ -211,11 +211,11 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	// - NO_COLOR=1 disables colour output
 	devNullResult := core.Open("/dev/null")
 	if !devNullResult.OK {
-		outFile.Close()
+		_ = outFile.Close()
 		return nil, DispatchOutput{}, core.E("dispatch", "failed to open /dev/null", resultError(devNullResult))
 	}
 	devNull := devNullResult.Value.(*core.OSFile)
-	defer devNull.Close()
+	defer func() { _ = devNull.Close() }()
 
 	cmd := shellCommand(context.Background(), srcDir, command, args...)
 	cmd.Stdin = devNull
@@ -225,7 +225,7 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
-		outFile.Close()
+		_ = outFile.Close()
 		// Revert status so the slot is freed
 		s.saveStatus(wsDir, &WorkspaceStatus{
 			Status: "failed",
@@ -258,8 +258,17 @@ func (s *PrepSubsystem) dispatch(ctx context.Context, req *mcp.CallToolRequest, 
 	// Background goroutine: close file handle when process exits,
 	// update status, then drain queue if a slot opened up.
 	go func() {
-		cmd.Wait()
-		outFile.Close()
+		// The exit status is the only signal that the agent crashed rather than
+		// finished. Status is still reported as "completed" below — see the
+		// dedicated issue; this at least stops the crash being silent.
+		if err := cmd.Wait(); err != nil {
+			core.Warn("agentic: agent process exited non-zero", "workspace", wsDir, "error", err)
+		}
+		// The agent's whole transcript is in this file; a failed close can mean a
+		// truncated log, and the log is the only record of what the agent did.
+		if err := outFile.Close(); err != nil {
+			core.Warn("agentic: closing agent log failed", "workspace", wsDir, "error", err)
+		}
 
 		postCtx := context.WithoutCancel(ctx)
 		status := "completed"

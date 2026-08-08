@@ -170,7 +170,7 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 	if err != nil {
 		return ChildRef{}, core.E("createIssue", "request failed", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 201 {
 		return ChildRef{}, core.E("createIssue", core.Sprintf("returned %d", resp.StatusCode), nil)
@@ -180,7 +180,9 @@ func (s *PrepSubsystem) createIssue(ctx context.Context, org, repo, title, body 
 		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
 	}
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ChildRef{}, core.E("createIssue", "decoding created issue failed", err)
+	}
 
 	return ChildRef{
 		Number: result.Number,
@@ -204,7 +206,7 @@ func (s *PrepSubsystem) resolveLabelIDs(ctx context.Context, org, repo string, n
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return nil
 	}
@@ -213,7 +215,12 @@ func (s *PrepSubsystem) resolveLabelIDs(ctx context.Context, org, repo string, n
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	}
-	json.NewDecoder(resp.Body).Decode(&existing)
+	if err := json.NewDecoder(resp.Body).Decode(&existing); err != nil {
+		// Carrying on would silently treat every existing label as absent and
+		// re-create them all.
+		core.Warn("agentic: decoding label list failed", "repo", repo, "error", err)
+		return nil
+	}
 
 	nameToID := make(map[string]int64)
 	for _, l := range existing {
@@ -267,7 +274,7 @@ func (s *PrepSubsystem) createLabel(ctx context.Context, org, repo, name string)
 	if err != nil {
 		return 0
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 201 {
 		return 0
 	}
@@ -275,7 +282,12 @@ func (s *PrepSubsystem) createLabel(ctx context.Context, org, repo, name string)
 	var result struct {
 		ID int64 `json:"id"`
 	}
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// No error return here; a zero ID is indistinguishable from "label
+		// created with id 0", so say so rather than hand back a silent zero.
+		core.Warn("agentic: decoding created label failed", "repo", repo, "name", name, "error", err)
+		return 0
+	}
 	return result.ID
 }
 

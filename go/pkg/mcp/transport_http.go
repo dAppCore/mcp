@@ -95,7 +95,7 @@ func (s *Service) ServeHTTP(
 	if err != nil {
 		return core.E("mcp.ServeHTTP", "failed to listen on "+addr, err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	diagPrintf("MCP HTTP server listening on %s\n", addr)
 

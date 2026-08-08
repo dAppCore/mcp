@@ -54,7 +54,9 @@ func (s *PrepSubsystem) mirror(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	}
 
 	basePath := repoRootFromCodePath(s.codePath)
-	repos := []string{}
+	// Declared, not initialised to an empty slice: both branches below assign
+	// it unconditionally, so the literal was written and immediately discarded.
+	var repos []string
 	if input.Repo != "" {
 		repos = []string{input.Repo}
 	} else {

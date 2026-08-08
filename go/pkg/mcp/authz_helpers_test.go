@@ -21,6 +21,8 @@ func TestAuthzHelpers_claimsFromContext_Good_Bad_Ugly(t *testing.T) {
 	}
 
 	// Ugly: a nil context must not panic and yields nil.
+	//
+	//nolint:staticcheck // SA1012: the nil Context IS the input under test.
 	if got := claimsFromContext(nil); got != nil {
 		t.Fatalf("expected nil claims for nil context, got %v", got)
 	}
@@ -30,6 +32,7 @@ func TestAuthzHelpers_withAuthClaims_Ugly_NilContext(t *testing.T) {
 	// withAuthClaims on a nil context returns a usable background context but does
 	// NOT carry the claims (it bails before WithValue). The contract here is
 	// "do not panic on nil"; claims simply are not retrievable.
+	//nolint:staticcheck // SA1012: the nil Context IS the input under test.
 	ctx := withAuthClaims(nil, &authClaims{Subject: "x"})
 	if ctx == nil {
 		t.Fatal("expected non-nil context")

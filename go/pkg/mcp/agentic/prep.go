@@ -226,7 +226,9 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 
 	// Workspace root: .core/workspace/{repo}-{timestamp}/
 	wsRoot := s.workspaceRoot()
-	coreio.Local.EnsureDir(wsRoot)
+	if err := coreio.Local.EnsureDir(wsRoot); err != nil {
+		return nil, PrepOutput{}, core.E("prepWorkspace", core.Concat("cannot create workspace root ", wsRoot), err)
+	}
 	wsName := core.Sprintf("%s-%d", input.Repo, time.Now().Unix())
 	wsDir := core.Path(wsRoot, wsName)
 
@@ -268,8 +270,13 @@ func (s *PrepSubsystem) prepWorkspace(ctx context.Context, _ *mcp.CallToolReques
 	}
 
 	// Create context dirs inside src/
-	coreio.Local.EnsureDir(core.Path(srcDir, "kb"))
-	coreio.Local.EnsureDir(core.Path(srcDir, "specs"))
+	// A missing kb/ or specs/ does not fail the prep — the workspace is still
+	// usable — but it silently strips the agent's context, so say it happened.
+	for _, dir := range []string{"kb", "specs"} {
+		if err := coreio.Local.EnsureDir(core.Path(srcDir, dir)); err != nil {
+			core.Warn("agentic: creating context dir failed", "dir", dir, "error", err)
+		}
+	}
 
 	// Remote stays as local clone origin — agent cannot push to forge.
 	// Reviewer pulls changes from workspace and pushes after verification.
@@ -560,7 +567,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 	if err != nil {
 		return 0
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return 0
 	}
@@ -592,7 +599,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 			continue
 		}
 		if pageResp.StatusCode != 200 {
-			pageResp.Body.Close()
+			_ = pageResp.Body.Close()
 			continue
 		}
 
@@ -602,7 +609,7 @@ func (s *PrepSubsystem) pullWiki(ctx context.Context, org, repo, wsDir string) i
 		if err := json.NewDecoder(pageResp.Body).Decode(&pageData); err != nil {
 			continue
 		}
-		pageResp.Body.Close()
+		_ = pageResp.Body.Close()
 
 		if pageData.ContentBase64 == "" {
 			continue
@@ -663,7 +670,7 @@ func (s *PrepSubsystem) generateContext(ctx context.Context, repo, wsDir string)
 	if err != nil {
 		return 0
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return 0
 	}
@@ -763,7 +770,7 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return
 	}
@@ -772,7 +779,12 @@ func (s *PrepSubsystem) generateTodo(ctx context.Context, org, repo string, issu
 		Title string `json:"title"`
 		Body  string `json:"body"`
 	}
-	json.NewDecoder(resp.Body).Decode(&issueData)
+	if err := json.NewDecoder(resp.Body).Decode(&issueData); err != nil {
+		// Without the issue we would write a TODO whose title is empty — worse
+		// than writing none, because the agent would work from it.
+		core.Warn("agentic: decoding issue for TODO failed", "repo", repo, "issue", issue, "error", err)
+		return
+	}
 
 	content := core.Sprintf("# TASK: %s\n\n", issueData.Title)
 	content += core.Sprintf("**Status:** ready\n")
