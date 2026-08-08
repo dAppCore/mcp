@@ -47,7 +47,18 @@ jobs:
           go-version: '1.26'
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # Pinned, not `latest`. "Merge on green" only means something if
+          # green is a property of this repo rather than of the calendar: with
+          # `latest`, a golangci-lint release that enables a linter by default
+          # or tightens an existing one turns this gate red on a commit that
+          # touched nothing, and it reads as "your PR broke lint" to whoever is
+          # unlucky enough to be next. Bump this pin when we choose a new
+          # linter; never inherit one.
+          #
+          # v2.12.2 is what `latest` resolved to for the run that took this
+          # repo to 0 findings, so the pin is the version that was actually
+          # verified, not a guess.
+          version: v2.12.2
           working-directory: go
           # Tests are linted, and everything is reported. Policy now lives in
           # go/.golangci.yml — see the comment there for what --tests=false and
