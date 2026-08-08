@@ -155,7 +155,7 @@ func TestRun_TCPTrigger(t *testing.T) {
 	}
 
 	cancel()
-	_ = <-errCh
+	<-errCh
 }
 
 func TestServeTCP_MultipleConnections(t *testing.T) {

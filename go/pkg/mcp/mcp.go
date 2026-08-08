@@ -71,8 +71,11 @@ func New(opts Options) (
 
 	server := mcp.NewServer(impl, &mcp.ServerOptions{
 		Capabilities: &mcp.ServerCapabilities{
-			Resources:    &mcp.ResourceCapabilities{ListChanged: false},
-			Tools:        &mcp.ToolCapabilities{ListChanged: false},
+			Resources: &mcp.ResourceCapabilities{ListChanged: false},
+			Tools:     &mcp.ToolCapabilities{ListChanged: false},
+			//nolint:staticcheck // SA1019: MCP logging is deprecated by SEP-2577 with NO
+			// successor call — there is nothing to migrate to. Functional for a window of
+			// at least 12 months from 2026-07-28; revisit by 2027-07-28.
 			Logging:      &mcp.LoggingCapabilities{},
 			Experimental: channelCapability(),
 		},

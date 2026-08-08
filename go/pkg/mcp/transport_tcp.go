@@ -68,9 +68,10 @@ func NewTCPTransport(addr string) (
 	addr = normalizeTCPAddr(addr)
 
 	host, port, _ := net.SplitHostPort(addr)
-	if host == "" {
+	switch host {
+	case "":
 		addr = net.JoinHostPort("127.0.0.1", port)
-	} else if host == "0.0.0.0" {
+	case "0.0.0.0":
 		diagPrintf("WARNING: MCP TCP server binding to all interfaces (%s). Use 127.0.0.1 for local-only access.\n", addr)
 	}
 	listener, err := net.Listen("tcp", addr)
