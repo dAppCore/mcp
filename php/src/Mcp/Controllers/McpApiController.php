@@ -378,16 +378,27 @@ class McpApiController extends Controller
     }
 
     /**
-     * Resolve the bound agent resource provider, if the agent module supplies one.
+     * Resolve the bound agent resource provider, if a module supplies one.
      *
-     * Absent when this package is installed without dappcore/agent, which is a
+     * Absent when this package is installed without an agent module, which is a
      * legitimate deployment — the protocol surface stands on its own and the
      * agent resources are an optional extension to it.
+     *
+     * Structural, not nominal. AgentResourceProvider states the contract and a
+     * provider that can name the interface should implement it, but
+     * dappcore/agent maintains its own copy of Core\Mcp rather than depending
+     * on this package, so it cannot reference the interface to implement it.
+     * Requiring `instanceof` would therefore have left these endpoints dead
+     * permanently rather than until the binding landed — an interim that never
+     * ends is a decision, so it is made here: bind under the interface name and
+     * satisfy its two methods, and the endpoints work either way.
+     *
+     * @return object|null A read() provider, or null when unbound
      *
      * @example
      * $provider = $this->agentResourceProvider();
      */
-    protected function agentResourceProvider(): ?AgentResourceProvider
+    protected function agentResourceProvider(): ?object
     {
         if (! app()->bound(AgentResourceProvider::class)) {
             return null;
@@ -395,7 +406,17 @@ class McpApiController extends Controller
 
         $provider = app(AgentResourceProvider::class);
 
-        return $provider instanceof AgentResourceProvider ? $provider : null;
+        if (! is_object($provider)) {
+            return null;
+        }
+
+        if ($provider instanceof AgentResourceProvider) {
+            return $provider;
+        }
+
+        // Duck-typed fallback: read() is the whole contract this package
+        // consumes, so it is the whole check.
+        return method_exists($provider, 'read') ? $provider : null;
     }
 
     /**
