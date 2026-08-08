@@ -21,19 +21,22 @@ namespace Core\Mcp\Resources\Contracts;
  * Nothing is bound when the agent module is absent, and the controller answers
  * "unavailable" rather than pretending — the resources are optional to this
  * package, not to the protocol.
+ *
+ * read() only, deliberately. An earlier draft also required entries() for
+ * listing, which nothing here ever called: this package's
+ * GET servers/{id}/resources lists a server's own configured resources, a
+ * different concept. A contract method with no consumer is over-specification
+ * that an implementer has to satisfy for nothing, so it is not asked for.
+ * Providers are free to offer listing for their own transports —
+ * dappcore/agent's registry does, for its stdio server.
+ *
+ * Satisfied structurally as well as nominally: a provider that cannot name this
+ * interface (because it maintains its own copy of Core\Mcp rather than
+ * depending on this package) binds under the interface name and implements
+ * read(), and McpApiController accepts it.
  */
 interface AgentResourceProvider
 {
-    /**
-     * Entries to advertise when listing resources.
-     *
-     * @return array<int, array{uri: string, name: string, description: string, mimeType: string}>
-     *
-     * @example
-     * $provider->entries(); // [['uri' => 'plans://all', ...]]
-     */
-    public function entries(): array;
-
     /**
      * Read one resource, or null when nothing serves that URI.
      *
