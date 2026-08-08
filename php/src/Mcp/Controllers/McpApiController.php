@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Core\Mcp\Controllers;
 
+use Core\Api\Models\ApiKey;
 use Core\Front\Controller;
+use Core\Mcp\Models\McpApiRequest;
+use Core\Mcp\Models\McpToolCall;
+use Core\Mcp\Resources\Contracts\AgentResourceProvider;
 use Core\Mcp\Services\McpQuotaService;
-use Core\Mod\Agentic\Models\AgentPlan;
-use Core\Mod\Agentic\Models\AgentSession;
+use Core\Mcp\Services\McpWebhookDispatcher;
+use Core\Mod\Agentic\Services\AgentToolRegistry;
 use Core\Mod\Content\Models\ContentItem;
+use Core\Tenant\Models\Workspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Core\Api\Models\ApiKey;
-use Core\Mcp\Models\McpApiRequest;
-use Core\Mcp\Models\McpToolCall;
-use Core\Mcp\Services\McpWebhookDispatcher;
-use Core\Tenant\Models\Workspace;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -228,17 +228,22 @@ class McpApiController extends Controller
      */
     protected function readResourceContent(string $scheme, string $uri): ?array
     {
-        if (str_starts_with($uri, 'plans://')) {
-            return [
-                'mimeType' => 'text/markdown',
-                'text' => $this->resourcePlanContent($uri),
-            ];
-        }
+        // plans:// and sessions:// are agent-domain. This package used to render
+        // them itself, importing Core\Mod\Agentic\Models\* — a library
+        // importing its own consumer. Whoever owns the data now supplies it
+        // through AgentResourceProvider.
+        if (str_starts_with($uri, 'plans://') || str_starts_with($uri, 'sessions://')) {
+            $provider = $this->agentResourceProvider();
 
-        if (str_starts_with($uri, 'sessions://')) {
-            return [
-                'mimeType' => 'text/markdown',
-                'text' => $this->resourceSessionContent($uri),
+            if (! $provider) {
+                return null;
+            }
+
+            $contents = $provider->read($uri);
+
+            return $contents === null ? null : [
+                'mimeType' => $contents['mimeType'],
+                'text' => $contents['text'],
             ];
         }
 
@@ -253,125 +258,6 @@ class McpApiController extends Controller
     }
 
     /**
-     * Render plan resources.
-     */
-    protected function resourcePlanContent(string $uri): string
-    {
-        if ($uri === 'plans://all') {
-            $plans = AgentPlan::with('agentPhases')->notArchived()->orderBy('updated_at', 'desc')->get();
-
-            $md = "# Work Plans\n\n";
-            $md .= '**Total:** '.$plans->count()." plan(s)\n\n";
-
-            foreach ($plans->groupBy('status') as $status => $group) {
-                $md .= '## '.ucfirst($status).' ('.$group->count().")\n\n";
-
-                foreach ($group as $plan) {
-                    $progress = $plan->getProgress();
-                    $md .= "- **[{$plan->slug}]** {$plan->title} - {$progress['percentage']}%\n";
-                }
-                $md .= "\n";
-            }
-
-            return $md;
-        }
-
-        $path = substr($uri, 9); // Remove "plans://"
-        $parts = explode('/', $path);
-        $slug = $parts[0];
-
-        $plan = AgentPlan::with('agentPhases')->where('slug', $slug)->first();
-        if (! $plan) {
-            return "Plan not found: {$slug}";
-        }
-
-        if (count($parts) === 3 && $parts[1] === 'phases') {
-            $phase = $plan->agentPhases()->where('order', (int) $parts[2])->first();
-            if (! $phase) {
-                return "Phase not found: {$parts[2]}";
-            }
-
-            $md = "# Phase {$phase->order}: {$phase->name}\n\n";
-            $md .= "**Status:** {$phase->getStatusIcon()} {$phase->status}\n\n";
-
-            if ($phase->description) {
-                $md .= "{$phase->description}\n\n";
-            }
-
-            $md .= "## Tasks\n\n";
-
-            foreach ($phase->tasks ?? [] as $task) {
-                $status = is_string($task) ? 'pending' : ($task['status'] ?? 'pending');
-                $name = is_string($task) ? $task : ($task['name'] ?? 'Unknown');
-                $icon = $status === 'completed' ? '✅' : '⬜';
-                $md .= "- {$icon} {$name}\n";
-            }
-
-            return $md;
-        }
-
-        if (count($parts) === 3 && $parts[1] === 'state') {
-            $state = $plan->states()->where('key', $parts[2])->first();
-            if (! $state) {
-                return "State key not found: {$parts[2]}";
-            }
-
-            return $state->getFormattedValue();
-        }
-
-        return $plan->toMarkdown();
-    }
-
-    /**
-     * Render session resources.
-     */
-    protected function resourceSessionContent(string $uri): string
-    {
-        $path = substr($uri, 11); // Remove "sessions://"
-        $parts = explode('/', $path);
-
-        if (count($parts) !== 2 || $parts[1] !== 'context') {
-            return "Resource not found: {$uri}";
-        }
-
-        $session = AgentSession::where('session_id', $parts[0])->first();
-        if (! $session) {
-            return "Session not found: {$parts[0]}";
-        }
-
-        $md = "# Session: {$session->session_id}\n\n";
-        $md .= "**Agent:** {$session->agent_type}\n";
-        $md .= "**Status:** {$session->status}\n";
-        $md .= "**Duration:** {$session->getDurationFormatted()}\n\n";
-
-        if ($session->plan) {
-            $md .= "## Plan\n\n";
-            $md .= "**{$session->plan->title}** ({$session->plan->slug})\n\n";
-        }
-
-        $context = $session->getHandoffContext();
-        if (! empty($context['summary'])) {
-            $md .= "## Summary\n\n{$context['summary']}\n\n";
-        }
-        if (! empty($context['next_steps'])) {
-            $md .= "## Next Steps\n\n";
-            foreach ((array) $context['next_steps'] as $step) {
-                $md .= "- {$step}\n";
-            }
-            $md .= "\n";
-        }
-        if (! empty($context['blockers'])) {
-            $md .= "## Blockers\n\n";
-            foreach ((array) $context['blockers'] as $blocker) {
-                $md .= "- {$blocker}\n";
-            }
-            $md .= "\n";
-        }
-
-        return $md;
-    }
-
-    /**
      * Render content resources.
      */
     protected function resourceContentItem(string $uri): string
@@ -383,7 +269,7 @@ class McpApiController extends Controller
         $path = substr($uri, 10); // Remove "content://"
         $parts = explode('/', $path, 2);
         if (count($parts) < 2) {
-            return "Invalid URI format. Expected: content://{workspace}/{slug}";
+            return 'Invalid URI format. Expected: content://{workspace}/{slug}';
         }
 
         [$workspaceSlug, $contentSlug] = $parts;
@@ -493,6 +379,27 @@ class McpApiController extends Controller
     }
 
     /**
+     * Resolve the bound agent resource provider, if the agent module supplies one.
+     *
+     * Absent when this package is installed without dappcore/agent, which is a
+     * legitimate deployment — the protocol surface stands on its own and the
+     * agent resources are an optional extension to it.
+     *
+     * @example
+     * $provider = $this->agentResourceProvider();
+     */
+    protected function agentResourceProvider(): ?AgentResourceProvider
+    {
+        if (! app()->bound(AgentResourceProvider::class)) {
+            return null;
+        }
+
+        $provider = app(AgentResourceProvider::class);
+
+        return $provider instanceof AgentResourceProvider ? $provider : null;
+    }
+
+    /**
      * Execute a tool via the in-process AgentToolRegistry.
      *
      * Tools are registered at boot via the McpToolsRegistering lifecycle event.
@@ -502,10 +409,10 @@ class McpApiController extends Controller
      */
     protected function executeTool(string $tool, array $arguments, ?ApiKey $apiKey): mixed
     {
-        $registryClass = \Core\Mod\Agentic\Services\AgentToolRegistry::class;
+        $registryClass = AgentToolRegistry::class;
 
         if (! app()->bound($registryClass)) {
-            throw new \RuntimeException("AgentToolRegistry not available — is the agentic module installed?");
+            throw new \RuntimeException('AgentToolRegistry not available — is the agentic module installed?');
         }
 
         $registry = app($registryClass);
