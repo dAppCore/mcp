@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

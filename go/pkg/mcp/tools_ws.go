@@ -7,8 +7,8 @@ import (
 	"net"
 	"net/http"
 
-	core "dappco.re/go"
-	"dappco.re/go/ws"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-ws/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

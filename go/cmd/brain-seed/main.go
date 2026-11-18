@@ -18,8 +18,8 @@ import (
 	"flag"
 	"regexp"
 
-	core "dappco.re/go"
-	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
+	core "github.com/dappcore/go"
+	brainclient "github.com/dappcore/mcp/go/pkg/mcp/brain/client"
 )
 
 const seedDivider = "======================================================="

@@ -1,7 +1,7 @@
 package client
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // moved AX-7 triplet TestCoreioCompat_CoreFS_Stat_Good

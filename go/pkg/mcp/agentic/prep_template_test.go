@@ -5,7 +5,7 @@ package agentic
 import (
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestPrep_writePromptTemplate_Good_KnownTemplates(t *testing.T) {

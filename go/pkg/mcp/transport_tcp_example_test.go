@@ -1,6 +1,6 @@
 package mcp
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 type Transport = connTransport
 type Connection = connConnection

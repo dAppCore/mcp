@@ -8,7 +8,7 @@ import (
 	"net"
 	"syscall"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"golang.org/x/sys/unix"
 )
 

@@ -5,7 +5,7 @@ package mcp
 import (
 	"net/http"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/gin-gonic/gin"
 )
 

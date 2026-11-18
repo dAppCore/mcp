@@ -1,11 +1,11 @@
-module dappco.re/go/mcp
+module github.com/dappcore/mcp/go
 
 go 1.26.2
 
 require (
-	dappco.re/go/io v0.15.3
-	dappco.re/go/process v0.16.1
-	dappco.re/go/ws v0.7.1
+	github.com/dappcore/go-io/go v0.16.0
+	github.com/dappcore/go-process/go v0.17.0
+	github.com/dappcore/go-ws/go v0.8.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.7.0
@@ -13,8 +13,8 @@ require (
 )
 
 require (
-	dappco.re/go/log v0.13.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dappcore/go-log/go v0.14.0 // indirect
 	github.com/redis/go-redis/v9 v9.21.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
@@ -23,11 +23,11 @@ require (
 )
 
 require (
-	dappco.re/go v0.12.0
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
+	github.com/dappcore/go v0.14.0
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
 	github.com/gin-contrib/sse v1.1.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect

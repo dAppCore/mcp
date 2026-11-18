@@ -1,6 +1,6 @@
 package agentic
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleIssueDispatchInput() {
 	var _ IssueDispatchInput

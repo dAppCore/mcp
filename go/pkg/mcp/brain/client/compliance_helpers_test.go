@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // moved helpers from ax7_triplets_test.go

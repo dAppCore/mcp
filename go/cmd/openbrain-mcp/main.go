@@ -8,9 +8,9 @@ import (
 	"flag"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/mcp/pkg/mcp/brain"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/mcp/go/pkg/mcp"
+	"github.com/dappcore/mcp/go/pkg/mcp/brain"
 )
 
 const defaultBrainURL = "http://127.0.0.1:8000/v1/brain"

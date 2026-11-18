@@ -8,11 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	core "dappco.re/go"
-	mcp "dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/mcp/pkg/mcp/agentic"
-	"dappco.re/go/mcp/pkg/mcp/brain"
-	"dappco.re/go/mcp/pkg/mcp/ide"
+	core "github.com/dappcore/go"
+	mcp "github.com/dappcore/mcp/go/pkg/mcp"
+	"github.com/dappcore/mcp/go/pkg/mcp/agentic"
+	"github.com/dappcore/mcp/go/pkg/mcp/brain"
+	"github.com/dappcore/mcp/go/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"
 )
 

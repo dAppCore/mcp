@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"dappco.re/go/mcp/pkg/mcp/ide"
+	"github.com/dappcore/mcp/go/pkg/mcp/ide"
 	"github.com/gin-gonic/gin"
 )
 

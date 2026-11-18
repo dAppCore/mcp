@@ -12,9 +12,9 @@ import (
 	"slices"
 	"sync"
 
-	core "dappco.re/go"
-	"dappco.re/go/process"
-	"dappco.re/go/ws"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-process/go"
+	"github.com/dappcore/go-ws/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

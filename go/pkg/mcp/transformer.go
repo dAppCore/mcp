@@ -5,7 +5,7 @@ package mcp
 import (
 	"mime"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/goccy/go-json"
 )
 

@@ -9,7 +9,7 @@ import (
 	"net"
 	"sync"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

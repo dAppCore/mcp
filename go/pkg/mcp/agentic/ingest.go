@@ -6,8 +6,8 @@ import (
 	"context"
 	"net/http"
 
-	core "dappco.re/go"
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "github.com/dappcore/go"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
 )
 
 // ingestFindings reads the agent output log and creates issues via the API

@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/process"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-process/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

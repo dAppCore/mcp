@@ -3,7 +3,7 @@
 package mcp
 
 import (
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/goccy/go-json"
 )
 

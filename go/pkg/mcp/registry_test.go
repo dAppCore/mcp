@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/process"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-process/go"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

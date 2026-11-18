@@ -5,7 +5,7 @@ package brain
 import (
 	"context"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
 )
 
 func bridgePayload(data any, keys ...string) map[string]any {

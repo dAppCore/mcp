@@ -2,7 +2,7 @@
 
 package mcp
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func resultError(result core.Result) *core.Err {
 	if result.OK {

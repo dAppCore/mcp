@@ -3,7 +3,7 @@ package mcp
 import (
 	"testing"
 
-	"dappco.re/go/ws"
+	"github.com/dappcore/go-ws/go"
 )
 
 // TestWSToolsRegistered_Good verifies that WebSocket tools are registered when hub is available.

@@ -6,7 +6,7 @@ contains command entrypoints under `cmd/`, transport and tool registration in
 shim packages under `internal/shims` that adapt core services such as process,
 websocket, webview, API, RAG, and metrics.
 
-Work should follow the `dappco.re/go` core wrappers that the rest of this
+Work should follow the `github.com/dappcore/go` core wrappers that the rest of this
 module uses. File operations, path handling, JSON, buffers, formatted output,
 environment access, and assertions should come from core where a wrapper
 exists. Tests live beside the source file they exercise, and public behaviour is

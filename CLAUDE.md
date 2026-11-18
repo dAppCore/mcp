@@ -10,7 +10,7 @@ Repo layout has become language-segmented:
 
 ```text
 core/mcp/
-├── go/      — Go module `dappco.re/go/mcp`
+├── go/      — Go module `github.com/dappcore/mcp/go`
 ├── php/     — PHP Laravel package (formerly `src/`)
 ├── docs/    — shared docs
 └── composer.json

@@ -1,6 +1,6 @@
 package client
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 type CoreFS = localCoreFS
 

@@ -1,8 +1,8 @@
 package brain
 
 import (
-	core "dappco.re/go"
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	core "github.com/dappcore/go"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
 )
 
 // moved helpers from ax7_triplets_test.go

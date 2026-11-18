@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	core "dappco.re/go"
-	"dappco.re/go/mcp/pkg/mcp"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/mcp/go/pkg/mcp"
 )
 
 func TestCmdMCP_RunServe_Good_ShutsDownService(t *testing.T) {
