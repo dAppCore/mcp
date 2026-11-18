@@ -75,9 +75,9 @@ func TestMcp_New_Good_RegistersBuiltInTools(t *testing.T) {
 	for _, name := range []string{
 		"metrics_record",
 		"metrics_query",
-		"rag_query",
-		"rag_ingest",
-		"rag_collections",
+		// "rag_query", // RAG disabled
+		// "rag_ingest", // RAG disabled
+		// "rag_collections", // RAG disabled
 		"webview_render",
 		"webview_update",
 	} {
