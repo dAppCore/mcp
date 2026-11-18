@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/ws"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
+	"github.com/dappcore/go-ws/go"
 )
 
 // --- Helpers ---

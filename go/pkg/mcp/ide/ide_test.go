@@ -3,7 +3,7 @@ package ide
 import (
 	"context"
 
-	"dappco.re/go/ws"
+	"github.com/dappcore/go-ws/go"
 )
 
 // moved AX-7 triplet TestIde_New_Good

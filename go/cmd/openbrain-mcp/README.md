@@ -5,7 +5,7 @@
 Install:
 
 ```sh
-go install dappco.re/go/mcp/cmd/openbrain-mcp@latest
+go install github.com/dappcore/mcp/go/cmd/openbrain-mcp@latest
 ```
 
 Add it to Claude Code:

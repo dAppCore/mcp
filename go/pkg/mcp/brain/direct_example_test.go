@@ -1,6 +1,6 @@
 package brain
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleDirectSubsystem_OnChannel() {
 	var subject DirectSubsystem

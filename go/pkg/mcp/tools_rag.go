@@ -9,8 +9,8 @@ package mcp
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/rag"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-rag/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

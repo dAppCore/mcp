@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go"
-	coremcp "dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/ws"
+	core "github.com/dappcore/go"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
+	"github.com/dappcore/go-ws/go"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge

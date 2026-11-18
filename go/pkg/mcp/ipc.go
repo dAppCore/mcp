@@ -5,7 +5,7 @@ package mcp
 import (
 	"context"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func (s *Service) handleChannelPushIPC(ctx context.Context, ev ChannelPush) core.Result {

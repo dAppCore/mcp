@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/process"
-	"dappco.re/go/ws"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-process/go"
+	"github.com/dappcore/go-ws/go"
 )
 
 func TestRegister_Good_WiresOptionalServices(t *testing.T) {

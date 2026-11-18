@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestClientRemember_Good_SendsOrgAndAuth(t *testing.T) {

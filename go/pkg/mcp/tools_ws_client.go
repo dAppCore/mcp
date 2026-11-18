@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/gorilla/websocket"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

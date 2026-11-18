@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	. "dappco.re/go"
-	coremcp "dappco.re/go/mcp/pkg/mcp"
+	. "github.com/dappcore/go"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
 )
 
 type recordingNotifier struct {

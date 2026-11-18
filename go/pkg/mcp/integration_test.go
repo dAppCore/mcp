@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestIntegration_FileTools(t *core.T) {

@@ -7,7 +7,7 @@ import (
 	"net"
 	"syscall"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // unixSocketDirMode is the permission applied to the parent directory of an MCP

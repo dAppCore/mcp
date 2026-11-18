@@ -7,9 +7,9 @@ package brain
 import (
 	"context"
 
-	core "dappco.re/go"
-	coremcp "dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/mcp/pkg/mcp/ide"
+	core "github.com/dappcore/go"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
+	"github.com/dappcore/mcp/go/pkg/mcp/ide"
 )
 
 // errBridgeNotAvailable is returned when a tool requires the Laravel bridge

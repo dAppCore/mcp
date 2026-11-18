@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	coremcp "dappco.re/go/mcp/pkg/mcp"
-	brainclient "dappco.re/go/mcp/pkg/mcp/brain/client"
+	coremcp "github.com/dappcore/mcp/go/pkg/mcp"
+	brainclient "github.com/dappcore/mcp/go/pkg/mcp/brain/client"
 )
 
 const testInsecureBrainEnv = "CORE_BRAIN_INSECURE"

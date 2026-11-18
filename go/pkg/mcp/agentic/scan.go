@@ -7,7 +7,7 @@ import (
 	"github.com/goccy/go-json"
 	"net/http"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

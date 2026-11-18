@@ -5,7 +5,7 @@ package agentic
 import (
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // writeAtomic writes content to path by staging it in a temporary file and

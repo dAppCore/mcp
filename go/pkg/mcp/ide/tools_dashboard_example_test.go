@@ -1,6 +1,6 @@
 package ide
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleDashboardOverviewInput() {
 	var _ DashboardOverviewInput

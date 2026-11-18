@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/mcp/pkg/mcp/ide"
-	"dappco.re/go/ws"
+	"github.com/dappcore/mcp/go/pkg/mcp/ide"
+	"github.com/dappcore/go-ws/go"
 )
 
 type recordingNotifier struct {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // jsonRPCRequest builds a raw JSON-RPC 2.0 request string with newline delimiter.

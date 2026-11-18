@@ -1,7 +1,7 @@
 package agentic
 
 import (
-	. "dappco.re/go"
+	. "github.com/dappcore/go"
 )
 
 // moved AX-7 triplet TestCoreioCompat_CoreFS_Read_Good

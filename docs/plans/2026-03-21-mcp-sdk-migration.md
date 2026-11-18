@@ -6,7 +6,7 @@
 
 **Architecture:** Refactor `mcp.Service` from functional options (`Option func(*Service) error`) to an `Options{}` struct. Add notification broadcasting by iterating the official SDK's `Server.Sessions()` (refactoring TCP/Unix transports to use `Server.Connect()` so all sessions are visible). Register `claude/channel` in `ServerCapabilities.Experimental` so clients can discover push-event support.
 
-**Tech Stack:** Go 1.26, `github.com/modelcontextprotocol/go-sdk` v1.4.1, `dappco.re/go/core` v0.4.7
+**Tech Stack:** Go 1.26, `github.com/modelcontextprotocol/go-sdk` v1.4.1, `github.com/dappcore/go` v0.4.7
 
 ---
 
@@ -37,7 +37,7 @@ Already built:
 - `BridgeToAPI` REST bridge (`bridge.go`)
 - 7 tool groups: files, language, metrics, process, rag, webview, ws
 - 3 subsystems: brain, ide, agentic
-- Import migration to `dappco.re/go/core` already committed (4c6c9d7)
+- Import migration to `github.com/dappcore/go` already committed (4c6c9d7)
 
 ## Consumer Impact
 

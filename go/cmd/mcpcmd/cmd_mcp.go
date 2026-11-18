@@ -14,10 +14,10 @@ package mcpcmd
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/mcp/pkg/mcp"
-	"dappco.re/go/mcp/pkg/mcp/agentic"
-	"dappco.re/go/mcp/pkg/mcp/brain"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/mcp/go/pkg/mcp"
+	"github.com/dappcore/mcp/go/pkg/mcp/agentic"
+	"github.com/dappcore/mcp/go/pkg/mcp/brain"
 )
 
 // newMCPService is the service constructor, indirected for tests.

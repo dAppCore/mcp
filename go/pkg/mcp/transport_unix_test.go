@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // TestServeUnix_Good_SocketPerms asserts S1.4: the socket file is narrowed to

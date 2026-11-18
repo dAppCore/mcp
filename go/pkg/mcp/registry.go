@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
