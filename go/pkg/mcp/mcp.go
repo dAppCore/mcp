@@ -312,7 +312,7 @@ func (s *Service) registerTools(server *mcp.Server) {
 
 	// Additional built-in tool groups.
 	s.registerMetricsTools(server)
-	s.registerRAGTools(server)
+	// s.registerRAGTools(server) // RAG disabled: see tools_rag.go
 	s.registerProcessTools(server)
 	s.registerWebviewTools(server)
 	s.registerWSTools(server)

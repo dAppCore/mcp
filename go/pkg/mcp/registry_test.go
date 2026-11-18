@@ -77,11 +77,11 @@ func TestToolRegistry_Good_ToolCount(t *testing.T) {
 	//                 file_exists, file_edit, dir_list, dir_create
 	//   language (2): lang_detect, lang_list
 	//   metrics (2):  metrics_record, metrics_query
-	//   rag (6):      rag_query, rag_search, rag_ingest, rag_index,
-	//                 rag_retrieve, rag_collections
+	//   rag (0):      disabled (see tools_rag.go); was rag_query, rag_search,
+	//                 rag_ingest, rag_index, rag_retrieve, rag_collections
 	//   webview (2):  webview_render, webview_update
 	//   ws (3):       ws_connect, ws_send, ws_close
-	const expectedCount = 23
+	const expectedCount = 17 // 23 with the 6 rag_* tools, now disabled
 	if len(tools) != expectedCount {
 		t.Errorf("expected %d tools, got %d", expectedCount, len(tools))
 		for _, tr := range tools {
@@ -99,7 +99,7 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 	fileTools := []string{"file_read", "file_write", "file_delete", "file_rename", "file_exists", "file_edit", "dir_list", "dir_create"}
 	langTools := []string{"lang_detect", "lang_list"}
 	metricsTools := []string{"metrics_record", "metrics_query"}
-	ragTools := []string{"rag_query", "rag_search", "rag_ingest", "rag_index", "rag_retrieve", "rag_collections"}
+	// ragTools: RAG disabled (see tools_rag.go), so no rag_* tools are registered.
 	webviewTools := []string{"webview_render", "webview_update"}
 
 	byName := make(map[string]ToolRecord)
@@ -140,16 +140,16 @@ func TestToolRegistry_Good_GroupAssignment(t *testing.T) {
 		}
 	}
 
-	for _, name := range ragTools {
-		tr, ok := byName[name]
-		if !ok {
-			t.Errorf("tool %s not found in registry", name)
-			continue
-		}
-		if tr.Group != "rag" {
-			t.Errorf("tool %s: expected group 'rag', got %q", name, tr.Group)
-		}
-	}
+	// for _, name := range ragTools {
+	// 		tr, ok := byName[name]
+	// 		if !ok {
+	// 			t.Errorf("tool %s not found in registry", name)
+	// 			continue
+	// 		}
+	// 		if tr.Group != "rag" {
+	// 			t.Errorf("tool %s: expected group 'rag', got %q", name, tr.Group)
+	// 		}
+	// 	}
 
 	for _, name := range webviewTools {
 		tr, ok := byName[name]

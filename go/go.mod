@@ -5,7 +5,6 @@ go 1.26.2
 require (
 	dappco.re/go/io v0.15.3
 	dappco.re/go/process v0.16.1
-	dappco.re/go/rag v0.15.1
 	dappco.re/go/ws v0.7.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
@@ -15,22 +14,12 @@ require (
 
 require (
 	dappco.re/go/log v0.13.1 // indirect
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // indirect
-	github.com/mailru/easyjson v0.9.2 // indirect
-	github.com/ollama/ollama v0.32.5 // indirect
-	github.com/qdrant/go-client v1.18.3 // indirect
 	github.com/redis/go-redis/v9 v9.21.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260729162451-8efbd57d26e0 // indirect
-	google.golang.org/grpc v1.83.0 // indirect
 )
 
 require (
